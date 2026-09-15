@@ -24,7 +24,7 @@ student-information-system/
 ├── deploy/
 │   └── docker-compose.yml # Local container orchestration
 ├── docs/
-│   ├── architecture/      # Architecture decisions and diagrams
+│   ├── architecture/      # Architecture decisions, diagrams, and logging standard
 │   ├── api/               # API documentation
 │   └── database/          # Data model and database documentation
 ├── .github/
