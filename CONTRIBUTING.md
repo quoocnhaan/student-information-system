@@ -54,3 +54,8 @@ area being changed.
 - Describe the change and how it was tested.
 - Resolve review comments and ensure required checks pass before merging.
 
+## API logging
+
+Every API request handled by a service must produce a structured log entry. Use
+the logging standard in [docs/architecture/logging.md](docs/architecture/logging.md).
+Never log passwords, access tokens, session cookies, or sensitive personal data.
