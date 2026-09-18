@@ -9,13 +9,30 @@ from fastapi.responses import JSONResponse, Response
 
 from app.api.v1.router import router as v1_router
 from app.config import get_settings
+from app.infrastructure.minio import MinioObjectStore
+from app.infrastructure.surreal import SurrealDatabase
 from app.observability.logging import configure_logging, get_logger
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     configure_logging()
-    yield
+    settings = get_settings()
+    database: SurrealDatabase | None = None
+    app.state.object_store = MinioObjectStore(settings)
+
+    if settings.surreal_enabled:
+        database = SurrealDatabase(settings)
+        await database.connect()
+        if settings.surreal_apply_schema_on_startup:
+            await database.apply_schema()
+        app.state.database = database
+
+    try:
+        yield
+    finally:
+        if database is not None:
+            await database.close()
 
 
 def create_app() -> FastAPI:

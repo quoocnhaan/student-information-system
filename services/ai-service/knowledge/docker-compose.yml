@@ -1,0 +1,119 @@
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:v3.2.4
+    # Local-only: root can initialise the Docker named volume at /data.
+    user: "0:0"
+    command: start --user ${SURREAL_USER:?Set SURREAL_USER in .env} --pass ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env} rocksdb:///data/database.db
+    ports:
+      - "8001:8000"
+    volumes:
+      - surreal_data:/data
+
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: quay.io/minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_started
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
+    entrypoint: >-
+      /bin/sh -c "until mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\"; do sleep 1; done;
+      mc mb --ignore-existing local/$$MINIO_BUCKET"
+
+  knowledge-api:
+    build:
+      context: .
+    environment:
+      KNOWLEDGE_ENVIRONMENT: development
+      KNOWLEDGE_SURREAL_ENABLED: "true"
+      KNOWLEDGE_SURREAL_APPLY_SCHEMA_ON_STARTUP: "true"
+      SURREAL_URL: ws://surrealdb:8000
+      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
+      MINIO_SECURE: "false"
+      # Docker reaches the LM Studio server running on the Windows host here.
+      LMSTUDIO_BASE_URL: http://host.docker.internal:1234/v1
+      LMSTUDIO_OCR_MODEL: ${LMSTUDIO_OCR_MODEL:-lightonocr-2-1b}
+      LMSTUDIO_CHAT_MODEL: ${LMSTUDIO_CHAT_MODEL:-qwen2.5-14b-instruct}
+      LMSTUDIO_EMBEDDING_MODEL: ${LMSTUDIO_EMBEDDING_MODEL:-text-embedding-nomic-embed-text-v1.5}
+      KNOWLEDGE_OCR_MAX_PAGES: ${KNOWLEDGE_OCR_MAX_PAGES:-100}
+      KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS: ${KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS:-4096}
+      KNOWLEDGE_OCR_TIMEOUT_SECONDS: ${KNOWLEDGE_OCR_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_WORKER_LEASE_SECONDS: ${KNOWLEDGE_WORKER_LEASE_SECONDS:-180}
+      KNOWLEDGE_WORKER_HEARTBEAT_SECONDS: ${KNOWLEDGE_WORKER_HEARTBEAT_SECONDS:-30}
+      KNOWLEDGE_JOB_MAX_ATTEMPTS: ${KNOWLEDGE_JOB_MAX_ATTEMPTS:-3}
+      KNOWLEDGE_JOB_RETRY_BASE_SECONDS: ${KNOWLEDGE_JOB_RETRY_BASE_SECONDS:-10}
+      KNOWLEDGE_JOB_RETRY_MAX_SECONDS: ${KNOWLEDGE_JOB_RETRY_MAX_SECONDS:-300}
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  knowledge-worker:
+    build:
+      context: .
+    command: python -m app.worker
+    environment:
+      KNOWLEDGE_ENVIRONMENT: development
+      KNOWLEDGE_SURREAL_ENABLED: "true"
+      KNOWLEDGE_SURREAL_APPLY_SCHEMA_ON_STARTUP: "true"
+      SURREAL_URL: ws://surrealdb:8000
+      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
+      MINIO_SECURE: "false"
+      LMSTUDIO_BASE_URL: http://host.docker.internal:1234/v1
+      LMSTUDIO_OCR_MODEL: ${LMSTUDIO_OCR_MODEL:-lightonocr-2-1b}
+      KNOWLEDGE_OCR_MAX_PAGES: ${KNOWLEDGE_OCR_MAX_PAGES:-100}
+      KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS: ${KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS:-4096}
+      KNOWLEDGE_OCR_TIMEOUT_SECONDS: ${KNOWLEDGE_OCR_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_WORKER_LEASE_SECONDS: ${KNOWLEDGE_WORKER_LEASE_SECONDS:-180}
+      KNOWLEDGE_WORKER_HEARTBEAT_SECONDS: ${KNOWLEDGE_WORKER_HEARTBEAT_SECONDS:-30}
+      KNOWLEDGE_JOB_MAX_ATTEMPTS: ${KNOWLEDGE_JOB_MAX_ATTEMPTS:-3}
+      KNOWLEDGE_JOB_RETRY_BASE_SECONDS: ${KNOWLEDGE_JOB_RETRY_BASE_SECONDS:-10}
+      KNOWLEDGE_JOB_RETRY_MAX_SECONDS: ${KNOWLEDGE_JOB_RETRY_MAX_SECONDS:-300}
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stop_grace_period: 5m
+
+volumes:
+  surreal_data:
+  minio_data:
