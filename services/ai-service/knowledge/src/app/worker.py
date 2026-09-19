@@ -122,9 +122,9 @@ async def _handle_job_failure(
     if final_job["status"] == "failed":
         document_id = _record_id(job["document_id"])
         try:
-            await database.block_document(document_id)
+            await database.fail_document(document_id)
         except SurrealDatabaseError:
-            logger.exception("failed_document_not_blocked", extra={"jobId": job_id})
+            logger.exception("failed_document_not_marked", extra={"jobId": job_id})
     else:
         logger.info(
             "job_retry_scheduled",

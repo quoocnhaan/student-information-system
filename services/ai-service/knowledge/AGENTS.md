@@ -15,7 +15,7 @@ Treat multi-step document ingestion as a durable job.
 - Store `status`, `step`, `progress`, page counts, and a safe error message on the
   job so the frontend can poll it through `GET /v1/jobs/{job_id}`.
 - Keep document status aligned with the job: `processing` while active, `review`
-  after OCR draft creation, and `blocked` when processing fails.
+  after OCR draft creation, and `failed` when processing fails.
 - Make a failed job retryable from its original PDF in MinIO; do not require the
   client to upload the file again.
 

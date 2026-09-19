@@ -18,8 +18,13 @@ DEFINE FIELD IF NOT EXISTS source ON TABLE document TYPE object;
 DEFINE FIELD IF NOT EXISTS source.object_key ON TABLE document TYPE string;
 DEFINE FIELD IF NOT EXISTS source.original_filename ON TABLE document TYPE string;
 DEFINE FIELD IF NOT EXISTS source.mime_type ON TABLE document TYPE string;
-DEFINE FIELD IF NOT EXISTS process_status ON TABLE document TYPE string
-  ASSERT $value INSIDE ['processing', 'review', 'indexed', 'blocked'];
+-- Keep this transition so existing databases can migrate from the old terminal
+-- status before the final assertion removes it.
+DEFINE FIELD OVERWRITE process_status ON TABLE document TYPE string
+  ASSERT $value INSIDE ['processing', 'review', 'indexed', 'blocked', 'failed'];
+UPDATE document SET process_status = 'failed' WHERE process_status = 'blocked';
+DEFINE FIELD OVERWRITE process_status ON TABLE document TYPE string
+  ASSERT $value INSIDE ['processing', 'review', 'indexed', 'failed'];
 DEFINE FIELD IF NOT EXISTS page_count ON TABLE document TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS status ON TABLE document TYPE string
   ASSERT $value INSIDE ['active', 'inactive'];

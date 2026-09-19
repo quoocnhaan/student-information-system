@@ -251,15 +251,15 @@ class SurrealDatabase:
         except Exception as error:
             raise SurrealDatabaseError("Unable to update document after OCR") from error
 
-    async def block_document(self, record_id: str) -> None:
-        """Mark the document unavailable when its durable job has failed."""
+    async def fail_document(self, record_id: str) -> None:
+        """Mark the document as failed when its durable job has failed."""
 
         try:
             await self.client.query(
-                f"UPDATE document:{record_id} SET process_status = 'blocked';"
+                f"UPDATE document:{record_id} SET process_status = 'failed';"
             )
         except Exception as error:
-            raise SurrealDatabaseError("Unable to block failed document") from error
+            raise SurrealDatabaseError("Unable to mark failed document") from error
 
     async def requeue_expired_jobs(self) -> None:
         """Recover only abandoned claims, never work owned by a live worker."""

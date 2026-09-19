@@ -17,7 +17,7 @@ class DocumentProcessStatus(StrEnum):
     PROCESSING = "processing"
     REVIEW = "review"
     INDEXED = "indexed"
-    BLOCKED = "blocked"
+    FAILED = "failed"
 
 
 class RecordStatus(StrEnum):

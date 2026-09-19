@@ -39,7 +39,7 @@
 
 `program_scope.type`: `all | non_language_major | language_major | specific_programs`
 
-`process_status`: `processing | review | indexed | blocked`
+`process_status`: `processing | review | indexed | failed`
 
 `status`: `active | inactive`
 
