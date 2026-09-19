@@ -26,7 +26,8 @@ student-information-system/
 ├── docs/
 │   ├── architecture/      # Architecture decisions, diagrams, and logging standard
 │   ├── api/               # API documentation
-│   └── database/          # Data model and database documentation
+│   ├── database/          # Data model and database documentation
+│   └── planning/          # Mandatory delivery plan and sprint backlog
 ├── .github/
 │   └── workflows/         # GitHub Actions workflows
 ├── .env.example           # Safe environment-variable template
