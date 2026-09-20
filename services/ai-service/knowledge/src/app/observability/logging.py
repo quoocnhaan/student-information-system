@@ -29,6 +29,11 @@ class JsonFormatter(logging.Formatter):
             "jobId",
             "jobType",
             "retryAt",
+            "recoveredCount",
+            "repairedCount",
+            "eventId",
+            "eventType",
+            "droppedClients",
         ):
             value = getattr(record, field, None)
             if value is not None:

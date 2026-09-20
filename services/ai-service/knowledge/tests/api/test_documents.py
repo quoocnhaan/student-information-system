@@ -22,7 +22,9 @@ class FakeDatabase:
         self.documents: dict[str, dict[str, object]] = {}
         self.jobs: dict[str, dict[str, object]] = {}
 
-    async def create_document(self, record_id: str, document: dict[str, object]) -> None:
+    async def create_document(
+        self, record_id: str, document: dict[str, object]
+    ) -> None:
         self.documents[record_id] = document
 
     async def create_job(
@@ -40,6 +42,16 @@ class FakeDatabase:
             "processed_pages": 0,
             "error": None,
         }
+
+    async def create_document_with_job(
+        self,
+        document_record_id: str,
+        document: dict[str, object],
+        job_record_id: str,
+        job_type: str,
+    ) -> None:
+        await self.create_document(document_record_id, document)
+        await self.create_job(job_record_id, document_record_id, job_type)
 
     async def get_job(self, record_id: str) -> dict[str, object] | None:
         return self.jobs.get(record_id)
@@ -91,3 +103,12 @@ def test_upload_rejects_non_pdf_content() -> None:
         )
 
     assert response.status_code == 415
+
+
+def test_job_status_rejects_non_generated_record_ids() -> None:
+    client, _, _ = create_upload_client()
+
+    with client:
+        response = client.get("/v1/jobs/not-a-generated-job-id")
+
+    assert response.status_code == 404

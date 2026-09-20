@@ -2,18 +2,33 @@
 
 import asyncio
 import random
+import re
 import signal
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Any, Mapping
+from time import perf_counter
+from typing import Any
 
 import httpx
+from prometheus_client import start_http_server
 
 from app.application.ocr_jobs import OcrJobProcessor, PermanentJobError
 from app.config import Settings, get_settings
 from app.infrastructure.minio import MinioObjectStore
 from app.infrastructure.ocr import LmStudioOcr, OcrError
+from app.infrastructure.rabbitmq import RabbitMqBroker
 from app.infrastructure.surreal import SurrealDatabase, SurrealDatabaseError
 from app.observability.logging import configure_logging, get_logger
+from app.observability.metrics import (
+    EXPIRED_LEASES,
+    JOB_CLAIMS,
+    JOB_RETRIES,
+    OCR_DOCUMENT_SECONDS,
+    RABBIT_REDELIVERIES,
+    TERMINAL_FAILURES,
+)
+
+_JOB_RECORD_ID = re.compile(r"job_[0-9a-f]{32}")
 
 
 async def run_worker() -> None:
@@ -22,6 +37,8 @@ async def run_worker() -> None:
     configure_logging()
     settings = get_settings()
     logger = get_logger()
+    if settings.metrics_port is not None:
+        start_http_server(settings.metrics_port)
     shutdown = asyncio.Event()
     _install_shutdown_handlers(shutdown)
 
@@ -36,24 +53,99 @@ async def run_worker() -> None:
         )
     }
 
+    broker: RabbitMqBroker | None = None
+    processing_lock = asyncio.Lock()
+
+    async def consume_job(job_id: str, redelivered: bool, message: Any) -> None:
+        if shutdown.is_set():
+            await message.nack(requeue=True)
+            return
+        if redelivered:
+            RABBIT_REDELIVERIES.inc()
+        record_id = job_id.removeprefix("job:")
+        if _JOB_RECORD_ID.fullmatch(record_id) is None:
+            await message.reject(requeue=False)
+            return
+        async with processing_lock:
+            job = await database.claim_job(
+                record_id, settings.worker_id, settings.worker_lease_seconds
+            )
+            if job is None:
+                JOB_CLAIMS.labels(result="ignored").inc()
+                await message.ack()
+                return
+            JOB_CLAIMS.labels(result="claimed").inc()
+            # The durable claim decision is the acknowledgment boundary.
+            await message.ack()
+            await _process_claimed_job(database, processors, job, settings, logger)
+
     try:
+        last_sweep = 0.0
         while not shutdown.is_set():
+            now = asyncio.get_running_loop().time()
+            if now - last_sweep >= settings.recovery_sweep_seconds:
+                recovered = await database.requeue_expired_jobs()
+                if recovered:
+                    EXPIRED_LEASES.inc(recovered)
+                    logger.warning(
+                        "expired_job_leases_requeued",
+                        extra={"recoveredCount": recovered},
+                    )
+                last_sweep = now
+                if broker is not None and broker.is_closed:
+                    await broker.close()
+                    broker = None
+                if settings.rabbitmq_enabled and broker is None:
+                    candidate = RabbitMqBroker(settings)
+                    try:
+                        await candidate.connect()
+                        await candidate.consume_jobs(consume_job)
+                        broker = candidate
+                        logger.info("rabbitmq_consumer_connected")
+                    except Exception:
+                        logger.exception("rabbitmq_consumer_connect_failed")
+                        await candidate.close()
+                if broker is not None:
+                    try:
+                        await broker.refresh_queue_depth()
+                    except Exception:
+                        logger.exception("queue_depth_refresh_failed")
+
+            should_poll = (
+                not settings.rabbitmq_enabled or settings.database_poll_fallback_enabled
+            )
+            if not should_poll or processing_lock.locked():
+                await _wait_for_shutdown(shutdown, 0.25)
+                continue
             try:
-                job = await database.claim_next_queued_job(
-                    settings.worker_id, settings.worker_lease_seconds
-                )
+                async with processing_lock:
+                    job = await database.claim_next_queued_job(
+                        settings.worker_id, settings.worker_lease_seconds
+                    )
+                    if job is not None:
+                        JOB_CLAIMS.labels(result="claimed_fallback").inc()
+                        await _process_claimed_job(
+                            database, processors, job, settings, logger
+                        )
             except SurrealDatabaseError:
                 logger.exception("job_claim_failed")
                 await _wait_for_shutdown(shutdown, 1)
                 continue
 
             if job is None:
-                await database.requeue_expired_jobs()
-                await _wait_for_shutdown(shutdown, 1)
-                continue
-
-            await _process_claimed_job(database, processors, job, settings, logger)
+                delay = (
+                    settings.database_poll_fallback_seconds
+                    if settings.rabbitmq_enabled
+                    else 1
+                )
+                await _wait_for_shutdown(shutdown, delay)
     finally:
+        if broker is not None:
+            await broker.stop_consuming_jobs()
+        async with processing_lock:
+            pass
+        if broker is not None:
+            await broker.close()
         await database.close()
 
 
@@ -73,6 +165,7 @@ async def _process_claimed_job(
     lease_task = asyncio.create_task(
         _maintain_lease(database, job_id, settings, lease_stop, logger)
     )
+    started_at = perf_counter()
 
     try:
         if processor is None:
@@ -86,6 +179,7 @@ async def _process_claimed_job(
     finally:
         lease_stop.set()
         await lease_task
+        OCR_DOCUMENT_SECONDS.observe(perf_counter() - started_at)
 
 
 async def _handle_job_failure(
@@ -120,12 +214,14 @@ async def _handle_job_failure(
         logger.error("job_failure_ownership_lost", extra={"jobId": job_id})
         return
     if final_job["status"] == "failed":
+        TERMINAL_FAILURES.inc()
         document_id = _record_id(job["document_id"])
         try:
             await database.fail_document(document_id)
         except SurrealDatabaseError:
             logger.exception("failed_document_not_marked", extra={"jobId": job_id})
     else:
+        JOB_RETRIES.inc()
         logger.info(
             "job_retry_scheduled",
             extra={"jobId": job_id, "retryAt": str(retry_at)},

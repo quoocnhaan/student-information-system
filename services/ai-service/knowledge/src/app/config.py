@@ -29,7 +29,9 @@ class Settings(BaseSettings):
     )
     surreal_namespace: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("SURREAL_NAMESPACE", "KNOWLEDGE_SURREAL_NAMESPACE"),
+        validation_alias=AliasChoices(
+            "SURREAL_NAMESPACE", "KNOWLEDGE_SURREAL_NAMESPACE"
+        ),
     )
     surreal_database: str | None = Field(
         default=None,
@@ -61,15 +63,21 @@ class Settings(BaseSettings):
     )
     lmstudio_base_url: str = Field(
         default="http://localhost:1234/v1",
-        validation_alias=AliasChoices("LMSTUDIO_BASE_URL", "KNOWLEDGE_LMSTUDIO_BASE_URL"),
+        validation_alias=AliasChoices(
+            "LMSTUDIO_BASE_URL", "KNOWLEDGE_LMSTUDIO_BASE_URL"
+        ),
     )
     lmstudio_ocr_model: str = Field(
         default="lightonocr-2-1b",
-        validation_alias=AliasChoices("LMSTUDIO_OCR_MODEL", "KNOWLEDGE_LMSTUDIO_OCR_MODEL"),
+        validation_alias=AliasChoices(
+            "LMSTUDIO_OCR_MODEL", "KNOWLEDGE_LMSTUDIO_OCR_MODEL"
+        ),
     )
     lmstudio_chat_model: str = Field(
         default="qwen2.5-14b-instruct",
-        validation_alias=AliasChoices("LMSTUDIO_CHAT_MODEL", "KNOWLEDGE_LMSTUDIO_CHAT_MODEL"),
+        validation_alias=AliasChoices(
+            "LMSTUDIO_CHAT_MODEL", "KNOWLEDGE_LMSTUDIO_CHAT_MODEL"
+        ),
     )
     lmstudio_embedding_model: str = Field(
         default="text-embedding-nomic-embed-text-v1.5",
@@ -89,6 +97,24 @@ class Settings(BaseSettings):
     job_max_attempts: int = Field(default=3, ge=1)
     job_retry_base_seconds: int = Field(default=10, ge=1)
     job_retry_max_seconds: int = Field(default=300, ge=1)
+    rabbitmq_enabled: bool = False
+    rabbitmq_url: str = Field(
+        default="amqp://guest:guest@localhost/",
+        validation_alias=AliasChoices("RABBITMQ_URL", "KNOWLEDGE_RABBITMQ_URL"),
+    )
+    rabbitmq_jobs_exchange: str = "knowledge.jobs"
+    rabbitmq_jobs_queue: str = "knowledge.jobs.ocr"
+    rabbitmq_status_exchange: str = "knowledge.status"
+    outbox_poll_seconds: float = Field(default=0.25, gt=0)
+    outbox_batch_size: int = Field(default=100, ge=1, le=1000)
+    recovery_sweep_seconds: float = Field(default=30.0, ge=1)
+    database_poll_fallback_enabled: bool = True
+    database_poll_fallback_seconds: float = Field(default=5.0, ge=0.1)
+    websocket_heartbeat_seconds: float = Field(default=20.0, ge=1)
+    # Until the wider application supplies user authentication, deployments can
+    # require this bearer token for WebSocket subscriptions.
+    websocket_auth_token: str | None = None
+    metrics_port: int | None = Field(default=None, ge=1, le=65535)
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="KNOWLEDGE_")
 

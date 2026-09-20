@@ -4,7 +4,6 @@ from io import BufferedReader
 
 from anyio import to_thread
 from minio import Minio
-from minio.error import S3Error
 
 from app.config import Settings
 
@@ -45,7 +44,7 @@ class MinioObjectStore:
                     content_type="application/pdf",
                 )
             )
-        except S3Error as error:
+        except Exception as error:
             raise ObjectStoreError("Unable to store PDF in MinIO") from error
 
     async def remove(self, object_key: str) -> None:
@@ -55,7 +54,7 @@ class MinioObjectStore:
             await to_thread.run_sync(
                 lambda: self._client.remove_object(self._bucket, object_key)
             )
-        except S3Error as error:
+        except Exception as error:
             raise ObjectStoreError("Unable to remove object from MinIO") from error
 
     async def get_bytes(self, object_key: str) -> bytes:
@@ -71,5 +70,15 @@ class MinioObjectStore:
 
         try:
             return await to_thread.run_sync(read_object)
-        except S3Error as error:
+        except Exception as error:
             raise ObjectStoreError("Unable to read PDF from MinIO") from error
+
+    async def is_ready(self) -> bool:
+        """Return whether the configured private bucket can be reached."""
+
+        try:
+            return await to_thread.run_sync(
+                lambda: self._client.bucket_exists(self._bucket)
+            )
+        except Exception:
+            return False

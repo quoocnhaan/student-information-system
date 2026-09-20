@@ -13,7 +13,6 @@ from app.dependencies import get_database, get_object_store
 from app.infrastructure.minio import MinioObjectStore, ObjectStoreError
 from app.infrastructure.surreal import SurrealDatabase, SurrealDatabaseError
 
-
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
@@ -81,17 +80,15 @@ async def upload_pdf(
         ) from error
 
     try:
-        await database.create_document(record_id, document)
-        await database.create_job(job_record_id, record_id, job_type="ocr")
+        await database.create_document_with_job(
+            record_id,
+            document,
+            job_record_id,
+            job_type="ocr",
+        )
     except SurrealDatabaseError as error:
-        try:
-            await object_store.remove(object_key)
-        except ObjectStoreError:
-            pass
-        try:
-            await database.delete_document(record_id)
-        except SurrealDatabaseError:
-            pass
+        # A connection can fail after COMMIT reaches the database. Keep the
+        # source object so an ambiguously committed durable job is still valid.
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Document metadata could not be saved",

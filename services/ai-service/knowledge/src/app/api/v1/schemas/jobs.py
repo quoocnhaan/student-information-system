@@ -15,6 +15,8 @@ class JobStatusResponse(BaseModel):
     progress: int
     total_pages: int | None = None
     processed_pages: int
+    sequence: int = 1
+    updated_at: str | None = None
     error: str | None = None
     attempts: int = 0
     max_attempts: int = 3

@@ -8,6 +8,11 @@ services:
       - "8001:8000"
     volumes:
       - surreal_data:/data
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready", "--endpoint", "http://localhost:8000"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
   minio:
     image: quay.io/minio/minio:latest
@@ -34,7 +39,24 @@ services:
       /bin/sh -c "until mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\"; do sleep 1; done;
       mc mb --ignore-existing local/$$MINIO_BUCKET"
 
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
   knowledge-api:
+    restart: unless-stopped
     build:
       context: .
     environment:
@@ -64,9 +86,16 @@ services:
       KNOWLEDGE_JOB_MAX_ATTEMPTS: ${KNOWLEDGE_JOB_MAX_ATTEMPTS:-3}
       KNOWLEDGE_JOB_RETRY_BASE_SECONDS: ${KNOWLEDGE_JOB_RETRY_BASE_SECONDS:-10}
       KNOWLEDGE_JOB_RETRY_MAX_SECONDS: ${KNOWLEDGE_JOB_RETRY_MAX_SECONDS:-300}
+      KNOWLEDGE_RABBITMQ_ENABLED: "true"
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      KNOWLEDGE_WEBSOCKET_AUTH_TOKEN: ${KNOWLEDGE_WEBSOCKET_AUTH_TOKEN:-}
     depends_on:
       surrealdb:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
     extra_hosts:
@@ -80,6 +109,7 @@ services:
       start_period: 10s
 
   knowledge-worker:
+    restart: unless-stopped
     build:
       context: .
     command: python -m app.worker
@@ -107,13 +137,51 @@ services:
       KNOWLEDGE_JOB_MAX_ATTEMPTS: ${KNOWLEDGE_JOB_MAX_ATTEMPTS:-3}
       KNOWLEDGE_JOB_RETRY_BASE_SECONDS: ${KNOWLEDGE_JOB_RETRY_BASE_SECONDS:-10}
       KNOWLEDGE_JOB_RETRY_MAX_SECONDS: ${KNOWLEDGE_JOB_RETRY_MAX_SECONDS:-300}
+      KNOWLEDGE_RABBITMQ_ENABLED: "true"
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      KNOWLEDGE_DATABASE_POLL_FALLBACK_ENABLED: ${KNOWLEDGE_DATABASE_POLL_FALLBACK_ENABLED:-true}
+      KNOWLEDGE_METRICS_PORT: "9100"
     depends_on:
       surrealdb:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    expose:
+      - "9100"
     stop_grace_period: 5m
+
+  knowledge-outbox:
+    restart: unless-stopped
+    build:
+      context: .
+    command: python -m app.outbox
+    environment:
+      KNOWLEDGE_ENVIRONMENT: development
+      KNOWLEDGE_SURREAL_ENABLED: "true"
+      SURREAL_URL: ws://surrealdb:8000
+      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
+      KNOWLEDGE_RABBITMQ_ENABLED: "true"
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      KNOWLEDGE_OUTBOX_POLL_SECONDS: ${KNOWLEDGE_OUTBOX_POLL_SECONDS:-0.25}
+      KNOWLEDGE_RECOVERY_SWEEP_SECONDS: ${KNOWLEDGE_RECOVERY_SWEEP_SECONDS:-30}
+      KNOWLEDGE_METRICS_PORT: "9100"
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    stop_grace_period: 30s
+    expose:
+      - "9100"
 
 volumes:
   surreal_data:
   minio_data:
+  rabbitmq_data:

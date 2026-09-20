@@ -1,16 +1,17 @@
 """PDF rendering and OCR through LM Studio's OpenAI-compatible API."""
 
 import base64
-from io import BytesIO
 from collections.abc import Awaitable, Callable
+from io import BytesIO
 from typing import Any
 
-from anyio import to_thread
 import httpx
 import pypdfium2 as pdfium
+from anyio import to_thread
 
 from app.config import Settings
 from app.domain.document import OcrPage
+from app.observability.metrics import LMSTUDIO_FAILURES, OCR_PAGE_SECONDS
 
 
 class OcrError(RuntimeError):
@@ -49,9 +50,12 @@ class LmStudioOcr:
         async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
             for page_index in range(page_count):
                 image_bytes = await to_thread.run_sync(
-                    lambda page_index=page_index: _render_page_as_png(pdf_data, page_index)
+                    lambda page_index=page_index: _render_page_as_png(
+                        pdf_data, page_index
+                    )
                 )
-                raw_text = await self._extract_page(client, image_bytes)
+                with OCR_PAGE_SECONDS.time():
+                    raw_text = await self._extract_page(client, image_bytes)
                 pages.append(OcrPage(page=page_index + 1, raw_text=raw_text))
                 if on_page_processed is not None:
                     await on_page_processed(page_index + 1, page_count)
@@ -67,9 +71,7 @@ class LmStudioOcr:
                     "content": [
                         {
                             "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{image_data}"
-                            },
+                            "image_url": {"url": f"data:image/png;base64,{image_data}"},
                         },
                     ],
                 }
@@ -84,9 +86,11 @@ class LmStudioOcr:
             response.raise_for_status()
             content = response.json()["choices"][0]["message"]["content"]
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as error:
+            LMSTUDIO_FAILURES.inc()
             raise OcrError("LM Studio OCR request failed") from error
 
         if not isinstance(content, str) or not content.strip():
+            LMSTUDIO_FAILURES.inc()
             raise OcrError("LM Studio OCR returned no text")
         return content.strip()
 

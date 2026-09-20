@@ -1,13 +1,14 @@
 """Async SurrealDB adapter and schema bootstrap support."""
 
 import asyncio
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from surrealdb import AsyncSurreal
 
 from app.config import Settings
-
+from app.observability.metrics import CLAIM_CONFLICTS
 
 _CLAIM_CONFLICT_RETRIES = 5
 
@@ -59,6 +60,15 @@ class SurrealDatabase:
             await self._client.close()
             self._client = None
 
+    async def is_ready(self) -> bool:
+        """Return whether the selected database accepts a lightweight query."""
+
+        try:
+            await self.client.query("RETURN true;")
+            return True
+        except Exception:
+            return False
+
     async def apply_schema(self) -> None:
         """Apply the idempotent knowledge schema to the selected database."""
 
@@ -89,10 +99,9 @@ class SurrealDatabase:
 
         try:
             await self.client.query(
-                f"CREATE ocr_draft:{record_id} CONTENT {{"
-                f"document_id: document:{document_record_id}, "
-                "status: 'draft', pages: $pages"
-                "};",
+                f"UPSERT ocr_draft:{record_id} SET "
+                f"document_id = document:{document_record_id}, "
+                "status = 'draft', pages = $pages;",
                 {"pages": [dict(page) for page in pages]},
             )
         except Exception as error:
@@ -109,19 +118,54 @@ class SurrealDatabase:
     async def create_job(
         self, record_id: str, document_record_id: str, job_type: str
     ) -> None:
-        """Create a durable job after its source document is stored."""
+        """Create a durable job; schema events atomically create its outbox rows."""
 
         try:
             await self.client.query(
                 f"CREATE job:{record_id} CONTENT {{"
                 f"type: $job_type, document_id: document:{document_record_id}, "
                 "status: 'queued', step: 'queued', progress: 0, processed_pages: 0, "
-                "attempts: 0, max_attempts: $max_attempts"
+                "attempts: 0, max_attempts: $max_attempts, sequence: 1, "
+                "dispatch_generation: 1"
                 "};",
                 {"job_type": job_type, "max_attempts": self._settings.job_max_attempts},
             )
         except Exception as error:
             raise SurrealDatabaseError("Unable to create ingestion job") from error
+
+    async def create_document_with_job(
+        self,
+        document_record_id: str,
+        document: Mapping[str, Any],
+        job_record_id: str,
+        job_type: str,
+    ) -> None:
+        """Atomically create the document, job, and schema-driven outbox events."""
+
+        query = (
+            "BEGIN TRANSACTION; "
+            f"CREATE document:{document_record_id} CONTENT $document; "
+            f"CREATE job:{job_record_id} CONTENT {{"
+            f"type: $job_type, document_id: document:{document_record_id}, "
+            "status: 'queued', step: 'queued', progress: 0, processed_pages: 0, "
+            "attempts: 0, max_attempts: $max_attempts, sequence: 1, "
+            "dispatch_generation: 1"
+            "}; "
+            "COMMIT TRANSACTION;"
+        )
+        try:
+            await self.client.query(
+                query,
+                {
+                    "document": dict(document),
+                    "job_type": job_type,
+                    "max_attempts": self._settings.job_max_attempts,
+                },
+            )
+        except Exception as error:
+            raise SurrealDatabaseError(
+                "Unable to create document ingestion transaction"
+            ) from error
 
     async def get_job(self, record_id: str) -> Mapping[str, Any] | None:
         """Return one durable job, if it exists."""
@@ -145,7 +189,7 @@ class SurrealDatabase:
             "status = 'running', step = 'claimed', progress = 5, "
             "claimed_at = time::now(), worker_id = $worker_id, "
             f"lease_expires_at = time::now() + {_duration_literal(lease_seconds)}, "
-            "attempts += 1, error = NONE "
+            "attempts += 1, sequence += 1, error = NONE "
             "RETURN AFTER;"
         )
         for attempt in range(_CLAIM_CONFLICT_RETRIES):
@@ -157,6 +201,36 @@ class SurrealDatabase:
                     _is_transaction_conflict(error)
                     and attempt < _CLAIM_CONFLICT_RETRIES - 1
                 ):
+                    CLAIM_CONFLICTS.inc()
+                    await asyncio.sleep(0.025 * (2**attempt))
+                    continue
+                raise SurrealDatabaseError("Unable to claim ingestion job") from error
+
+    async def claim_job(
+        self, record_id: str, worker_id: str, lease_seconds: int
+    ) -> Mapping[str, Any] | None:
+        """Atomically claim the specific job named by a queue delivery."""
+
+        query = (
+            f"UPDATE job:{record_id} SET "
+            "status = 'running', step = 'claimed', progress = 5, "
+            "claimed_at = time::now(), worker_id = $worker_id, "
+            f"lease_expires_at = time::now() + {_duration_literal(lease_seconds)}, "
+            "attempts += 1, sequence += 1, error = NONE "
+            "WHERE status = 'queued' "
+            "AND (next_attempt_at IS NONE OR next_attempt_at <= time::now()) "
+            "RETURN AFTER;"
+        )
+        for attempt in range(_CLAIM_CONFLICT_RETRIES):
+            try:
+                jobs = await self.client.query(query, {"worker_id": worker_id})
+                return jobs[0] if jobs else None
+            except Exception as error:
+                if (
+                    _is_transaction_conflict(error)
+                    and attempt < _CLAIM_CONFLICT_RETRIES - 1
+                ):
+                    CLAIM_CONFLICTS.inc()
                     await asyncio.sleep(0.025 * (2**attempt))
                     continue
                 raise SurrealDatabaseError("Unable to claim ingestion job") from error
@@ -197,39 +271,87 @@ class SurrealDatabase:
             "lease_expires_at": None,
         }
         try:
+            assignments = [
+                "status = $changes.status",
+                "step = $changes.step",
+                "progress = $changes.progress",
+                "error = $changes.error",
+                "next_attempt_at = $changes.next_attempt_at",
+                "worker_id = NONE",
+                "lease_expires_at = NONE",
+                "sequence += 1",
+            ]
+            if retrying:
+                assignments.append("dispatch_generation += 1")
             jobs = await self.client.query(
-                f"UPDATE job:{record_id} MERGE $changes "
+                f"UPDATE job:{record_id} SET {', '.join(assignments)} "
                 "WHERE status = 'running' AND worker_id = $worker_id RETURN AFTER;",
                 {"changes": changes, "worker_id": worker_id},
             )
             return jobs[0] if jobs else None
         except Exception as error:
-            raise SurrealDatabaseError("Unable to finalize failed ingestion job") from error
+            raise SurrealDatabaseError(
+                "Unable to finalize failed ingestion job"
+            ) from error
 
-    async def update_job(self, record_id: str, changes: Mapping[str, Any]) -> None:
-        """Merge job progress fields without replacing the job record."""
+    async def update_job(
+        self, record_id: str, changes: Mapping[str, Any], worker_id: str | None = None
+    ) -> bool:
+        """Persist progress and sequence it, optionally enforcing lease ownership."""
 
+        allowed_fields = {
+            "status",
+            "step",
+            "progress",
+            "total_pages",
+            "processed_pages",
+            "error",
+        }
+        unknown = set(changes) - allowed_fields
+        if unknown:
+            raise ValueError(f"Unsupported job fields: {sorted(unknown)}")
+        assignments = [f"{field} = $changes.{field}" for field in changes]
+        assignments.append("sequence += 1")
+        ownership = ""
+        variables: dict[str, Any] = {"changes": dict(changes)}
+        if worker_id is not None:
+            ownership = " WHERE status = 'running' AND worker_id = $worker_id"
+            variables["worker_id"] = worker_id
         try:
-            await self.client.query(
-                f"UPDATE job:{record_id} MERGE $changes;",
-                {"changes": dict(changes)},
+            jobs = await self.client.query(
+                f"UPDATE job:{record_id} SET {', '.join(assignments)}"
+                f"{ownership} RETURN AFTER;",
+                variables,
             )
+            return bool(jobs)
         except Exception as error:
             raise SurrealDatabaseError("Unable to update ingestion job") from error
 
     async def complete_job(
-        self, record_id: str, ocr_draft_record_id: str, page_count: int
-    ) -> None:
+        self,
+        record_id: str,
+        ocr_draft_record_id: str,
+        page_count: int,
+        worker_id: str | None = None,
+    ) -> bool:
         """Mark a job successful and attach its stored OCR draft."""
 
         try:
-            await self.client.query(
+            ownership = (
+                " WHERE status = 'running' AND worker_id = $worker_id"
+                if worker_id is not None
+                else ""
+            )
+            jobs = await self.client.query(
                 f"UPDATE job:{record_id} SET "
                 f"ocr_draft_id = ocr_draft:{ocr_draft_record_id}, "
                 "status = 'completed', step = 'completed', progress = 100, "
                 f"total_pages = {page_count}, processed_pages = {page_count}, "
-                "lease_expires_at = NONE, next_attempt_at = NONE;"
+                "lease_expires_at = NONE, next_attempt_at = NONE, sequence += 1"
+                f"{ownership} RETURN AFTER;",
+                {"worker_id": worker_id},
             )
+            return bool(jobs)
         except Exception as error:
             raise SurrealDatabaseError("Unable to complete ingestion job") from error
 
@@ -261,25 +383,112 @@ class SurrealDatabase:
         except Exception as error:
             raise SurrealDatabaseError("Unable to mark failed document") from error
 
-    async def requeue_expired_jobs(self) -> None:
+    async def requeue_expired_jobs(self) -> int:
         """Recover only abandoned claims, never work owned by a live worker."""
 
         try:
-            await self.client.query(
+            jobs = await self.client.query(
                 "UPDATE job SET status = 'queued', step = 'queued', progress = 0, "
-                "worker_id = NONE, lease_expires_at = NONE "
-                "WHERE status = 'running' AND lease_expires_at < time::now();"
+                "worker_id = NONE, lease_expires_at = NONE, sequence += 1, "
+                "dispatch_generation += 1 "
+                "WHERE status = 'running' AND lease_expires_at < time::now() "
+                "RETURN AFTER;"
             )
+            return len(jobs)
         except Exception as error:
             raise SurrealDatabaseError("Unable to recover interrupted jobs") from error
+
+    async def get_pending_outbox_events(self, limit: int) -> list[Mapping[str, Any]]:
+        """Return unpublished events in creation order for broker delivery."""
+
+        try:
+            events = await self.client.query(
+                "SELECT * FROM outbox_event WHERE published_at IS NONE "
+                "AND (available_at IS NONE OR available_at <= time::now()) "
+                f"ORDER BY created_at LIMIT {int(limit)};"
+            )
+            return list(events)
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to read the event outbox") from error
+
+    async def mark_outbox_published(self, record_id: str) -> None:
+        """Mark an event delivered only after RabbitMQ publisher confirmation."""
+
+        try:
+            await self.client.query(
+                f"UPDATE outbox_event:{record_id} SET published_at = time::now(), "
+                "publish_attempts += 1, last_error = NONE;"
+            )
+        except Exception as error:
+            raise SurrealDatabaseError(
+                "Unable to mark outbox event published"
+            ) from error
+
+    async def mark_outbox_failed(self, record_id: str, error_message: str) -> None:
+        """Record a failed publish attempt while leaving the event pending."""
+
+        try:
+            await self.client.query(
+                f"UPDATE outbox_event:{record_id} SET publish_attempts += 1, "
+                "last_error = $error;",
+                {"error": error_message[:500]},
+            )
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to record outbox failure") from error
+
+    async def repair_missing_job_triggers(self) -> int:
+        """Create triggers for legacy queued jobs missing their current generation."""
+
+        try:
+            jobs = await self.client.query(
+                "SELECT id, document_id, dispatch_generation, next_attempt_at FROM job "
+                "WHERE status = 'queued';"
+            )
+            repaired = 0
+            for job in jobs:
+                generation = int(job.get("dispatch_generation") or 1)
+                events = await self.client.query(
+                    "SELECT id FROM outbox_event WHERE type = 'job.queued' "
+                    "AND job_id = $job_id AND dispatch_generation = $generation "
+                    "LIMIT 1;",
+                    {"job_id": job["id"], "generation": generation},
+                )
+                if events:
+                    continue
+                await self.client.query(
+                    "CREATE outbox_event SET type = 'job.queued', job_id = $job_id, "
+                    "document_id = $document_id, dispatch_generation = $generation, "
+                    "available_at = $available_at;",
+                    {
+                        "job_id": job["id"],
+                        "document_id": job["document_id"],
+                        "generation": generation,
+                        "available_at": job.get("next_attempt_at"),
+                    },
+                )
+                repaired += 1
+            return repaired
+        except Exception as error:
+            raise SurrealDatabaseError(
+                "Unable to repair missing job triggers"
+            ) from error
+
+    async def get_job_counts(self) -> Mapping[str, int]:
+        """Return current counts used by the operational metrics endpoint."""
+
+        try:
+            rows = await self.client.query(
+                "SELECT status, count() AS total FROM job GROUP BY status;"
+            )
+            return {str(row["status"]): int(row["total"]) for row in rows}
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to count ingestion jobs") from error
 
     async def get_document(self, record_id: str) -> Mapping[str, Any] | None:
         """Return one document for worker-side source lookup."""
 
         try:
-            documents = await self.client.query(
-                f"SELECT * FROM document:{record_id};"
-            )
+            documents = await self.client.query(f"SELECT * FROM document:{record_id};")
         except Exception as error:
             raise SurrealDatabaseError("Unable to read document") from error
         return documents[0] if documents else None
