@@ -1,7 +1,8 @@
 """Async SurrealDB adapter and schema bootstrap support."""
 
 import asyncio
-from collections.abc import Mapping
+import logging
+from collections.abc import AsyncIterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,28 @@ _CLAIM_CONFLICT_RETRIES = 5
 
 class SurrealDatabaseError(RuntimeError):
     """Raised when the database cannot be prepared for this service."""
+
+
+class OutboxLiveSubscription:
+    """Own a live-query cursor; notification details stay inside this adapter."""
+
+    def __init__(self, client: Any, query_id: Any, stream: AsyncIterator[Any]) -> None:
+        self._client = client
+        self._query_id = query_id
+        self._stream = stream
+
+    async def changes(self) -> AsyncIterator[None]:
+        """Yield wake-up hints without exposing SDK notification shapes."""
+
+        async for _notification in self._stream:
+            yield None
+
+    async def close(self) -> None:
+        try:
+            await self._client.kill(self._query_id)
+        except Exception as error:  # noqa: BLE001 - the websocket may be disconnected.
+            # The connection may already have gone away; closing remains safe.
+            logging.getLogger(__name__).debug("outbox_live_query_kill_failed: %s", error)
 
 
 class SurrealDatabase:
@@ -66,8 +89,18 @@ class SurrealDatabase:
         try:
             await self.client.query("RETURN true;")
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - readiness must reduce any SDK failure to false.
             return False
+
+    async def subscribe_to_outbox_changes(self) -> OutboxLiveSubscription:
+        """Open a live query used only as an outbox relay wake-up hint."""
+
+        try:
+            query_id = await self.client.live("outbox_event")
+            stream = await self.client.subscribe_live(query_id)
+            return OutboxLiveSubscription(self.client, query_id, stream)
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to subscribe to outbox changes") from error
 
     async def apply_schema(self) -> None:
         """Apply the idempotent knowledge schema to the selected database."""
@@ -175,36 +208,6 @@ class SurrealDatabase:
         except Exception as error:
             raise SurrealDatabaseError("Unable to read ingestion job") from error
         return jobs[0] if jobs else None
-
-    async def claim_next_queued_job(
-        self, worker_id: str, lease_seconds: int
-    ) -> Mapping[str, Any] | None:
-        """Atomically claim one due job so concurrent workers cannot duplicate it."""
-
-        query = (
-            "UPDATE (SELECT * FROM job "
-            "WHERE status = 'queued' "
-            "AND (next_attempt_at IS NONE OR next_attempt_at <= time::now()) "
-            "ORDER BY created_at LIMIT 1) SET "
-            "status = 'running', step = 'claimed', progress = 5, "
-            "claimed_at = time::now(), worker_id = $worker_id, "
-            f"lease_expires_at = time::now() + {_duration_literal(lease_seconds)}, "
-            "attempts += 1, sequence += 1, error = NONE "
-            "RETURN AFTER;"
-        )
-        for attempt in range(_CLAIM_CONFLICT_RETRIES):
-            try:
-                jobs = await self.client.query(query, {"worker_id": worker_id})
-                return jobs[0] if jobs else None
-            except Exception as error:
-                if (
-                    _is_transaction_conflict(error)
-                    and attempt < _CLAIM_CONFLICT_RETRIES - 1
-                ):
-                    CLAIM_CONFLICTS.inc()
-                    await asyncio.sleep(0.025 * (2**attempt))
-                    continue
-                raise SurrealDatabaseError("Unable to claim ingestion job") from error
 
     async def claim_job(
         self, record_id: str, worker_id: str, lease_seconds: int
@@ -410,6 +413,31 @@ class SurrealDatabase:
             return list(events)
         except Exception as error:
             raise SurrealDatabaseError("Unable to read the event outbox") from error
+
+    async def get_earliest_pending_outbox_available_at(self) -> Any | None:
+        """Return the next delayed event so the relay can set one timer."""
+
+        try:
+            events = await self.client.query(
+                "SELECT available_at FROM outbox_event WHERE published_at IS NONE "
+                "AND available_at IS NOT NONE AND available_at > time::now() "
+                "ORDER BY available_at LIMIT 1;"
+            )
+            return events[0].get("available_at") if events else None
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to read next outbox availability") from error
+
+    async def document_exists_by_source_key(self, object_key: str) -> bool:
+        """Use the unique source-key index to safely check cleanup candidates."""
+
+        try:
+            documents = await self.client.query(
+                "SELECT id FROM document WHERE source.object_key = $object_key LIMIT 1;",
+                {"object_key": object_key},
+            )
+            return bool(documents)
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to check document source object") from error
 
     async def get_pending_job_dispatch_event(
         self, job_record_id: str, dispatch_generation: int = 1

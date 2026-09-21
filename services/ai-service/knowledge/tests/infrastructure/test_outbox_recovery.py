@@ -4,7 +4,7 @@ import asyncio
 import logging
 
 from app.config import Settings
-from app.outbox import _drain_pending_events, _wait_for_recovery_or_stop
+from app.outbox import _drain_pending_events, _retry_delay, _wait_for_recovery_or_stop
 
 
 class _Database:
@@ -62,3 +62,11 @@ def test_recovery_wait_does_not_query_or_wake_until_requested() -> None:
         await waiter
 
     asyncio.run(wait_for_request())
+
+
+def test_publish_retry_delay_is_bounded_exponential_backoff() -> None:
+    settings = Settings(outbox_retry_base_seconds=0.5, outbox_retry_max_seconds=2)
+
+    assert _retry_delay(settings, 1) == 0.5
+    assert _retry_delay(settings, 2) == 1
+    assert _retry_delay(settings, 10) == 2

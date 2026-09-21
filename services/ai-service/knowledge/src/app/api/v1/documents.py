@@ -15,6 +15,7 @@ from app.infrastructure.rabbitmq import RabbitMqBroker
 from app.infrastructure.surreal import SurrealDatabase, SurrealDatabaseError
 from app.observability.logging import get_logger
 from app.observability.metrics import OUTBOX_PUBLISHES
+from app.outbox import _publish_result
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -26,9 +27,9 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 )
 async def upload_pdf(
     file: Annotated[UploadFile, File(description="PDF source document")],
-    database: SurrealDatabase = Depends(get_database),
-    object_store: MinioObjectStore = Depends(get_object_store),
-    settings: Settings = Depends(get_settings),
+    database: Annotated[SurrealDatabase, Depends(get_database)],
+    object_store: Annotated[MinioObjectStore, Depends(get_object_store)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DocumentUploadAcceptedResponse:
     """Persist a PDF and return a durable OCR job for UI progress polling."""
 
@@ -130,7 +131,7 @@ async def _publish_new_job(
         await database.mark_outbox_published(event_id)
         OUTBOX_PUBLISHES.labels(type="job.queued", result="published").inc()
     except Exception as error:
-        OUTBOX_PUBLISHES.labels(type="job.queued", result="failed").inc()
+        OUTBOX_PUBLISHES.labels(type="job.queued", result=_publish_result(error)).inc()
         logger.exception("new_job_publish_failed", extra={"jobId": job_record_id})
         try:
             await database.mark_outbox_failed(event_id, str(error))

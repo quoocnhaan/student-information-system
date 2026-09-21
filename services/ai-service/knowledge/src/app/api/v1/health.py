@@ -34,7 +34,7 @@ async def ready(request: Request) -> ServiceStatus:
     object_store_ready = object_store is not None and await object_store.is_ready()
     broker = getattr(request.app.state, "rabbitmq", None)
     broker_ready = not settings.rabbitmq_enabled or (
-        broker is not None and not broker.is_closed
+        broker is not None and broker.is_available
     )
     if not (database_ready and object_store_ready and broker_ready):
         raise HTTPException(

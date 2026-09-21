@@ -49,13 +49,19 @@ prediction limit and GPU headroom:
 docker compose up -d --scale knowledge-worker=2
 ```
 
-Start with the database polling fallback enabled. Once broker outage, duplicate
-delivery, worker crash, and reconnect tests pass in the deployment environment,
-set `KNOWLEDGE_DATABASE_POLL_FALLBACK_ENABLED=false`. Prometheus metrics are
-available at `GET /metrics`; RabbitMQ management is available locally on port
-15672. Worker and outbox containers expose their process metrics on port 9100
-inside the Compose network. GPU memory/utilization should be collected from the
-host's NVIDIA/DCGM exporter because LM Studio owns the GPU process.
+RabbitMQ is mandatory for job admission: a queued job remains queued while the
+broker is unavailable, then the durable outbox dispatches it after recovery.
+Prometheus metrics are available at `GET /metrics`; RabbitMQ management is
+available locally on port 15672. Worker and outbox containers expose their
+process metrics on port 9100 inside the Compose network. GPU memory/utilization
+should be collected from the host's NVIDIA/DCGM exporter because LM Studio owns
+the GPU process.
+
+Source-object cleanup is a separate, opt-in maintenance service. Run a dry run
+first with `docker compose --profile maintenance up knowledge-orphan-cleanup`
+and inspect `orphan_cleanup_dry_run_candidate` logs. It is disabled by default;
+deletion requires both `KNOWLEDGE_ORPHAN_CLEANUP_ENABLED=true` and
+`KNOWLEDGE_ORPHAN_CLEANUP_DRY_RUN=false`.
 
 The standalone repository does not yet contain the parent application's user
 authentication or browser UI. `KNOWLEDGE_WEBSOCKET_AUTH_TOKEN` can protect the

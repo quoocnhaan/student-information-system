@@ -105,10 +105,15 @@ class Settings(BaseSettings):
     rabbitmq_jobs_exchange: str = "knowledge.jobs"
     rabbitmq_jobs_queue: str = "knowledge.jobs.ocr"
     rabbitmq_status_exchange: str = "knowledge.status"
+    rabbitmq_publish_confirm_timeout_seconds: float = Field(default=5.0, gt=0)
     outbox_batch_size: int = Field(default=100, ge=1, le=1000)
+    outbox_retry_base_seconds: float = Field(default=1.0, gt=0)
+    outbox_retry_max_seconds: float = Field(default=30.0, gt=0)
     recovery_sweep_seconds: float = Field(default=30.0, ge=1)
-    database_poll_fallback_enabled: bool = True
-    database_poll_fallback_seconds: float = Field(default=5.0, ge=0.1)
+    orphan_cleanup_enabled: bool = False
+    orphan_cleanup_grace_seconds: float = Field(default=86400.0, ge=0)
+    orphan_cleanup_interval_seconds: float = Field(default=3600.0, gt=0)
+    orphan_cleanup_dry_run: bool = True
     websocket_heartbeat_seconds: float = Field(default=20.0, ge=1)
     # Until the wider application supplies user authentication, deployments can
     # require this bearer token for WebSocket subscriptions.
@@ -137,6 +142,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "KNOWLEDGE_WORKER_HEARTBEAT_SECONDS must be less than "
                 "KNOWLEDGE_WORKER_LEASE_SECONDS"
+            )
+        if self.outbox_retry_base_seconds > self.outbox_retry_max_seconds:
+            raise ValueError(
+                "KNOWLEDGE_OUTBOX_RETRY_BASE_SECONDS must not exceed "
+                "KNOWLEDGE_OUTBOX_RETRY_MAX_SECONDS"
             )
         return self
 

@@ -71,7 +71,7 @@ class JobStatusHub:
         for websocket in clients:
             try:
                 await websocket.send_json(dict(event))
-            except Exception:
+            except Exception:  # noqa: BLE001 - a broken client must not block fan-out.
                 failed.append(websocket)
         for websocket in failed:
             await self.remove(job_id, websocket)

@@ -1,5 +1,6 @@
 """RabbitMQ topology and publisher/consumer helpers."""
 
+import asyncio
 import json
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
@@ -14,6 +15,21 @@ from app.observability.metrics import QUEUE_DEPTH
 
 JobHandler = Callable[[str, bool, IncomingMessage], Awaitable[None]]
 StatusHandler = Callable[[Mapping[str, Any]], Awaitable[None]]
+
+
+class RabbitMqPublishTimeout(TimeoutError):
+    """The broker may have accepted an event but did not confirm it in time."""
+
+    def __init__(self, event_type: str, event_id: str) -> None:
+        self.event_type = event_type
+        self.event_id = event_id
+        super().__init__(
+            f"RabbitMQ publisher confirmation timed out for {event_type} event {event_id}"
+        )
+
+
+class RabbitMqPublishRejected(ConnectionError):
+    """RabbitMQ explicitly declined a publisher-confirmed message."""
 
 
 class RabbitMqBroker:
@@ -42,6 +58,19 @@ class RabbitMqBroker:
     @property
     def is_closed(self) -> bool:
         return self._connection is None or self._connection.is_closed
+
+    @property
+    def is_available(self) -> bool:
+        """Whether a live AMQP transport is available for admission/readiness."""
+
+        connection = self._connection
+        return bool(
+            connection is not None
+            and not connection.is_closed
+            and not getattr(connection, "reconnecting", False)
+            and getattr(connection, "connected", None) is not None
+            and connection.connected.is_set()
+        )
 
     def add_reconnect_callback(self, callback: Callable[[], None]) -> None:
         """Call ``callback`` after this robust connection is re-established."""
@@ -88,11 +117,15 @@ class RabbitMqBroker:
                 message_id=str(event["id"]),
                 type=event_type,
             )
-            confirmation = await exchange.publish(
-                message, routing_key=routing_key, mandatory=True
-            )
+            try:
+                confirmation = await asyncio.wait_for(
+                    exchange.publish(message, routing_key=routing_key, mandatory=True),
+                    timeout=self._settings.rabbitmq_publish_confirm_timeout_seconds,
+                )
+            except TimeoutError as error:
+                raise RabbitMqPublishTimeout(event_type, str(event["id"])) from error
             if not isinstance(confirmation, commands.Basic.Ack):
-                raise ConnectionError(
+                raise RabbitMqPublishRejected(
                     f"RabbitMQ did not confirm {event_type}: {confirmation!r}"
                 )
         finally:

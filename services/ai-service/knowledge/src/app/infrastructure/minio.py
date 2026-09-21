@@ -1,5 +1,7 @@
 """Private object storage for source PDFs and derived images."""
 
+from dataclasses import dataclass
+from datetime import datetime
 from io import BufferedReader
 
 from anyio import to_thread
@@ -10,6 +12,14 @@ from app.config import Settings
 
 class ObjectStoreError(RuntimeError):
     """Raised when an object operation cannot be completed."""
+
+
+@dataclass(frozen=True)
+class SourceObject:
+    """The only object metadata needed by the orphan-cleanup use case."""
+
+    object_key: str
+    last_modified: datetime
 
 
 class MinioObjectStore:
@@ -73,6 +83,23 @@ class MinioObjectStore:
         except Exception as error:
             raise ObjectStoreError("Unable to read PDF from MinIO") from error
 
+    async def list_source_objects(self) -> list[SourceObject]:
+        """List source candidates under the only cleanup-eligible prefix."""
+
+        def list_objects() -> list[SourceObject]:
+            return [
+                SourceObject(item.object_name, item.last_modified)
+                for item in self._client.list_objects(
+                    self._bucket, prefix="documents/", recursive=True
+                )
+                if item.object_name is not None and item.last_modified is not None
+            ]
+
+        try:
+            return await to_thread.run_sync(list_objects)
+        except Exception as error:
+            raise ObjectStoreError("Unable to list PDF source objects from MinIO") from error
+
     async def is_ready(self) -> bool:
         """Return whether the configured private bucket can be reached."""
 
@@ -80,5 +107,5 @@ class MinioObjectStore:
             return await to_thread.run_sync(
                 lambda: self._client.bucket_exists(self._bucket)
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - readiness must reduce any SDK failure to false.
             return False

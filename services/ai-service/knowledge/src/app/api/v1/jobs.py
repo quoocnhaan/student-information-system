@@ -4,7 +4,7 @@ import asyncio
 import re
 import secrets
 from collections.abc import Mapping
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
@@ -27,7 +27,7 @@ _JOB_RECORD_ID = re.compile(r"job_[0-9a-f]{32}")
 
 @router.get("/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(
-    job_id: str, database: SurrealDatabase = Depends(get_database)
+    job_id: str, database: Annotated[SurrealDatabase, Depends(get_database)]
 ) -> JobStatusResponse:
     """Return job step and progress so the UI can render ingestion status."""
 

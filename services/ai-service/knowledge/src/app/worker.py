@@ -53,11 +53,19 @@ async def run_worker() -> None:
         )
     }
 
+    if not settings.rabbitmq_enabled:
+        raise RuntimeError("RabbitMQ must be enabled before a worker can start jobs")
+
     broker: RabbitMqBroker | None = None
     processing_lock = asyncio.Lock()
 
     async def consume_job(job_id: str, redelivered: bool, message: Any) -> None:
         if shutdown.is_set():
+            await message.nack(requeue=True)
+            return
+        # RabbitMQ is the admission boundary. A delivery observed while its
+        # robust connection is recovering must not become a new durable claim.
+        if broker is None or not broker.is_available:
             await message.nack(requeue=True)
             return
         if redelivered:
@@ -80,6 +88,20 @@ async def run_worker() -> None:
             await _process_claimed_job(database, processors, job, settings, logger)
 
     try:
+        # Consumption is established before the worker enters its recovery loop;
+        # the worker has no database-based path for starting queued jobs.
+        while not shutdown.is_set() and broker is None:
+            candidate = RabbitMqBroker(settings)
+            try:
+                await candidate.connect()
+                await candidate.consume_jobs(consume_job)
+                broker = candidate
+                logger.info("rabbitmq_consumer_connected")
+            except Exception:
+                logger.exception("rabbitmq_consumer_connect_failed")
+                await candidate.close()
+                await _wait_for_shutdown(shutdown, 1)
+
         last_sweep = 0.0
         while not shutdown.is_set():
             now = asyncio.get_running_loop().time()
@@ -95,7 +117,7 @@ async def run_worker() -> None:
                 if broker is not None and broker.is_closed:
                     await broker.close()
                     broker = None
-                if settings.rabbitmq_enabled and broker is None:
+                if broker is None:
                     candidate = RabbitMqBroker(settings)
                     try:
                         await candidate.connect()
@@ -111,34 +133,10 @@ async def run_worker() -> None:
                     except Exception:
                         logger.exception("queue_depth_refresh_failed")
 
-            should_poll = (
-                not settings.rabbitmq_enabled or settings.database_poll_fallback_enabled
-            )
-            if not should_poll or processing_lock.locked():
-                await _wait_for_shutdown(shutdown, 0.25)
-                continue
-            try:
-                async with processing_lock:
-                    job = await database.claim_next_queued_job(
-                        settings.worker_id, settings.worker_lease_seconds
-                    )
-                    if job is not None:
-                        JOB_CLAIMS.labels(result="claimed_fallback").inc()
-                        await _process_claimed_job(
-                            database, processors, job, settings, logger
-                        )
-            except SurrealDatabaseError:
-                logger.exception("job_claim_failed")
-                await _wait_for_shutdown(shutdown, 1)
-                continue
-
-            if job is None:
-                delay = (
-                    settings.database_poll_fallback_seconds
-                    if settings.rabbitmq_enabled
-                    else 1
-                )
-                await _wait_for_shutdown(shutdown, delay)
+            # Lease recovery is deliberately separate from admission: it only
+            # requeues and emits a durable outbox trigger. A later AMQP delivery
+            # is required before that job can run again.
+            await _wait_for_shutdown(shutdown, 0.25)
     finally:
         if broker is not None:
             await broker.stop_consuming_jobs()
@@ -301,13 +299,13 @@ def _install_shutdown_handlers(shutdown: asyncio.Event) -> None:
             )
 
 
-if __name__ == "__main__":
-    asyncio.run(run_worker())
-
-
 def _record_id(value: Any) -> str:
     """Return the identifier part of a Surreal record ID."""
 
     if hasattr(value, "id"):
         return str(value.id)
     return str(value).split(":", maxsplit=1)[-1]
+
+
+if __name__ == "__main__":
+    asyncio.run(run_worker())

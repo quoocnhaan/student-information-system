@@ -5,7 +5,6 @@ from pathlib import Path
 
 from app.domain.document import OcrPage
 
-
 _DOCUMENT_TYPE_RULES: tuple[tuple[str, str], ...] = (
     ("quy chế", "regulation"),
     ("quy định", "regulation"),

@@ -42,3 +42,8 @@ QUEUE_DEPTH = Gauge(
     "knowledge_rabbitmq_queue_depth", "Ready messages in the OCR job queue"
 )
 JOB_STATE = Gauge("knowledge_jobs", "Current durable jobs by state", ["status"])
+ORPHAN_CLEANUP = Counter(
+    "knowledge_orphan_cleanup_total",
+    "Source-object orphan cleanup decisions",
+    ["result"],
+)
