@@ -105,7 +105,6 @@ class Settings(BaseSettings):
     rabbitmq_jobs_exchange: str = "knowledge.jobs"
     rabbitmq_jobs_queue: str = "knowledge.jobs.ocr"
     rabbitmq_status_exchange: str = "knowledge.status"
-    outbox_poll_seconds: float = Field(default=0.25, gt=0)
     outbox_batch_size: int = Field(default=100, ge=1, le=1000)
     recovery_sweep_seconds: float = Field(default=30.0, ge=1)
     database_poll_fallback_enabled: bool = True

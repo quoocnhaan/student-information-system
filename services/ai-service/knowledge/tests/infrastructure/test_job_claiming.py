@@ -79,3 +79,19 @@ def test_progress_update_enforces_worker_ownership_and_increments_sequence() -> 
     assert "sequence += 1" in query
     assert "status = 'running' AND worker_id = $worker_id" in query
     assert variables == {"changes": {"progress": 25}, "worker_id": "worker-a"}
+
+
+def test_new_job_dispatch_lookup_only_reads_its_unpublished_trigger() -> None:
+    client = _UpdateClient()
+    database = object.__new__(SurrealDatabase)
+    database._client = client
+
+    event = asyncio.run(database.get_pending_job_dispatch_event("job_a"))
+
+    assert event == {"id": "job:job_a"}
+    assert client.call is not None
+    query, variables = client.call
+    assert "type = 'job.queued'" in query
+    assert "job_id = job:job_a" in query
+    assert "published_at IS NONE" in query
+    assert variables == {"dispatch_generation": 1}

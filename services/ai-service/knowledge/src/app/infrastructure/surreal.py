@@ -411,6 +411,25 @@ class SurrealDatabase:
         except Exception as error:
             raise SurrealDatabaseError("Unable to read the event outbox") from error
 
+    async def get_pending_job_dispatch_event(
+        self, job_record_id: str, dispatch_generation: int = 1
+    ) -> Mapping[str, Any] | None:
+        """Return the current job trigger created with a newly queued job."""
+
+        try:
+            events = await self.client.query(
+                "SELECT * FROM outbox_event WHERE type = 'job.queued' "
+                f"AND job_id = job:{job_record_id} "
+                "AND dispatch_generation = $dispatch_generation "
+                "AND published_at IS NONE ORDER BY created_at DESC LIMIT 1;",
+                {"dispatch_generation": dispatch_generation},
+            )
+            return events[0] if events else None
+        except Exception as error:
+            raise SurrealDatabaseError(
+                "Unable to read job dispatch outbox event"
+            ) from error
+
     async def mark_outbox_published(self, record_id: str) -> None:
         """Mark an event delivered only after RabbitMQ publisher confirmation."""
 

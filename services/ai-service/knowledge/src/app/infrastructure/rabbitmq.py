@@ -43,6 +43,14 @@ class RabbitMqBroker:
     def is_closed(self) -> bool:
         return self._connection is None or self._connection.is_closed
 
+    def add_reconnect_callback(self, callback: Callable[[], None]) -> None:
+        """Call ``callback`` after this robust connection is re-established."""
+
+        def on_reconnect(_: AbstractRobustConnection) -> None:
+            callback()
+
+        self.connection.reconnect_callbacks.add(on_reconnect)
+
     async def publish_outbox_event(self, event: Mapping[str, Any]) -> None:
         """Publish one durable outbox row and wait for broker confirmation."""
 

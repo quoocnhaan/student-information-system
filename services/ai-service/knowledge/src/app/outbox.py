@@ -14,7 +14,7 @@ from app.observability.metrics import OUTBOX_PUBLISHES
 
 
 async def run_outbox_publisher() -> None:
-    """Publish pending rows, repair missing triggers, and stop gracefully."""
+    """Drain pending rows on startup and every RabbitMQ reconnection."""
 
     configure_logging()
     settings = get_settings()
@@ -26,7 +26,6 @@ async def run_outbox_publisher() -> None:
     database = SurrealDatabase(settings)
     broker = RabbitMqBroker(settings)
     await database.connect()
-    last_sweep = 0.0
 
     try:
         while not stop.is_set():
@@ -37,60 +36,79 @@ async def run_outbox_publisher() -> None:
                 logger.exception("rabbitmq_connect_failed")
                 await _wait(stop, 2)
 
+        if stop.is_set():
+            return
+        recovery_requested = asyncio.Event()
+        broker.add_reconnect_callback(recovery_requested.set)
+        # The initial connection is a recovery point too: publish work that an
+        # API could not publish before this relay started.
+        recovery_requested.set()
         while not stop.is_set():
-            now = asyncio.get_running_loop().time()
-            if now - last_sweep >= settings.recovery_sweep_seconds:
-                try:
-                    repaired = await database.repair_missing_job_triggers()
-                    if repaired:
-                        logger.warning(
-                            "job_triggers_repaired", extra={"repairedCount": repaired}
-                        )
-                except SurrealDatabaseError:
-                    logger.exception("job_trigger_repair_failed")
-                last_sweep = now
-
-            published = await _publish_batch(database, broker, settings, logger)
-            if not published:
-                await _wait(stop, settings.outbox_poll_seconds)
+            await _wait_for_recovery_or_stop(stop, recovery_requested)
+            if stop.is_set():
+                break
+            recovery_requested.clear()
+            await _drain_pending_events(database, broker, settings, logger)
     finally:
         await broker.close()
         await database.close()
 
 
-async def _publish_batch(
+async def _drain_pending_events(
     database: SurrealDatabase,
     broker: RabbitMqBroker,
     settings: Settings,
     logger: logging.Logger,
-) -> bool:
-    try:
-        events = await database.get_pending_outbox_events(settings.outbox_batch_size)
-    except SurrealDatabaseError:
-        logger.exception("outbox_read_failed")
-        return False
+) -> None:
+    """Drain all due events once; a later reconnect/startup retries failures."""
 
-    for event in events:
-        event_id = _record_id(event["id"])
-        event_type = str(event["type"])
+    while True:
         try:
-            await broker.publish_outbox_event(event)
-            await database.mark_outbox_published(event_id)
-            OUTBOX_PUBLISHES.labels(type=event_type, result="published").inc()
-        except Exception as error:
-            OUTBOX_PUBLISHES.labels(type=event_type, result="failed").inc()
-            logger.exception(
-                "outbox_publish_failed",
-                extra={"eventId": event_id, "eventType": event_type},
+            events = await database.get_pending_outbox_events(
+                settings.outbox_batch_size
             )
+        except SurrealDatabaseError:
+            logger.exception("outbox_read_failed")
+            return
+        if not events:
+            return
+
+        for event in events:
+            event_id = _record_id(event["id"])
+            event_type = str(event["type"])
             try:
-                await database.mark_outbox_failed(event_id, str(error))
-            except SurrealDatabaseError:
+                await broker.publish_outbox_event(event)
+                await database.mark_outbox_published(event_id)
+                OUTBOX_PUBLISHES.labels(type=event_type, result="published").inc()
+            except Exception as error:
+                OUTBOX_PUBLISHES.labels(type=event_type, result="failed").inc()
                 logger.exception(
-                    "outbox_failure_not_recorded", extra={"eventId": event_id}
+                    "outbox_publish_failed",
+                    extra={"eventId": event_id, "eventType": event_type},
                 )
-            return False
-    return bool(events)
+                try:
+                    await database.mark_outbox_failed(event_id, str(error))
+                except SurrealDatabaseError:
+                    logger.exception(
+                        "outbox_failure_not_recorded", extra={"eventId": event_id}
+                    )
+                return
+
+
+async def _wait_for_recovery_or_stop(
+    stop: asyncio.Event, recovery_requested: asyncio.Event
+) -> None:
+    """Sleep without querying SurrealDB until recovery work is requested."""
+
+    stop_wait = asyncio.create_task(stop.wait())
+    recovery_wait = asyncio.create_task(recovery_requested.wait())
+    done, pending = await asyncio.wait(
+        (stop_wait, recovery_wait), return_when=asyncio.FIRST_COMPLETED
+    )
+    del done
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
 
 
 async def _wait(stop: asyncio.Event, seconds: float) -> None:
