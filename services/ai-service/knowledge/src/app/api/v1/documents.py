@@ -1,13 +1,23 @@
-"""Document ingestion endpoints."""
+"""Document ingestion and review endpoints."""
 
+import re
+from collections.abc import Mapping
 from io import BytesIO
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import StreamingResponse
 
-from app.api.v1.schemas.documents import DocumentUploadAcceptedResponse
+from app.api.v1.schemas.documents import (
+    DocumentMetadataResponse,
+    DocumentResultResponse,
+    DocumentUploadAcceptedResponse,
+    OcrDraftResponse,
+    OcrPageResponse,
+    SourceSummary,
+)
 from app.config import Settings, get_settings
 from app.dependencies import get_database, get_object_store
 from app.infrastructure.minio import MinioObjectStore, ObjectStoreError
@@ -18,6 +28,7 @@ from app.observability.metrics import OUTBOX_PUBLISHES
 from app.outbox import _publish_result
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+_DOCUMENT_RECORD_ID = re.compile(r"doc_[0-9a-f]{32}")
 
 
 @router.post(
@@ -103,6 +114,92 @@ async def upload_pdf(
     return DocumentUploadAcceptedResponse(document_id=document_id, job_id=job_id)
 
 
+@router.get("/{document_id}/result", response_model=DocumentResultResponse)
+async def get_document_result(
+    document_id: str,
+    database: Annotated[SurrealDatabase, Depends(get_database)],
+) -> DocumentResultResponse:
+    """Return completed OCR output without leaking storage internals."""
+
+    record_id = _document_record_id_or_none(document_id)
+    if record_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    try:
+        result = await database.get_document_result(record_id)
+    except SurrealDatabaseError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document result is unavailable",
+        ) from error
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    document, draft = result
+    if document.get("process_status") != "review" or draft is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="OCR result is not ready",
+        )
+    return _as_document_result(document, draft)
+
+
+@router.get("/{document_id}/source")
+async def stream_document_source(
+    document_id: str,
+    request: Request,
+    database: Annotated[SurrealDatabase, Depends(get_database)],
+    object_store: Annotated[MinioObjectStore, Depends(get_object_store)],
+) -> StreamingResponse:
+    """Stream the private source PDF with single-range support for PDF viewers."""
+
+    record_id = _document_record_id_or_none(document_id)
+    if record_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    try:
+        document = await database.get_document(record_id)
+    except SurrealDatabaseError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document source is unavailable",
+        ) from error
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    source = document.get("source")
+    if not isinstance(source, Mapping) or not isinstance(source.get("object_key"), str):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document source not found")
+    object_key = source["object_key"]
+    try:
+        size = await object_store.get_size(object_key)
+    except ObjectStoreError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document source is unavailable",
+        ) from error
+    if size < 1:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document source not found")
+
+    start, end = _source_range_or_error(request.headers.get("range"), size)
+    length = end - start + 1
+    filename = _safe_attachment_filename(str(source.get("original_filename", "document.pdf")))
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": f'inline; filename="{filename}"',
+        "Content-Length": str(length),
+    }
+    response_status = status.HTTP_200_OK
+    if request.headers.get("range") is not None:
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+        response_status = status.HTTP_206_PARTIAL_CONTENT
+    return StreamingResponse(
+        object_store.iter_pdf_range(object_key, start, length),
+        status_code=response_status,
+        media_type="application/pdf",
+        headers=headers,
+    )
+
+
 async def _publish_new_job(
     database: SurrealDatabase, settings: Settings, job_record_id: str
 ) -> None:
@@ -142,3 +239,84 @@ async def _publish_new_job(
             )
     finally:
         await broker.close()
+
+
+def _as_document_result(
+    document: Mapping[str, Any], draft: Mapping[str, Any]
+) -> DocumentResultResponse:
+    source = document.get("source")
+    if not isinstance(source, Mapping):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document source not found")
+    pages = draft.get("pages")
+    if not isinstance(pages, list):
+        pages = []
+    metadata = {
+        field: document.get(field)
+        for field in (
+            "title",
+            "document_type",
+            "document_number",
+            "description",
+            "cohort",
+            "program_scope",
+            "language",
+        )
+    }
+    return DocumentResultResponse(
+        document_id=str(document["id"]),
+        process_status=str(document["process_status"]),
+        source=SourceSummary(
+            original_filename=str(source.get("original_filename", "document.pdf")),
+            mime_type=str(source.get("mime_type", "application/pdf")),
+        ),
+        page_count=document.get("page_count"),
+        metadata=DocumentMetadataResponse(**metadata),
+        ocr_draft=OcrDraftResponse(
+            id=str(draft["id"]),
+            status=str(draft["status"]),
+            pages=[OcrPageResponse.model_validate(page) for page in pages],
+        ),
+    )
+
+
+def _document_record_id_or_none(document_id: str) -> str | None:
+    record_id = document_id.removeprefix("document:")
+    return record_id if _DOCUMENT_RECORD_ID.fullmatch(record_id) else None
+
+
+def _source_range_or_error(range_header: str | None, size: int) -> tuple[int, int]:
+    if range_header is None:
+        return 0, size - 1
+    match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
+    if match is None or (not match.group(1) and not match.group(2)):
+        raise HTTPException(
+            status_code=status.HTTP_416_RANGE_NOT_SATISFIABLE,
+            detail="Invalid PDF byte range",
+            headers={"Content-Range": f"bytes */{size}"},
+        )
+    start_text, end_text = match.groups()
+    if start_text:
+        start = int(start_text)
+        end = int(end_text) if end_text else size - 1
+        if start >= size or end < start:
+            raise HTTPException(
+                status_code=status.HTTP_416_RANGE_NOT_SATISFIABLE,
+                detail="PDF byte range is not satisfiable",
+                headers={"Content-Range": f"bytes */{size}"},
+            )
+        return start, min(end, size - 1)
+    suffix_length = int(end_text)
+    if suffix_length < 1:
+        raise HTTPException(
+            status_code=status.HTTP_416_RANGE_NOT_SATISFIABLE,
+            detail="PDF byte range is not satisfiable",
+            headers={"Content-Range": f"bytes */{size}"},
+        )
+    return max(size - suffix_length, 0), size - 1
+
+
+def _safe_attachment_filename(filename: str) -> str:
+    """Prevent header injection while retaining a useful inline PDF filename."""
+
+    sanitized = re.sub(r"[\r\n\"\\\\]", "_", Path(filename).name).strip()
+    return sanitized or "document.pdf"

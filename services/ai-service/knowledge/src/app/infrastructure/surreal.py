@@ -540,6 +540,25 @@ class SurrealDatabase:
             raise SurrealDatabaseError("Unable to read document") from error
         return documents[0] if documents else None
 
+    async def get_document_result(
+        self, record_id: str
+    ) -> tuple[Mapping[str, Any], Mapping[str, Any] | None] | None:
+        """Return a document and its OCR draft for the review read model."""
+
+        document = await self.get_document(record_id)
+        if document is None:
+            return None
+        try:
+            drafts = await self.client.query(
+                "SELECT * FROM ocr_draft "
+                "WHERE document_id = type::record('document', $record_id) "
+                "ORDER BY updated_at DESC LIMIT 1;",
+                {"record_id": record_id},
+            )
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to read OCR draft") from error
+        return document, (drafts[0] if drafts else None)
+
 
 def _record_id(value: Any) -> str:
     """Extract the safe generated portion of a SurrealDB RecordID."""

@@ -51,6 +51,24 @@ docker compose up -d --scale knowledge-worker=2
 
 RabbitMQ is mandatory for job admission: a queued job remains queued while the
 broker is unavailable, then the durable outbox dispatches it after recovery.
+
+## Review web application
+
+The Compose stack also serves the React review UI at
+`http://localhost:5173` by default. Set `ADMIN_WEB_PORT` to use another host
+port. Upload a PDF there to follow its OCR job and, once it completes, compare
+the original PDF page-by-page with its OCR draft.
+
+For frontend-only development:
+
+```bash
+cd ../../../apps/admin-web
+npm ci
+npm run dev
+```
+
+The Vite development server proxies `/v1` REST and WebSocket traffic to the
+knowledge API on port 8000.
 Prometheus metrics are available at `GET /metrics`; RabbitMQ management is
 available locally on port 15672. Worker and outbox containers expose their
 process metrics on port 9100 inside the Compose network. GPU memory/utilization

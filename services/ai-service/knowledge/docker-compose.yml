@@ -207,6 +207,15 @@ services:
       minio-init:
         condition: service_completed_successfully
 
+  admin-web:
+    build:
+      context: ../../../apps/admin-web
+    depends_on:
+      knowledge-api:
+        condition: service_healthy
+    ports:
+      - "${ADMIN_WEB_PORT:-5173}:80"
+
 volumes:
   surreal_data:
   minio_data:

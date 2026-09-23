@@ -1,5 +1,6 @@
 """Private object storage for source PDFs and derived images."""
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
 from io import BufferedReader
@@ -82,6 +83,43 @@ class MinioObjectStore:
             return await to_thread.run_sync(read_object)
         except Exception as error:
             raise ObjectStoreError("Unable to read PDF from MinIO") from error
+
+    async def get_size(self, object_key: str) -> int:
+        """Return the byte length needed for an HTTP range response."""
+
+        try:
+            stat = await to_thread.run_sync(
+                lambda: self._client.stat_object(self._bucket, object_key)
+            )
+            return int(stat.size)
+        except Exception as error:
+            raise ObjectStoreError("Unable to inspect PDF in MinIO") from error
+
+    async def iter_pdf_range(
+        self, object_key: str, offset: int, length: int
+    ) -> AsyncIterator[bytes]:
+        """Yield a private PDF range and release its MinIO response."""
+
+        try:
+            response = await to_thread.run_sync(
+                lambda: self._client.get_object(
+                    self._bucket, object_key, offset=offset, length=length
+                )
+            )
+        except Exception as error:
+            raise ObjectStoreError("Unable to open PDF from MinIO") from error
+
+        try:
+            while True:
+                chunk = await to_thread.run_sync(lambda: response.read(64 * 1024))
+                if not chunk:
+                    break
+                yield chunk
+        except Exception as error:
+            raise ObjectStoreError("Unable to stream PDF from MinIO") from error
+        finally:
+            await to_thread.run_sync(response.close)
+            await to_thread.run_sync(response.release_conn)
 
     async def list_source_objects(self) -> list[SourceObject]:
         """List source candidates under the only cleanup-eligible prefix."""
