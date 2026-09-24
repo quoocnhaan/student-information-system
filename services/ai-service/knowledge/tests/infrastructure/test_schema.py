@@ -22,3 +22,12 @@ def test_schema_creates_durable_sequenced_outbox_events() -> None:
     assert "DEFINE EVENT OVERWRITE job_dispatch_outbox" in schema
     assert "sequence = $after.sequence" in schema
     assert "available_at = $after.next_attempt_at" in schema
+
+
+def test_schema_versions_review_drafts() -> None:
+    schema = (Path(__file__).parents[2] / "db" / "schema.surql").read_text(
+        encoding="utf-8"
+    )
+
+    assert "DEFINE FIELD IF NOT EXISTS revision ON TABLE ocr_draft TYPE int DEFAULT 1" in schema
+    assert "UPDATE ocr_draft SET revision = 1 WHERE revision IS NONE;" in schema

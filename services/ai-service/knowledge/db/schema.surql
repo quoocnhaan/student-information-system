@@ -120,12 +120,14 @@ DEFINE EVENT OVERWRITE job_dispatch_outbox ON TABLE job
 DEFINE TABLE IF NOT EXISTS ocr_draft SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS document_id ON TABLE ocr_draft TYPE record<document>;
 DEFINE FIELD IF NOT EXISTS status ON TABLE ocr_draft TYPE string ASSERT $value INSIDE ['draft', 'confirmed'];
+DEFINE FIELD IF NOT EXISTS revision ON TABLE ocr_draft TYPE int DEFAULT 1 ASSERT $value >= 1;
 DEFINE FIELD IF NOT EXISTS pages ON TABLE ocr_draft TYPE array<object>;
 DEFINE FIELD IF NOT EXISTS pages.*.page ON TABLE ocr_draft TYPE int;
 DEFINE FIELD IF NOT EXISTS pages.*.raw_text ON TABLE ocr_draft TYPE string;
 DEFINE FIELD IF NOT EXISTS pages.*.reviewed_text ON TABLE ocr_draft TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE ocr_draft TYPE datetime DEFAULT time::now() READONLY;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE ocr_draft TYPE datetime VALUE time::now();
+UPDATE ocr_draft SET revision = 1 WHERE revision IS NONE;
 DEFINE INDEX IF NOT EXISTS ocr_draft_document ON TABLE ocr_draft FIELDS document_id;
 
 DEFINE TABLE IF NOT EXISTS chunk SCHEMAFULL;

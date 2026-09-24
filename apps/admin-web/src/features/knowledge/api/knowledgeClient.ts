@@ -4,6 +4,7 @@ import {
   KnowledgeError,
   type DocumentResult,
   type JobStatus,
+  type ReviewDraftUpdate,
   type UploadAccepted,
   uploadAcceptedSchema,
 } from "./contracts";
@@ -47,6 +48,23 @@ export const knowledgeClient = {
 
   async getDocumentResult(documentId: string, signal?: AbortSignal): Promise<DocumentResult> {
     const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/result`, { signal }));
+    return documentResultSchema.parse(body);
+  },
+
+  async saveDocumentReviewDraft(
+    documentId: string,
+    update: ReviewDraftUpdate,
+    signal?: AbortSignal,
+  ): Promise<DocumentResult> {
+    const body = await responseJson(await fetch(
+      `/v1/documents/${encodeURIComponent(documentId)}/review-draft`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(update),
+        signal,
+      },
+    ));
     return documentResultSchema.parse(body);
   },
 

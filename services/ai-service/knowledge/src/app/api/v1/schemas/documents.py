@@ -2,7 +2,9 @@
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
+
+from app.domain.document import Cohort, ProgramScope
 
 
 class DocumentUploadAcceptedResponse(BaseModel):
@@ -41,6 +43,7 @@ class OcrPageResponse(BaseModel):
 class OcrDraftResponse(BaseModel):
     id: str
     status: str
+    revision: int = Field(default=1, ge=1)
     pages: list[OcrPageResponse]
 
 
@@ -53,3 +56,33 @@ class DocumentResultResponse(BaseModel):
     page_count: int | None = None
     metadata: DocumentMetadataResponse
     ocr_draft: OcrDraftResponse
+
+
+class ReviewMetadataRequest(BaseModel):
+    """Reviewer-controlled metadata; storage and lifecycle fields stay server-owned."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    document_type: str | None = Field(default=None, min_length=1, max_length=120)
+    document_number: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=10_000)
+    cohort: Cohort | None = None
+    program_scope: ProgramScope | None = None
+    language: str | None = Field(default=None, min_length=2, max_length=12)
+
+
+class ReviewPageUpdateRequest(BaseModel):
+    page: int = Field(ge=1)
+    reviewed_text: str = Field(max_length=500_000)
+
+
+class ReviewDraftUpdateRequest(BaseModel):
+    expected_revision: int = Field(ge=1)
+    metadata: ReviewMetadataRequest
+    pages: list[ReviewPageUpdateRequest] = Field(default_factory=list, max_length=500)
+
+    @model_validator(mode="after")
+    def page_numbers_are_unique(self) -> "ReviewDraftUpdateRequest":
+        page_numbers = [entry.page for entry in self.pages]
+        if len(page_numbers) != len(set(page_numbers)):
+            raise ValueError("page updates must contain unique page numbers")
+        return self

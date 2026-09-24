@@ -89,6 +89,7 @@ class OcrDraftRecord(BaseModel):
     id: str
     document_id: str
     status: OcrDraftStatus
+    revision: int = Field(default=1, ge=1)
     pages: list[OcrPage] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

@@ -231,6 +231,23 @@ ocr_draft.pages          = [{ page: 1, raw_text: "..." }, ...]
 The original PDF remains in MinIO. The OCR draft and document metadata remain
 in SurrealDB for the human-review stage.
 
+## Human review draft branch
+
+Once the OCR job completes, the document is in `review` and the OCR draft is
+still `draft`. A reviewer reads the source PDF and corrects detected metadata
+and page text through:
+
+```text
+PATCH /v1/documents/{document_id}/review-draft
+```
+
+The request includes the last-read OCR-draft revision, the complete metadata
+form, and only OCR pages whose Markdown changed. The service updates the
+`document` metadata and `ocr_draft.pages[].reviewed_text` in one transaction,
+then increments the draft revision. `raw_text` is preserved as the original OCR
+evidence. A stale revision returns `409 Conflict` so a second reviewer cannot
+silently overwrite a newer save.
+
 ## Failure and retry branch
 
 If OCR fails, `_handle_job_failure` in `worker.py` calls
@@ -246,4 +263,3 @@ permanent failure or no attempts remaining
   → job becomes failed
   → document.process_status becomes failed
 ```
-

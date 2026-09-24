@@ -134,7 +134,7 @@ class SurrealDatabase:
             await self.client.query(
                 f"UPSERT ocr_draft:{record_id} SET "
                 f"document_id = document:{document_record_id}, "
-                "status = 'draft', pages = $pages;",
+                "status = 'draft', revision = 1, pages = $pages;",
                 {"pages": [dict(page) for page in pages]},
             )
         except Exception as error:
@@ -375,6 +375,76 @@ class SurrealDatabase:
             )
         except Exception as error:
             raise SurrealDatabaseError("Unable to update document after OCR") from error
+
+    async def update_document_review(
+        self,
+        record_id: str,
+        expected_revision: int,
+        metadata: Mapping[str, Any],
+        page_updates: list[Mapping[str, Any]],
+    ) -> bool:
+        """Atomically save reviewer corrections without changing original OCR text."""
+
+        result = await self.get_document_result(record_id)
+        if result is None:
+            return False
+        document, draft = result
+        if (
+            document.get("process_status") != "review"
+            or draft is None
+            or draft.get("status") != "draft"
+            or int(draft.get("revision", 1)) != expected_revision
+        ):
+            return False
+
+        original_pages = draft.get("pages")
+        if not isinstance(original_pages, list):
+            return False
+        changes_by_page = {int(change["page"]): str(change["reviewed_text"]) for change in page_updates}
+        known_pages = {
+            int(page["page"])
+            for page in original_pages
+            if isinstance(page, Mapping) and isinstance(page.get("page"), int)
+        }
+        if not set(changes_by_page).issubset(known_pages):
+            return False
+        pages = [
+            {
+                **dict(page),
+                **(
+                    {"reviewed_text": changes_by_page[int(page["page"])]}
+                    if int(page["page"]) in changes_by_page
+                    else {}
+                ),
+            }
+            for page in original_pages
+            if isinstance(page, Mapping)
+        ]
+        draft_record_id = _record_id(draft["id"])
+        query = (
+            "BEGIN TRANSACTION; "
+            f"LET $updated_draft = (UPDATE ocr_draft:{draft_record_id} "
+            "SET pages = $pages, revision += 1 "
+            "WHERE revision = $expected_revision RETURN AFTER); "
+            "IF array::len($updated_draft) = 0 THEN "
+            "THROW 'review_revision_conflict'; END; "
+            f"UPDATE document:{record_id} MERGE $metadata; "
+            "COMMIT TRANSACTION;"
+        )
+        try:
+            await self.client.query(
+                query,
+                {
+                    "pages": pages,
+                    "metadata": dict(metadata),
+                    "expected_revision": expected_revision,
+                },
+            )
+            return True
+        except Exception as error:
+            if "review_revision_conflict" in str(error):
+                return False
+            raise SurrealDatabaseError("Unable to save document review") from error
 
     async def fail_document(self, record_id: str) -> None:
         """Mark the document as failed when its durable job has failed."""

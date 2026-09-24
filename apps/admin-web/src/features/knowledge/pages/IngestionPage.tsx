@@ -1,12 +1,7 @@
-import { lazy, Suspense } from "react";
 import { Link, useParams } from "react-router-dom";
+import { DocumentReviewWorkspace } from "../components/DocumentReviewWorkspace";
 import { JobProgress } from "../components/JobProgress";
-import { MetadataPanel } from "../components/MetadataPanel";
 import { useIngestionJob } from "../hooks/useIngestionJob";
-
-const PdfComparisonWorkspace = lazy(async () => ({
-  default: (await import("../components/PdfComparisonWorkspace")).PdfComparisonWorkspace,
-}));
 
 export function IngestionPage() {
   const { jobId } = useParams();
@@ -18,6 +13,6 @@ export function IngestionPage() {
     <JobProgress job={job} connection={connection} />
     {job.status === "failed" && <section className="card stack"><h2>OCR could not complete</h2><p className="notice danger">{job.error ?? "The service could not process this document."}</p><Link className="primary-button" to="/knowledge/documents/new">Upload another PDF</Link></section>}
     {error && job.status !== "failed" && <p className="notice warning" role="status">{error.message}</p>}
-    {result && <><MetadataPanel result={result} /><Suspense fallback={<p className="loading">Loading PDF comparison…</p>}><PdfComparisonWorkspace result={result} /></Suspense></>}
+    {result && <DocumentReviewWorkspace initialResult={result} />}
   </section>;
 }
