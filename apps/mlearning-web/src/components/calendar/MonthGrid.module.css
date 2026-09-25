@@ -1,0 +1,115 @@
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.weekHeader {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8f9fb;
+}
+
+.weekday {
+  padding: 8px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: 0.03em;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.cell {
+  min-height: 96px;
+  border-right: 1px solid #f0f1f3;
+  border-bottom: 1px solid #f0f1f3;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cell:nth-child(7n) {
+  border-right: none;
+}
+
+.cellMuted {
+  background: #fafafa;
+  color: #d1d5db;
+}
+
+.cellMuted .dateNum {
+  color: #d1d5db;
+}
+
+.dateNum {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.today {
+  background: #3b5fe3;
+  color: #fff !important;
+  border-radius: 999px;
+}
+
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.chip {
+  border-radius: 5px;
+  padding: 2px 5px;
+  font-size: 10px;
+  line-height: 1.3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chipTitle {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chipTime {
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Category colors — must match CalendarLegend.tsx */
+.chipLecture { background: #eef3ff; color: #3b5fe3; }
+.chipDeadline { background: #fef2f2; color: #dc2626; }
+.chipExam { background: #f3f0ff; color: #7c3aed; }
+.chipOffice { background: #ecfdf3; color: #15803d; }
+.chipSeminar { background: #fff8eb; color: #b45309; }
+.chipInstitutional { background: #f3f4f6; color: #4b5563; }
+
+@media (max-width: 640px) {
+  .cell {
+    min-height: 72px;
+  }
+  .chip {
+    font-size: 9px;
+  }
+}

@@ -1,0 +1,135 @@
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.headerIcon {
+  font-size: 13px;
+  color: #3b5fe3;
+}
+
+.headerTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+  flex: 1;
+}
+
+.headerTotal {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.statBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 8px;
+  padding: 8px 4px;
+}
+
+.statNum {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.statLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.statAnswered {
+  background: #eef3ff;
+}
+.statAnswered .statNum { color: #3b5fe3; }
+.statAnswered .statLabel { color: #6b82d6; }
+
+.statFlagged {
+  background: #fff8eb;
+}
+.statFlagged .statNum { color: #b45309; }
+.statFlagged .statLabel { color: #c08a3e; }
+
+.statUnanswered {
+  background: #f3f4f6;
+}
+.statUnanswered .statNum { color: #4b5563; }
+.statUnanswered .statLabel { color: #9ca3af; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.cell {
+  position: relative;
+  height: 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.cell:hover {
+  border-color: #c7d2fe;
+}
+
+.cellAnswered {
+  background: #f8f9ff;
+  color: #374151;
+}
+
+.cellCurrent {
+  border: 1.5px solid #3b5fe3;
+  color: #3b5fe3;
+  background: #fff;
+}
+
+.flagDot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #f59e0b;
+}
+
+.jumpBtn {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b5fe3;
+  cursor: pointer;
+}
+
+.jumpBtn:hover {
+  background: #f8f9fb;
+}

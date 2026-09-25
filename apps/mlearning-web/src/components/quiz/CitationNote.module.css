@@ -1,0 +1,27 @@
+.wrap {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: #eef3ff;
+  border: 1px solid #dbe4ff;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 14px;
+}
+
+.icon {
+  color: #3b5fe3;
+  font-size: 13px;
+  margin-top: 1px;
+}
+
+.text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #374151;
+}
+
+.text strong {
+  color: #1f2937;
+}
