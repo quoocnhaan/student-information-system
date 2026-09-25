@@ -1,0 +1,76 @@
+.wrapper {
+  padding: 14px 24px 0;
+}
+
+.trail {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sep {
+  color: #d1d5db;
+}
+
+.active {
+  color: #374151;
+  font-weight: 500;
+}
+
+.courseRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tagGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  font-size: 11px;
+  background: #f3f4f6;
+  color: #4b5563;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.tagActive {
+  font-size: 11px;
+  background: #dcfce7;
+  color: #16a34a;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.courseTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  margin: 2px 0 4px;
+}
+
+.meta {
+  display: flex;
+  gap: 18px;
+  font-size: 12px;
+  color: #6b7280;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .courseTitle {
+    font-size: 17px;
+  }
+  .meta {
+    gap: 10px;
+  }
+}

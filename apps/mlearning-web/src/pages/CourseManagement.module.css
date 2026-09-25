@@ -1,0 +1,48 @@
+.page {
+  background: #f5f6f8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+  padding: 0 24px;
+  width: 100%;
+}
+
+.sidebarCol {
+  min-width: 0;
+}
+
+.contentCol {
+  min-width: 0;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 24px;
+  font-size: 11px;
+  color: #9ca3af;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .body {
+    grid-template-columns: 260px 1fr;
+  }
+}
+
+/* Mobile: xếp chồng sidebar lên trên content */
+@media (max-width: 768px) {
+  .body {
+    grid-template-columns: 1fr;
+  }
+}
