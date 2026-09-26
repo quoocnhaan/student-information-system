@@ -6,7 +6,7 @@ type MetadataEditorProps = {
 };
 
 function text(value: unknown): string {
-  return typeof value === "string" ? value : "";
+  return typeof value === "string" || typeof value === "number" ? String(value) : "";
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -24,7 +24,7 @@ function programmeList(value: unknown): string {
 export function MetadataEditor({ value, onChange }: MetadataEditorProps) {
   const cohort = record(value.cohort);
   const scope = record(value.program_scope);
-  const scopeType = text(scope.type) || "all";
+  const scopeType = text(scope.type);
   const fromYear = text(cohort.from_year);
   const toYear = text(cohort.to_year);
   const cohortError = fromYear && toYear && Number(toYear) < Number(fromYear)
@@ -45,6 +45,10 @@ export function MetadataEditor({ value, onChange }: MetadataEditorProps) {
 
   function updateScope(field: "type" | "programs", next: string) {
     const current = record(value.program_scope);
+    if (field === "type" && next === "") {
+      update("program_scope", null);
+      return;
+    }
     const updated: Record<string, unknown> = { ...current };
     if (field === "programs") updated.programs = next.split(",").map((entry) => entry.trim()).filter(Boolean);
     else {
@@ -64,7 +68,7 @@ export function MetadataEditor({ value, onChange }: MetadataEditorProps) {
       <label>Language<input value={text(value.language)} onChange={(event) => update("language", event.target.value)} /></label>
       <label>Cohort start year<input type="number" min="1900" max="9999" value={fromYear} onChange={(event) => updateCohort("from_year", event.target.value)} /></label>
       <label>Cohort end year<input type="number" min="1900" max="9999" value={toYear} onChange={(event) => updateCohort("to_year", event.target.value)} /></label>
-      <label>Programme scope<select value={scopeType} onChange={(event) => updateScope("type", event.target.value)}><option value="all">All programmes</option><option value="non_language_major">Non-language major</option><option value="language_major">Language major</option><option value="specific_programs">Specific programmes</option></select></label>
+      <label>Programme scope<select value={scopeType} onChange={(event) => updateScope("type", event.target.value)}><option value="">Not detected</option><option value="all">All programmes</option><option value="non_language_major">Non-language major</option><option value="language_major">Language major</option><option value="specific_programs">Specific programmes</option></select></label>
       {scopeType === "specific_programs" && <label>Programmes (comma separated)<input value={programmeList(scope.programs)} onChange={(event) => updateScope("programs", event.target.value)} /></label>}
       <label className="wide-field">Description<textarea value={text(value.description)} onChange={(event) => update("description", event.target.value)} /></label>
     </div>

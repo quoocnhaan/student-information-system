@@ -23,7 +23,7 @@ async def health() -> ServiceStatus:
 
 @router.get("/ready", response_model=ServiceStatus)
 async def ready(request: Request) -> ServiceStatus:
-    """Report whether durable storage and configured messaging are reachable."""
+    """Report whether the API can persist a new upload and durable job."""
 
     database = getattr(request.app.state, "database", None)
     object_store = getattr(request.app.state, "object_store", None)
@@ -32,11 +32,7 @@ async def ready(request: Request) -> ServiceStatus:
         database is not None and await database.is_ready()
     )
     object_store_ready = object_store is not None and await object_store.is_ready()
-    broker = getattr(request.app.state, "rabbitmq", None)
-    broker_ready = not settings.rabbitmq_enabled or (
-        broker is not None and broker.is_available
-    )
-    if not (database_ready and object_store_ready and broker_ready):
+    if not (database_ready and object_store_ready):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Knowledge service dependencies are not ready",

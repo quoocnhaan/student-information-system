@@ -45,6 +45,12 @@ DEFINE FIELD IF NOT EXISTS total_pages ON TABLE job TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS processed_pages ON TABLE job TYPE int DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS sequence ON TABLE job TYPE int DEFAULT 1 ASSERT $value >= 1;
 DEFINE FIELD IF NOT EXISTS dispatch_generation ON TABLE job TYPE int DEFAULT 1 ASSERT $value >= 1;
+DEFINE FIELD IF NOT EXISTS dispatch_published_at ON TABLE job TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS dispatch_publish_attempts ON TABLE job TYPE int DEFAULT 0 ASSERT $value >= 0;
+DEFINE FIELD IF NOT EXISTS dispatch_last_error ON TABLE job TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS dispatch_next_publish_at ON TABLE job TYPE option<datetime>;
+DEFINE FIELD IF NOT EXISTS dispatch_lease_owner ON TABLE job TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS dispatch_lease_expires_at ON TABLE job TYPE option<datetime>;
 DEFINE FIELD IF NOT EXISTS error ON TABLE job TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS attempts ON TABLE job TYPE int DEFAULT 0 ASSERT $value >= 0;
 DEFINE FIELD IF NOT EXISTS max_attempts ON TABLE job TYPE int DEFAULT 3 ASSERT $value >= 1;
@@ -55,67 +61,10 @@ DEFINE FIELD IF NOT EXISTS lease_expires_at ON TABLE job TYPE option<datetime>;
 DEFINE FIELD IF NOT EXISTS created_at ON TABLE job TYPE datetime DEFAULT time::now() READONLY;
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE job TYPE datetime VALUE time::now();
 UPDATE job SET sequence = 1 WHERE sequence IS NONE;
-UPDATE job SET dispatch_generation = 1 WHERE dispatch_generation IS NONE;
 DEFINE INDEX IF NOT EXISTS job_document ON TABLE job FIELDS document_id;
 DEFINE INDEX IF NOT EXISTS job_status_created ON TABLE job FIELDS status, created_at;
 DEFINE INDEX IF NOT EXISTS job_claimable ON TABLE job FIELDS status, next_attempt_at, created_at;
-
--- Durable events are published to RabbitMQ by the outbox service. SurrealDB
--- table events make the job update and its notification one database commit.
-DEFINE TABLE IF NOT EXISTS outbox_event SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS type ON TABLE outbox_event TYPE string
-  ASSERT $value INSIDE ['job.queued', 'job.status_changed'];
-DEFINE FIELD IF NOT EXISTS job_id ON TABLE outbox_event TYPE record<job>;
-DEFINE FIELD IF NOT EXISTS document_id ON TABLE outbox_event TYPE record<document>;
-DEFINE FIELD IF NOT EXISTS sequence ON TABLE outbox_event TYPE option<int>;
-DEFINE FIELD IF NOT EXISTS dispatch_generation ON TABLE outbox_event TYPE option<int>;
-DEFINE FIELD IF NOT EXISTS available_at ON TABLE outbox_event TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS status ON TABLE outbox_event TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS step ON TABLE outbox_event TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS progress ON TABLE outbox_event TYPE option<int>;
-DEFINE FIELD IF NOT EXISTS processed_pages ON TABLE outbox_event TYPE option<int>;
-DEFINE FIELD IF NOT EXISTS total_pages ON TABLE outbox_event TYPE option<int>;
-DEFINE FIELD IF NOT EXISTS attempts ON TABLE outbox_event TYPE option<int>;
-DEFINE FIELD IF NOT EXISTS max_attempts ON TABLE outbox_event TYPE option<int>;
-DEFINE FIELD IF NOT EXISTS error ON TABLE outbox_event TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS job_updated_at ON TABLE outbox_event TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS created_at ON TABLE outbox_event TYPE datetime DEFAULT time::now() READONLY;
-DEFINE FIELD IF NOT EXISTS published_at ON TABLE outbox_event TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS publish_attempts ON TABLE outbox_event TYPE int DEFAULT 0 ASSERT $value >= 0;
-DEFINE FIELD IF NOT EXISTS last_error ON TABLE outbox_event TYPE option<string>;
-DEFINE INDEX IF NOT EXISTS outbox_pending ON TABLE outbox_event FIELDS published_at, created_at;
-DEFINE INDEX IF NOT EXISTS outbox_job ON TABLE outbox_event FIELDS job_id, type;
-
-DEFINE EVENT OVERWRITE job_status_outbox ON TABLE job
-  WHEN $event = "CREATE" OR $after.sequence != $before.sequence
-  THEN (
-    CREATE outbox_event SET
-      type = 'job.status_changed',
-      job_id = $after.id,
-      document_id = $after.document_id,
-      sequence = $after.sequence,
-      status = $after.status,
-      step = $after.step,
-      progress = $after.progress,
-      processed_pages = $after.processed_pages,
-      total_pages = $after.total_pages,
-      attempts = $after.attempts,
-      max_attempts = $after.max_attempts,
-      error = $after.error,
-      job_updated_at = $after.updated_at
-  );
-
-DEFINE EVENT OVERWRITE job_dispatch_outbox ON TABLE job
-  WHEN ($event = "CREATE" AND $after.status = 'queued')
-    OR ($after.status = 'queued' AND $after.dispatch_generation != $before.dispatch_generation)
-  THEN (
-    CREATE outbox_event SET
-      type = 'job.queued',
-      job_id = $after.id,
-      document_id = $after.document_id,
-      dispatch_generation = $after.dispatch_generation,
-      available_at = $after.next_attempt_at
-  );
+DEFINE INDEX IF NOT EXISTS job_dispatch_due ON TABLE job FIELDS status, dispatch_published_at, dispatch_next_publish_at, created_at;
 
 DEFINE TABLE IF NOT EXISTS ocr_draft SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS document_id ON TABLE ocr_draft TYPE record<document>;

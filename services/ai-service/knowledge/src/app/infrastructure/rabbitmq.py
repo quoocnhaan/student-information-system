@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import aio_pika
@@ -13,8 +13,10 @@ from pamqp import commands
 from app.config import Settings
 from app.observability.metrics import QUEUE_DEPTH
 
-JobHandler = Callable[[str, bool, IncomingMessage], Awaitable[None]]
-StatusHandler = Callable[[Mapping[str, Any]], Awaitable[None]]
+_JOB_ROUTING_KEY = "job.queued"
+_LEGACY_OCR_ROUTING_KEY = "ocr"
+
+JobHandler = Callable[[str, int, bool, IncomingMessage], Awaitable[None]]
 
 
 class RabbitMqPublishTimeout(TimeoutError):
@@ -80,53 +82,36 @@ class RabbitMqBroker:
 
         self.connection.reconnect_callbacks.add(on_reconnect)
 
-    async def publish_outbox_event(self, event: Mapping[str, Any]) -> None:
-        """Publish one durable outbox row and wait for broker confirmation."""
+    async def publish_job_trigger(self, job_id: str, dispatch_generation: int) -> None:
+        """Publish one durable job trigger and wait for broker confirmation."""
 
-        event_type = str(event["type"])
         channel = await self.connection.channel(publisher_confirms=True)
         try:
-            if event_type == "job.queued":
-                exchange = await channel.declare_exchange(
-                    self._settings.rabbitmq_jobs_exchange,
-                    ExchangeType.DIRECT,
-                    durable=True,
-                )
-                await self._declare_job_queue(channel, exchange)
-                payload = {
-                    "event_type": event_type,
-                    "job_id": str(event["job_id"]),
-                    "dispatch_generation": event.get("dispatch_generation"),
-                }
-                routing_key = "ocr"
-            elif event_type == "job.status_changed":
-                exchange = await channel.declare_exchange(
-                    self._settings.rabbitmq_status_exchange,
-                    ExchangeType.TOPIC,
-                    durable=True,
-                )
-                payload = _status_payload(event)
-                routing_key = event_type
-            else:
-                raise ValueError(f"Unsupported outbox event type: {event_type}")
+            exchange = await channel.declare_exchange(
+                self._settings.rabbitmq_jobs_exchange,
+                ExchangeType.DIRECT,
+                durable=True,
+            )
+            await self._declare_job_queue(channel, exchange)
+            payload = {"job_id": job_id, "dispatch_generation": dispatch_generation}
 
             message = Message(
                 json.dumps(payload, default=str).encode("utf-8"),
                 content_type="application/json",
                 delivery_mode=DeliveryMode.PERSISTENT,
-                message_id=str(event["id"]),
-                type=event_type,
+                message_id=f"{job_id}:{dispatch_generation}",
+                type="job.queued",
             )
             try:
                 confirmation = await asyncio.wait_for(
-                    exchange.publish(message, routing_key=routing_key, mandatory=True),
+                    exchange.publish(message, routing_key=_JOB_ROUTING_KEY, mandatory=True),
                     timeout=self._settings.rabbitmq_publish_confirm_timeout_seconds,
                 )
             except TimeoutError as error:
-                raise RabbitMqPublishTimeout(event_type, str(event["id"])) from error
+                raise RabbitMqPublishTimeout("job.queued", job_id) from error
             if not isinstance(confirmation, commands.Basic.Ack):
                 raise RabbitMqPublishRejected(
-                    f"RabbitMQ did not confirm {event_type}: {confirmation!r}"
+                    f"RabbitMQ did not confirm job.queued: {confirmation!r}"
                 )
         finally:
             await channel.close()
@@ -147,13 +132,26 @@ class RabbitMqBroker:
         async def on_message(message: IncomingMessage) -> None:
             try:
                 payload = json.loads(message.body)
-                job_id = str(payload["job_id"])
-            except (json.JSONDecodeError, KeyError, TypeError, UnicodeDecodeError):
+                job_id = payload["job_id"]
+                generation = payload["dispatch_generation"]
+                if (
+                    not isinstance(job_id, str)
+                    or not isinstance(generation, int)
+                    or isinstance(generation, bool)
+                    or generation < 1
+                ):
+                    raise ValueError("Invalid job delivery")
+            except (
+                json.JSONDecodeError, KeyError, TypeError, ValueError,
+                UnicodeDecodeError, AttributeError,
+            ):
                 await message.reject(requeue=False)
                 return
 
             try:
-                await handler(job_id, bool(message.redelivered), message)
+                await handler(
+                    job_id, generation, bool(message.redelivered), message
+                )
             except Exception:
                 if not message.processed:
                     await message.nack(requeue=True)
@@ -169,29 +167,6 @@ class RabbitMqBroker:
             await self._job_queue.cancel(self._job_consumer_tag)
         self._job_queue = None
         self._job_consumer_tag = None
-
-    async def consume_status(self, handler: StatusHandler) -> None:
-        """Create an API-instance queue and fan status events into the hub."""
-
-        channel = await self.connection.channel()
-        exchange = await channel.declare_exchange(
-            self._settings.rabbitmq_status_exchange,
-            ExchangeType.TOPIC,
-            durable=True,
-        )
-        queue = await channel.declare_queue(exclusive=True, auto_delete=True)
-        await queue.bind(exchange, routing_key="job.status_changed")
-
-        async def on_message(message: IncomingMessage) -> None:
-            async with message.process(ignore_processed=True):
-                try:
-                    payload = json.loads(message.body)
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    await message.reject(requeue=False)
-                    return
-                await handler(payload)
-
-        await queue.consume(on_message)
 
     async def refresh_queue_depth(self) -> None:
         """Refresh the ready-message gauge without consuming a delivery."""
@@ -209,23 +184,6 @@ class RabbitMqBroker:
         queue = await channel.declare_queue(
             self._settings.rabbitmq_jobs_queue, durable=True
         )
-        await queue.bind(exchange, routing_key="ocr")
+        await queue.bind(exchange, routing_key=_JOB_ROUTING_KEY)
+        await queue.bind(exchange, routing_key=_LEGACY_OCR_ROUTING_KEY)
         return queue
-
-
-def _status_payload(event: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        "event_type": "job.status_changed",
-        "job_id": str(event["job_id"]),
-        "document_id": str(event["document_id"]),
-        "sequence": int(event["sequence"]),
-        "status": event.get("status"),
-        "step": event.get("step"),
-        "progress": event.get("progress"),
-        "processed_pages": event.get("processed_pages"),
-        "total_pages": event.get("total_pages"),
-        "attempts": event.get("attempts"),
-        "max_attempts": event.get("max_attempts"),
-        "error": event.get("error"),
-        "updated_at": str(event.get("job_updated_at") or event.get("created_at")),
-    }

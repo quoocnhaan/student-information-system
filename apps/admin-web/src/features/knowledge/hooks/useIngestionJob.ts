@@ -29,14 +29,23 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
   const jobRef = useRef<JobStatus | null>(null);
 
   const acceptJob = useCallback((next: JobStatus) => {
+    if (jobRef.current?.id !== next.id) jobRef.current = null;
     if (jobRef.current !== null && next.sequence <= jobRef.current.sequence) return;
     const type = next.type ?? jobRef.current?.type;
     const resolved = type === undefined ? next : { ...next, type };
     jobRef.current = resolved;
-    setState((current) => ({ ...current, job: resolved, loading: false, error: null }));
+    setState((current) => ({
+      ...current,
+      job: resolved,
+      result: current.job?.id === resolved.id ? current.result : null,
+      loading: false,
+      error: null,
+    }));
   }, []);
 
   useEffect(() => {
+    jobRef.current = null;
+    setState({ job: null, result: null, connection: "connecting", loading: true, error: null });
     if (!jobId) {
       setState((current) => ({ ...current, loading: false, connection: "offline", error: new Error("A job ID is required.") }));
       return;
@@ -63,9 +72,12 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
     };
 
     const schedulePoll = () => {
-      if (cancelled || isTerminal(jobRef.current)) return;
+      if (cancelled || isTerminal(jobRef.current) ||
+        socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING ||
+        pollTimer !== undefined) return;
       setState((current) => ({ ...current, connection: "polling" }));
       pollTimer = window.setTimeout(async () => {
+        pollTimer = undefined;
         await loadSnapshot();
         schedulePoll();
       }, 3000);
@@ -74,13 +86,17 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
     const connect = () => {
       if (cancelled || isTerminal(jobRef.current)) return;
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
+      pollTimer = undefined;
       setState((current) => ({ ...current, connection: "connecting" }));
       socket = new WebSocket(websocketUrl(jobId));
       socket.onopen = () => {
         reconnectAttempts = 0;
+        if (pollTimer !== undefined) window.clearTimeout(pollTimer);
+        pollTimer = undefined;
         if (!cancelled) setState((current) => ({ ...current, connection: "live" }));
       };
       socket.onmessage = (message) => {
+        if (cancelled) return;
         if (message.data === "ping") {
           socket?.send("pong");
           return;
@@ -107,7 +123,7 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
     };
 
     void loadSnapshot().then((snapshot) => {
-      if (snapshot !== null && !isTerminal(snapshot)) connect();
+      if (!cancelled && !isTerminal(snapshot)) connect();
     });
 
     return () => {

@@ -46,14 +46,8 @@ def test_publish_confirmation_timeout_is_bounded_and_closes_channel() -> None:
         broker = RabbitMqBroker(Settings(rabbitmq_publish_confirm_timeout_seconds=0.01))
         broker._connection = _Connection(channel)  # type: ignore[assignment]
 
-        with pytest.raises(RabbitMqPublishTimeout, match="job.queued.*dispatch_a"):
-            await broker.publish_outbox_event(
-                {
-                    "id": "outbox_event:dispatch_a",
-                    "type": "job.queued",
-                    "job_id": "job:job_a",
-                }
-            )
+        with pytest.raises(RabbitMqPublishTimeout, match="job.queued.*job_a"):
+            await broker.publish_job_trigger("job:job_a", 1)
         assert channel.closed is True
 
     asyncio.run(scenario())

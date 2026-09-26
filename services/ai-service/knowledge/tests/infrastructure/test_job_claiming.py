@@ -3,6 +3,9 @@
 import asyncio
 from typing import Any
 
+import pytest
+
+from app.config import Settings
 from app.infrastructure.surreal import SurrealDatabase
 
 
@@ -11,15 +14,17 @@ def test_specific_job_claim_is_guarded_by_durable_status() -> None:
     database = object.__new__(SurrealDatabase)
     database._client = client
 
-    job = asyncio.run(database.claim_job("job_a", "worker-a", 180))
+    job = asyncio.run(database.claim_job("job_a", "worker-a", 180, 2))
 
-    assert job == {"id": "job:claimed", "status": "running"}
+    assert job == {"id": "job:claimed", "status": "running", "type": "ocr"}
     query, variables = client.calls[-1]
     assert "UPDATE job:job_a SET" in query
     assert "WHERE status = 'queued'" in query
     assert "next_attempt_at <= time::now()" in query
+    assert "type = $job_type" not in query
+    assert "dispatch_generation = $dispatch_generation" in query
     assert "sequence += 1" in query
-    assert variables == {"worker_id": "worker-a"}
+    assert variables == {"worker_id": "worker-a", "dispatch_generation": 2}
 
 
 class _ClaimClient:
@@ -32,7 +37,7 @@ class _ClaimClient:
         self.calls.append((query, variables))
         if len(self.calls) == 1:
             raise RuntimeError("Transaction conflict: Resource busy")
-        return [{"id": "job:claimed", "status": "running"}]
+        return [{"id": "job:claimed", "status": "running", "type": "ocr"}]
 
 
 class _UpdateClient:
@@ -64,17 +69,31 @@ def test_progress_update_enforces_worker_ownership_and_increments_sequence() -> 
     assert variables == {"changes": {"progress": 25}, "worker_id": "worker-a"}
 
 
-def test_new_job_dispatch_lookup_only_reads_its_unpublished_trigger() -> None:
+def test_dispatch_claim_is_guarded_by_generation_and_due_time() -> None:
     client = _UpdateClient()
     database = object.__new__(SurrealDatabase)
     database._client = client
 
-    event = asyncio.run(database.get_pending_job_dispatch_event("job_a"))
+    job = asyncio.run(database.claim_job_dispatch("job_a", 2, "token-a", 30))
 
-    assert event == {"id": "job:job_a"}
+    assert job == {"id": "job:job_a"}
     assert client.call is not None
     query, variables = client.call
-    assert "type = 'job.queued'" in query
-    assert "job_id = job:job_a" in query
-    assert "published_at IS NONE" in query
-    assert variables == {"dispatch_generation": 1}
+    assert "dispatch_generation = $generation" in query
+    assert "dispatch_published_at IS NONE" in query
+    assert "dispatch_lease_expires_at <= time::now()" in query
+    assert "dispatch_publish_attempts += 1" in query
+    assert variables == {"generation": 2, "lease_token": "token-a"}
+
+
+def test_unsupported_job_type_is_rejected_before_document_transaction() -> None:
+    client = _UpdateClient()
+    database = SurrealDatabase(Settings())
+    database._client = client
+
+    with pytest.raises(ValueError, match="Unsupported job type: unknown"):
+        asyncio.run(database.create_document_with_job(
+            "doc_a", {"status": "active"}, "job_a", "unknown"
+        ))
+
+    assert client.call is None

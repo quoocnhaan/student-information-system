@@ -1,10 +1,7 @@
-import asyncio
 from io import BytesIO
 
 from fastapi.testclient import TestClient
 
-from app.api.v1 import documents
-from app.config import Settings
 from app.dependencies import get_database, get_object_store
 from app.main import create_app
 
@@ -115,100 +112,3 @@ def test_job_status_rejects_non_generated_record_ids() -> None:
         response = client.get("/v1/jobs/not-a-generated-job-id")
 
     assert response.status_code == 404
-
-
-class _DispatchDatabase:
-    def __init__(self) -> None:
-        self.event = {
-            "id": "outbox_event:dispatch_a",
-            "type": "job.queued",
-            "job_id": "job:job_a",
-            "dispatch_generation": 1,
-        }
-        self.published: list[str] = []
-        self.failed: list[tuple[str, str]] = []
-
-    async def get_pending_job_dispatch_event(self, job_record_id: str):
-        assert job_record_id == "job_a"
-        return self.event
-
-    async def mark_outbox_published(self, event_id: str) -> None:
-        self.published.append(event_id)
-
-    async def mark_outbox_failed(self, event_id: str, error: str) -> None:
-        self.failed.append((event_id, error))
-
-
-def test_new_job_is_published_directly_then_marked_delivered(monkeypatch) -> None:
-    published: list[dict[str, object]] = []
-
-    class _Broker:
-        def __init__(self, _settings: Settings) -> None:
-            pass
-
-        async def connect(self) -> None:
-            pass
-
-        async def publish_outbox_event(self, event: dict[str, object]) -> None:
-            published.append(event)
-
-        async def close(self) -> None:
-            pass
-
-    monkeypatch.setattr(documents, "RabbitMqBroker", _Broker)
-    database = _DispatchDatabase()
-
-    asyncio.run(documents._publish_new_job(database, Settings(rabbitmq_enabled=True), "job_a"))
-
-    assert published == [database.event]
-    assert database.published == ["dispatch_a"]
-    assert database.failed == []
-
-
-def test_new_job_publish_failure_leaves_outbox_event_pending(monkeypatch) -> None:
-    class _Broker:
-        def __init__(self, _settings: Settings) -> None:
-            pass
-
-        async def connect(self) -> None:
-            pass
-
-        async def publish_outbox_event(self, _event: dict[str, object]) -> None:
-            raise ConnectionError("RabbitMQ is unavailable")
-
-        async def close(self) -> None:
-            pass
-
-    monkeypatch.setattr(documents, "RabbitMqBroker", _Broker)
-    database = _DispatchDatabase()
-
-    asyncio.run(documents._publish_new_job(database, Settings(rabbitmq_enabled=True), "job_a"))
-
-    assert database.published == []
-    assert database.failed == [("dispatch_a", "RabbitMQ is unavailable")]
-
-
-def test_new_job_publish_timeout_leaves_durable_event_pending(monkeypatch) -> None:
-    from app.infrastructure.rabbitmq import RabbitMqPublishTimeout
-
-    class _Broker:
-        def __init__(self, _settings: Settings) -> None:
-            pass
-
-        async def connect(self) -> None:
-            pass
-
-        async def publish_outbox_event(self, _event: dict[str, object]) -> None:
-            raise RabbitMqPublishTimeout("job.queued", "outbox_event:dispatch_a")
-
-        async def close(self) -> None:
-            pass
-
-    monkeypatch.setattr(documents, "RabbitMqBroker", _Broker)
-    database = _DispatchDatabase()
-
-    asyncio.run(documents._publish_new_job(database, Settings(rabbitmq_enabled=True), "job_a"))
-
-    assert database.published == []
-    assert len(database.failed) == 1
-    assert database.failed[0][0] == "dispatch_a"

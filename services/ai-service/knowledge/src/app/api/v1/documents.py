@@ -22,11 +22,7 @@ from app.api.v1.schemas.documents import (
 from app.config import Settings, get_settings
 from app.dependencies import get_database, get_object_store
 from app.infrastructure.minio import MinioObjectStore, ObjectStoreError
-from app.infrastructure.rabbitmq import RabbitMqBroker
 from app.infrastructure.surreal import SurrealDatabase, SurrealDatabaseError
-from app.observability.logging import get_logger
-from app.observability.metrics import OUTBOX_PUBLISHES
-from app.outbox import _publish_result
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 _DOCUMENT_RECORD_ID = re.compile(r"doc_[0-9a-f]{32}")
@@ -43,7 +39,7 @@ async def upload_pdf(
     object_store: Annotated[MinioObjectStore, Depends(get_object_store)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DocumentUploadAcceptedResponse:
-    """Persist a PDF and return a durable OCR job for UI progress polling."""
+    """Persist a PDF and durable OCR job for the database-driven dispatcher."""
 
     signature = await file.read(5)
     if signature != b"%PDF-":
@@ -109,8 +105,6 @@ async def upload_pdf(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Document metadata could not be saved",
         ) from error
-
-    await _publish_new_job(database, settings, job_record_id)
 
     return DocumentUploadAcceptedResponse(document_id=document_id, job_id=job_id)
 
@@ -276,47 +270,6 @@ async def stream_document_source(
         media_type="application/pdf",
         headers=headers,
     )
-
-
-async def _publish_new_job(
-    database: SurrealDatabase, settings: Settings, job_record_id: str
-) -> None:
-    """Use RabbitMQ as the fast path; retain the outbox when it cannot publish."""
-
-    if not settings.rabbitmq_enabled:
-        return
-
-    logger = get_logger()
-    try:
-        event = await database.get_pending_job_dispatch_event(job_record_id)
-    except SurrealDatabaseError:
-        logger.exception(
-            "new_job_outbox_event_read_failed", extra={"jobId": job_record_id}
-        )
-        return
-    if event is None:
-        logger.error("new_job_outbox_event_missing", extra={"jobId": job_record_id})
-        return
-
-    event_id = str(event["id"]).split(":", maxsplit=1)[-1]
-    broker = RabbitMqBroker(settings)
-    try:
-        await broker.connect()
-        await broker.publish_outbox_event(event)
-        await database.mark_outbox_published(event_id)
-        OUTBOX_PUBLISHES.labels(type="job.queued", result="published").inc()
-    except Exception as error:
-        OUTBOX_PUBLISHES.labels(type="job.queued", result=_publish_result(error)).inc()
-        logger.exception("new_job_publish_failed", extra={"jobId": job_record_id})
-        try:
-            await database.mark_outbox_failed(event_id, str(error))
-        except SurrealDatabaseError:
-            logger.exception(
-                "new_job_publish_failure_not_recorded",
-                extra={"jobId": job_record_id},
-            )
-    finally:
-        await broker.close()
 
 
 def _as_document_result(

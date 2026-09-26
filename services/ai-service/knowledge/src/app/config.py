@@ -104,11 +104,12 @@ class Settings(BaseSettings):
     )
     rabbitmq_jobs_exchange: str = "knowledge.jobs"
     rabbitmq_jobs_queue: str = "knowledge.jobs.ocr"
-    rabbitmq_status_exchange: str = "knowledge.status"
     rabbitmq_publish_confirm_timeout_seconds: float = Field(default=5.0, gt=0)
-    outbox_batch_size: int = Field(default=100, ge=1, le=1000)
-    outbox_retry_base_seconds: float = Field(default=1.0, gt=0)
-    outbox_retry_max_seconds: float = Field(default=30.0, gt=0)
+    dispatch_batch_size: int = Field(default=100, ge=1, le=1000)
+    dispatch_retry_base_seconds: float = Field(default=1.0, gt=0)
+    dispatch_retry_max_seconds: float = Field(default=30.0, gt=0)
+    dispatch_reconcile_seconds: float = Field(default=10.0, ge=1)
+    dispatch_lease_seconds: int = Field(default=30, ge=10)
     recovery_sweep_seconds: float = Field(default=30.0, ge=1)
     orphan_cleanup_enabled: bool = False
     orphan_cleanup_grace_seconds: float = Field(default=86400.0, ge=0)
@@ -143,11 +144,13 @@ class Settings(BaseSettings):
                 "KNOWLEDGE_WORKER_HEARTBEAT_SECONDS must be less than "
                 "KNOWLEDGE_WORKER_LEASE_SECONDS"
             )
-        if self.outbox_retry_base_seconds > self.outbox_retry_max_seconds:
+        if self.dispatch_retry_base_seconds > self.dispatch_retry_max_seconds:
             raise ValueError(
-                "KNOWLEDGE_OUTBOX_RETRY_BASE_SECONDS must not exceed "
-                "KNOWLEDGE_OUTBOX_RETRY_MAX_SECONDS"
+                "KNOWLEDGE_DISPATCH_RETRY_BASE_SECONDS must not exceed "
+                "KNOWLEDGE_DISPATCH_RETRY_MAX_SECONDS"
             )
+        if self.dispatch_lease_seconds <= self.rabbitmq_publish_confirm_timeout_seconds + 5:
+            raise ValueError("Dispatch lease must exceed broker confirmation timeout by 5 seconds")
         return self
 
 

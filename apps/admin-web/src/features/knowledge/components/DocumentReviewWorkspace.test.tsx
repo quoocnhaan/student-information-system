@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DocumentResult } from "../api/contracts";
 import { knowledgeClient } from "../api/knowledgeClient";
@@ -28,7 +28,10 @@ const result: DocumentResult = {
   },
 };
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("DocumentReviewWorkspace", () => {
   it("saves edited metadata and reviewed Markdown together", async () => {
@@ -55,5 +58,29 @@ describe("DocumentReviewWorkspace", () => {
       pages: [{ page: 1, reviewed_text: "# Corrected OCR" }],
     }));
     expect(await screen.findByText("Review draft saved.")).toBeInTheDocument();
+  });
+
+  it("shows an undetected programme scope without converting it to all programmes", () => {
+    render(<DocumentReviewWorkspace initialResult={{
+      ...result,
+      metadata: { ...result.metadata, program_scope: null },
+    }} />);
+
+    expect(screen.getByLabelText("Programme scope")).toHaveValue("");
+  });
+
+  it("renders detected numeric cohort years in the review form", () => {
+    render(<DocumentReviewWorkspace initialResult={{
+      ...result,
+      metadata: {
+        ...result.metadata,
+        cohort: { from_year: 2023, to_year: null },
+        program_scope: { type: "all", programs: [] },
+      },
+    }} />);
+
+    expect(screen.getByLabelText("Cohort start year")).toHaveValue(2023);
+    expect(screen.getByLabelText("Cohort end year")).toHaveValue(null);
+    expect(screen.getByLabelText("Programme scope")).toHaveValue("all");
   });
 });

@@ -86,14 +86,9 @@ services:
       KNOWLEDGE_JOB_MAX_ATTEMPTS: ${KNOWLEDGE_JOB_MAX_ATTEMPTS:-3}
       KNOWLEDGE_JOB_RETRY_BASE_SECONDS: ${KNOWLEDGE_JOB_RETRY_BASE_SECONDS:-10}
       KNOWLEDGE_JOB_RETRY_MAX_SECONDS: ${KNOWLEDGE_JOB_RETRY_MAX_SECONDS:-300}
-      KNOWLEDGE_RABBITMQ_ENABLED: "true"
-      KNOWLEDGE_RABBITMQ_PUBLISH_CONFIRM_TIMEOUT_SECONDS: ${KNOWLEDGE_RABBITMQ_PUBLISH_CONFIRM_TIMEOUT_SECONDS:-5}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
       KNOWLEDGE_WEBSOCKET_AUTH_TOKEN: ${KNOWLEDGE_WEBSOCKET_AUTH_TOKEN:-}
     depends_on:
       surrealdb:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
@@ -103,7 +98,7 @@ services:
       - "host.docker.internal:host-gateway"
     healthcheck:
       test:
-        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/health')"]
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/ready')"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -154,11 +149,11 @@ services:
       - "9100"
     stop_grace_period: 5m
 
-  knowledge-outbox:
+  knowledge-dispatcher:
     restart: unless-stopped
     build:
       context: .
-    command: python -m app.outbox
+    command: python -m app.dispatcher
     environment:
       KNOWLEDGE_ENVIRONMENT: development
       KNOWLEDGE_SURREAL_ENABLED: "true"
@@ -169,6 +164,11 @@ services:
       SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
       KNOWLEDGE_RABBITMQ_ENABLED: "true"
       KNOWLEDGE_RABBITMQ_PUBLISH_CONFIRM_TIMEOUT_SECONDS: ${KNOWLEDGE_RABBITMQ_PUBLISH_CONFIRM_TIMEOUT_SECONDS:-5}
+      KNOWLEDGE_DISPATCH_BATCH_SIZE: ${KNOWLEDGE_DISPATCH_BATCH_SIZE:-100}
+      KNOWLEDGE_DISPATCH_RETRY_BASE_SECONDS: ${KNOWLEDGE_DISPATCH_RETRY_BASE_SECONDS:-1}
+      KNOWLEDGE_DISPATCH_RETRY_MAX_SECONDS: ${KNOWLEDGE_DISPATCH_RETRY_MAX_SECONDS:-30}
+      KNOWLEDGE_DISPATCH_RECONCILE_SECONDS: ${KNOWLEDGE_DISPATCH_RECONCILE_SECONDS:-10}
+      KNOWLEDGE_DISPATCH_LEASE_SECONDS: ${KNOWLEDGE_DISPATCH_LEASE_SECONDS:-30}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
       KNOWLEDGE_METRICS_PORT: "9100"
     depends_on:
@@ -179,6 +179,13 @@ services:
     stop_grace_period: 30s
     expose:
       - "9100"
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9100/metrics')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
   knowledge-orphan-cleanup:
     profiles: ["maintenance"]

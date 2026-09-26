@@ -1,4 +1,4 @@
-"""UI polling endpoints for durable document-ingestion jobs."""
+"""Durable job snapshots and database-backed live status updates."""
 
 import asyncio
 import re
@@ -80,7 +80,7 @@ def _as_response(job: Mapping[str, Any]) -> JobStatusResponse:
 
 @websocket_router.websocket("/{job_id}")
 async def stream_job_status(websocket: WebSocket, job_id: str) -> None:
-    """Send a durable snapshot followed by newer RabbitMQ status events."""
+    """Send a durable snapshot followed by database-backed status updates."""
 
     settings = get_settings()
     if settings.websocket_auth_token:
@@ -99,7 +99,7 @@ async def stream_job_status(websocket: WebSocket, job_id: str) -> None:
 
     database = getattr(websocket.app.state, "database", None)
     hub = getattr(websocket.app.state, "job_status_hub", None)
-    if database is None or hub is None:
+    if database is None or hub is None or not getattr(websocket.app.state, "job_status_live", False):
         await websocket.close(code=1013, reason="Status streaming is unavailable")
         return
 
@@ -123,6 +123,9 @@ async def stream_job_status(websocket: WebSocket, job_id: str) -> None:
         snapshot["event_type"] = "job.status_snapshot"
         snapshot["job_id"] = snapshot.pop("id")
         await hub.subscribe(canonical_job_id, websocket, snapshot)
+        if not getattr(websocket.app.state, "job_status_live", False):
+            await websocket.close(code=1013, reason="Live job updates are unavailable")
+            return
         while True:
             try:
                 # Receiving also detects a peer disconnect; clients may send pong/text.

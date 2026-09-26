@@ -1,4 +1,4 @@
-"""Prometheus metrics shared by the API, worker, and outbox publisher."""
+"""Prometheus metrics shared by the API, worker, and job dispatcher."""
 
 from prometheus_client import Counter, Gauge, Histogram
 
@@ -17,8 +17,20 @@ JOB_RETRIES = Counter(
 TERMINAL_FAILURES = Counter(
     "knowledge_terminal_failures_total", "Jobs ending in terminal failure"
 )
-OUTBOX_PUBLISHES = Counter(
-    "knowledge_outbox_publishes_total", "Outbox publish attempts", ["type", "result"]
+DISPATCH_PUBLISHES = Counter(
+    "knowledge_job_dispatch_publishes_total", "Job trigger publish attempts", ["result"]
+)
+DISPATCH_PENDING = Gauge(
+    "knowledge_job_dispatch_pending", "Queued jobs awaiting a confirmed trigger"
+)
+DISPATCH_ACTIVE_LEASES = Gauge(
+    "knowledge_job_dispatch_active_leases", "Unexpired publish leases"
+)
+DISPATCH_ERRORS = Gauge(
+    "knowledge_job_dispatch_errors", "Unpublished jobs with a recorded publish error"
+)
+DISPATCH_DELAYED = Gauge(
+    "knowledge_job_dispatch_delayed", "Unpublished jobs waiting for publish retry"
 )
 RABBIT_REDELIVERIES = Counter(
     "knowledge_rabbitmq_redeliveries_total", "Redelivered RabbitMQ job messages"
@@ -39,7 +51,7 @@ WEBSOCKET_DROPS = Counter(
     "knowledge_websocket_drops_total", "Closed job-status WebSocket connections"
 )
 QUEUE_DEPTH = Gauge(
-    "knowledge_rabbitmq_queue_depth", "Ready messages in the OCR job queue"
+    "knowledge_rabbitmq_queue_depth", "Ready messages in the shared job queue"
 )
 JOB_STATE = Gauge("knowledge_jobs", "Current durable jobs by state", ["status"])
 ORPHAN_CLEANUP = Counter(

@@ -7,13 +7,14 @@ import signal
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from time import perf_counter
-from typing import Any
+from typing import Any, Protocol
 
 import httpx
 from prometheus_client import start_http_server
 
 from app.application.ocr_jobs import OcrJobProcessor, PermanentJobError
 from app.config import Settings, get_settings
+from app.domain.job_types import ensure_processor_coverage
 from app.infrastructure.minio import MinioObjectStore
 from app.infrastructure.ocr import LmStudioOcr, OcrError
 from app.infrastructure.rabbitmq import RabbitMqBroker
@@ -29,6 +30,10 @@ from app.observability.metrics import (
 )
 
 _JOB_RECORD_ID = re.compile(r"job_[0-9a-f]{32}")
+
+
+class JobProcessor(Protocol):
+    async def process(self, job: Mapping[str, Any]) -> None: ...
 
 
 async def run_worker() -> None:
@@ -47,11 +52,12 @@ async def run_worker() -> None:
     if settings.surreal_apply_schema_on_startup:
         await database.apply_schema()
     await database.requeue_expired_jobs()
-    processors = {
+    processors: dict[str, JobProcessor] = {
         "ocr": OcrJobProcessor(
             database, MinioObjectStore(settings), LmStudioOcr(settings)
         )
     }
+    ensure_processor_coverage(processors)
 
     if not settings.rabbitmq_enabled:
         raise RuntimeError("RabbitMQ must be enabled before a worker can start jobs")
@@ -59,7 +65,12 @@ async def run_worker() -> None:
     broker: RabbitMqBroker | None = None
     processing_lock = asyncio.Lock()
 
-    async def consume_job(job_id: str, redelivered: bool, message: Any) -> None:
+    async def consume_job(
+        job_id: str,
+        dispatch_generation: int,
+        redelivered: bool,
+        message: Any,
+    ) -> None:
         if shutdown.is_set():
             await message.nack(requeue=True)
             return
@@ -76,7 +87,10 @@ async def run_worker() -> None:
             return
         async with processing_lock:
             job = await database.claim_job(
-                record_id, settings.worker_id, settings.worker_lease_seconds
+                record_id,
+                settings.worker_id,
+                settings.worker_lease_seconds,
+                dispatch_generation,
             )
             if job is None:
                 JOB_CLAIMS.labels(result="ignored").inc()
@@ -133,9 +147,8 @@ async def run_worker() -> None:
                     except Exception:
                         logger.exception("queue_depth_refresh_failed")
 
-            # Lease recovery is deliberately separate from admission: it only
-            # requeues and emits a durable outbox trigger. A later AMQP delivery
-            # is required before that job can run again.
+            # Lease recovery only requeues the durable job. The dispatcher
+            # publishes its new generation before a worker can claim it.
             await _wait_for_shutdown(shutdown, 0.25)
     finally:
         if broker is not None:
@@ -149,7 +162,7 @@ async def run_worker() -> None:
 
 async def _process_claimed_job(
     database: SurrealDatabase,
-    processors: Mapping[str, OcrJobProcessor],
+    processors: Mapping[str, JobProcessor],
     job: Mapping[str, Any],
     settings: Settings,
     logger: Any,
@@ -177,7 +190,8 @@ async def _process_claimed_job(
     finally:
         lease_stop.set()
         await lease_task
-        OCR_DOCUMENT_SECONDS.observe(perf_counter() - started_at)
+        if job_type == "ocr":
+            OCR_DOCUMENT_SECONDS.observe(perf_counter() - started_at)
 
 
 async def _handle_job_failure(

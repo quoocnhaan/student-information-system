@@ -35,8 +35,11 @@ durable snapshot from `GET /v1/jobs/{job_id}`, then connect to
 `/v1/ws/jobs/{job_id}` for sequenced live updates. After a reconnect, fetch the
 REST snapshot again and ignore events whose `sequence` is not newer.
 
-RabbitMQ is only a low-latency trigger. SurrealDB stores jobs, leases, retries,
-status sequences, and an outbox. Run the API, outbox publisher, and worker with:
+RabbitMQ carries durable job triggers. SurrealDB stores the authoritative job,
+dispatch lease, retries, and progress sequence. The dispatcher subscribes to job
+changes and scans on startup and at a bounded interval to recover missed changes.
+The API subscribes to job changes for WebSocket progress. Run the API,
+dispatcher, and worker with:
 
 ```powershell
 docker compose up -d --build
@@ -49,8 +52,24 @@ prediction limit and GPU headroom:
 docker compose up -d --scale knowledge-worker=2
 ```
 
-RabbitMQ is mandatory for job admission: a queued job remains queued while the
-broker is unavailable, then the durable outbox dispatches it after recovery.
+RabbitMQ is mandatory for worker admission. The API can still accept an upload
+while RabbitMQ is unavailable; its queued job remains in SurrealDB and the
+dispatcher publishes it after broker recovery. `/v1/ready` checks the database
+and source-object store, which are required to accept the upload.
+
+For an existing database, apply the additive schema and existing-job backfill
+before starting the new dispatcher. With SurrealDB running, use the new image:
+
+```powershell
+docker compose run --rm --no-deps knowledge-dispatcher python -m app.infrastructure.initialize_schema
+docker compose run --rm --no-deps knowledge-dispatcher python -m app.infrastructure.apply_migration 001_job_row_dispatch_backfill
+```
+
+After all old API, worker, and outbox replicas have stopped, run migration
+`002_remove_outbox_events` through the same `apply_migration` command. Archive
+old outbox rows after verifying dispatch and worker recovery, then run
+`003_remove_outbox_table` as a separate cleanup. These commands use the
+dispatcher service's SurrealDB settings; run them from this service directory.
 
 ## Review web application
 
@@ -70,10 +89,13 @@ npm run dev
 The Vite development server proxies `/v1` REST and WebSocket traffic to the
 knowledge API on port 8000.
 Prometheus metrics are available at `GET /metrics`; RabbitMQ management is
-available locally on port 15672. Worker and outbox containers expose their
+available locally on port 15672. Worker and dispatcher containers expose their
 process metrics on port 9100 inside the Compose network. GPU memory/utilization
 should be collected from the host's NVIDIA/DCGM exporter because LM Studio owns
 the GPU process.
+The dispatcher exposes `knowledge_job_dispatch_pending`,
+`knowledge_job_dispatch_active_leases`, `knowledge_job_dispatch_errors`, and
+`knowledge_job_dispatch_delayed` for cutover and outage checks.
 
 Source-object cleanup is a separate, opt-in maintenance service. Run a dry run
 first with `docker compose --profile maintenance up knowledge-orphan-cleanup`

@@ -73,6 +73,7 @@ def test_websocket_starts_with_durable_job_snapshot() -> None:
     app = create_app()
     with TestClient(app) as client:
         client.app.state.database = _Database()
+        client.app.state.job_status_live = True
         with client.websocket_connect(f"/v1/ws/jobs/job:{record_id}") as websocket:
             event = websocket.receive_json()
 

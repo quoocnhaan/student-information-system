@@ -42,7 +42,25 @@ class JobStatusHub:
                 initial = latest
             await websocket.send_json(dict(initial))
             self._clients[job_id].add(websocket)
+            self._highest_sequence[job_id] = max(
+                self._highest_sequence.get(job_id, 0), int(initial.get("sequence", 0))
+            )
             WEBSOCKET_CLIENTS.inc()
+
+    async def active_job_ids(self) -> tuple[str, ...]:
+        async with self._lock:
+            return tuple(self._clients)
+
+    async def close_all(self) -> None:
+        """Force clients onto REST recovery while the database stream is down."""
+
+        async with self._lock:
+            clients = tuple(socket for group in self._clients.values() for socket in group)
+        for websocket in clients:
+            try:
+                await websocket.close(code=1013, reason="Live job updates are unavailable")
+            except Exception:
+                pass
 
     async def remove(self, job_id: str, websocket: WebSocket) -> None:
         async with self._lock:
@@ -54,6 +72,8 @@ class JobStatusHub:
             WEBSOCKET_DROPS.inc()
             if not clients:
                 self._clients.pop(job_id, None)
+                self._highest_sequence.pop(job_id, None)
+                self._latest_event.pop(job_id, None)
 
     async def broadcast(self, event: Mapping[str, Any]) -> None:
         """Ignore duplicate/out-of-order broker events and fan out the newest one."""

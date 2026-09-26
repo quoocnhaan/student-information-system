@@ -10,10 +10,10 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.v1.router import router as v1_router
-from app.config import Settings, get_settings
+from app.config import get_settings
 from app.infrastructure.minio import MinioObjectStore
-from app.infrastructure.rabbitmq import RabbitMqBroker
 from app.infrastructure.surreal import SurrealDatabase
+from app.job_status_subscription import run_job_status_subscription
 from app.observability.logging import configure_logging, get_logger
 from app.observability.metrics import JOB_STATE
 from app.websocket_hub import JobStatusHub
@@ -37,9 +37,10 @@ async def lifespan(app: FastAPI):
         app.state.database = database
 
     app.state.job_status_hub = JobStatusHub()
-    if settings.rabbitmq_enabled:
+    app.state.job_status_live = False
+    if settings.surreal_enabled:
         status_task = asyncio.create_task(
-            _run_status_subscription(app, settings, status_stop)
+            run_job_status_subscription(app, settings, status_stop)
         )
 
     try:
@@ -47,34 +48,10 @@ async def lifespan(app: FastAPI):
     finally:
         status_stop.set()
         if status_task is not None:
-            await status_task
+            status_task.cancel()
+            await asyncio.gather(status_task, return_exceptions=True)
         if database is not None:
             await database.close()
-
-
-async def _run_status_subscription(
-    app: FastAPI, settings: Settings, stop: asyncio.Event
-) -> None:
-    """Reconnect the transient status subscriber without blocking REST startup."""
-
-    logger = get_logger()
-    while not stop.is_set():
-        broker = RabbitMqBroker(settings)
-        try:
-            await broker.connect()
-            await broker.consume_status(app.state.job_status_hub.broadcast)
-            app.state.rabbitmq = broker
-            await stop.wait()
-        except Exception:
-            logger.exception("status_subscription_failed")
-            try:
-                await asyncio.wait_for(stop.wait(), timeout=2)
-            except TimeoutError:
-                pass
-        finally:
-            await broker.close()
-            if getattr(app.state, "rabbitmq", None) is broker:
-                del app.state.rabbitmq
 
 
 def create_app() -> FastAPI:
