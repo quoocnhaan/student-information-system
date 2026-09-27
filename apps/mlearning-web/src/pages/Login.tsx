@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { roleRoutes } from "../routes/roleRoutes";
-import { BookOpen, ShieldCheck, User, Lock, Eye, EyeOff, ArrowRight, BookMarked, HelpCircle, Mail, Globe } from 'lucide-react';
+import { BookOpen, ShieldCheck, User, Lock, Eye, EyeOff, ArrowRight, HelpCircle, Mail, Globe } from 'lucide-react';
 import styles from './Login.module.css';
 
 
@@ -159,12 +159,6 @@ export function Login() {
               </button>
             </div>
 
-            <div>
-              <button type="button" className={styles.guestButton}>
-                <BookMarked size={18} />
-                Truy cập với tư cách khách
-              </button>
-            </div>
           </form>
 
           <div className={styles.securityBadge}>
