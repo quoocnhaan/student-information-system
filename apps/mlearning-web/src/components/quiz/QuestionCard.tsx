@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import styles from './QuestionCard.module.css';
 import RichTextInline from './RichTextInline';
 import SpecBlock from './SpecBlock';
@@ -7,12 +6,37 @@ import type { QuestionData, AnswerOption as AnswerOptionType } from './types';
 
 interface Props {
   question: QuestionData;
+  selectedOptionId: AnswerOptionType['id'] | null;
+  onSelectOption: (optionId: AnswerOptionType['id']) => void;
+  onClearSelection: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  onSubmitClick?: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+  isFlagged?: boolean;
+  onToggleFlag?: () => void;
 }
 
-/** Question card: metadata row, prompt, formal spec, answer options and footer actions. */
-export default function QuestionCard({ question }: Props) {
-  const [selected, setSelected] = useState<AnswerOptionType['id'] | null>(question.selectedOptionId);
-
+/**
+ * Question card: metadata row, prompt, formal spec, answer options and footer actions.
+ * Controlled component — selection lives in the parent (QuizTakingPage).
+ * On the last question, the primary button triggers `onSubmitClick`
+ * (opens a confirmation dialog in the parent) instead of `onNext`.
+ */
+export default function QuestionCard({
+  question,
+  selectedOptionId,
+  onSelectOption,
+  onClearSelection,
+  onPrevious,
+  onNext,
+  onSubmitClick,
+  isFirst,
+  isLast,
+  isFlagged,
+  onToggleFlag,
+}: Props) {
   return (
     <div className={styles.card}>
       <div className={styles.topRow}>
@@ -22,7 +46,18 @@ export default function QuestionCard({ question }: Props) {
             {question.type} • {question.points.toFixed(1)} Points
           </span>
         </div>
-        <button className={styles.flagBtn}>⚑ Flag for Review</button>
+        <button
+          className={styles.flagBtn}
+          onClick={onToggleFlag}
+          aria-pressed={isFlagged}
+          style={
+            isFlagged
+              ? { color: '#b45309', backgroundColor: '#fffbeb', borderColor: '#f59e0b' }
+              : undefined
+          }
+        >
+          {isFlagged ? '⚑ Flagged for Review' : '⚑ Flag for Review'}
+        </button>
       </div>
 
       <p className={styles.prompt}>
@@ -36,18 +71,27 @@ export default function QuestionCard({ question }: Props) {
           <AnswerOption
             key={opt.id}
             option={opt}
-            selected={selected === opt.id}
-            onSelect={setSelected}
+            selected={selectedOptionId === opt.id}
+            onSelect={onSelectOption}
           />
         ))}
       </div>
 
       <div className={styles.footer}>
-        <button className={styles.btnGhost}>← Previous Question</button>
-        <button className={styles.btnLink} onClick={() => setSelected(null)}>
+        <button
+          className={styles.btnGhost}
+          onClick={onPrevious}
+          disabled={isFirst}
+          style={isFirst ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+        >
+          ← Previous Question
+        </button>
+        <button className={styles.btnLink} onClick={onClearSelection}>
           Clear Selection
         </button>
-        <button className={styles.btnPrimary}>Save &amp; Next Question →</button>
+        <button className={styles.btnPrimary} onClick={isLast ? onSubmitClick : onNext}>
+          {isLast ? 'Submit Quiz' : 'Save & Next Question →'}
+        </button>
       </div>
     </div>
   );
