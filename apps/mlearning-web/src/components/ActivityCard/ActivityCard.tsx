@@ -12,6 +12,10 @@ export interface ActivityCardProps {
   primaryActionLabel: string;
   secondaryActionLabel?: string;
   extraNote?: string; // ví dụ số bài đã nộp / cần chấm
+  /** Gọi khi bấm nút chính (vd: "Cập nhật File", "SpeedGrader") */
+  onPrimaryAction?: () => void;
+  /** Gọi khi bấm nút phụ (vd: "Sửa Rubric", "Ngân hàng câu hỏi") */
+  onSecondaryAction?: () => void;
 }
 
 /** Icon minh họa theo loại hoạt động */
@@ -34,6 +38,8 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   primaryActionLabel,
   secondaryActionLabel,
   extraNote,
+  onPrimaryAction,
+  onSecondaryAction,
 }) => {
   return (
     <div className={styles.card}>
@@ -52,9 +58,13 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
         {extraNote && <span className={styles.extraNote}>{extraNote}</span>}
         <div className={styles.buttonRow}>
           {secondaryActionLabel && (
-            <button className={styles.secondaryBtn}>{secondaryActionLabel}</button>
+            <button className={styles.secondaryBtn} onClick={onSecondaryAction}>
+              {secondaryActionLabel}
+            </button>
           )}
-          <button className={styles.primaryBtn}>{primaryActionLabel}</button>
+          <button className={styles.primaryBtn} onClick={onPrimaryAction}>
+            {primaryActionLabel}
+          </button>
         </div>
       </div>
     </div>
