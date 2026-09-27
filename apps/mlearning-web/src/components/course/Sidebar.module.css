@@ -51,6 +51,11 @@
   background: #f9fafb;
 }
 
+/* Hiện nút sửa (ẩn mặc định) khi hover vào cả item */
+.item:hover .editIconBtn {
+  opacity: 1;
+}
+
 .itemActive {
   background: #eef2ff;
   border-color: #c7d2fe;
@@ -84,6 +89,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .itemTitle {
@@ -116,6 +123,25 @@
   color: #16a34a;
   margin-top: 2px;
   font-weight: 500;
+}
+
+/* Nút Sửa (icon bút chì) hiện bên phải mỗi module, mờ đến khi hover */
+.editIconBtn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.editIconBtn:hover {
+  background: #eef2ff;
+  color: #4f46e5;
 }
 
 .activeDot {

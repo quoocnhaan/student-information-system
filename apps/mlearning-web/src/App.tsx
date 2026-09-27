@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AppLayout } from './components/layout/AppLayout'
 import { Dashboard } from './pages/Dashboard'
-import { CourseManagement } from './pages/CourseManagement'
+import CourseManagement from './pages/CourseManagement'
 import { AcademicCalendarPage } from './pages/AcademicCalendarPage'
 import { CourseCatalog } from './pages/CourseCatalog'
 import { QuizTakingPage } from './pages/QuizTakingPage'

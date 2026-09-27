@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import styles from "./Sidebar.module.css";
+import ModuleForm, { type ModuleFormValues } from "./Moduleform";
 
 /** Trạng thái của một module trong đề cương */
 export type ModuleStatus = "done" | "active" | "upcoming";
@@ -13,7 +14,7 @@ export interface ModuleItem {
   extra?: string; // ví dụ: "Đang công khai Khả thi"
 }
 
-const modules: ModuleItem[] = [
+const initialModules: ModuleItem[] = [
   {
     id: 1,
     title: "Module 1: Nhập môn Hệ Phân tán",
@@ -65,20 +66,56 @@ const StatusIcon: React.FC<{ status: ModuleStatus }> = ({ status }) => {
  * Sidebar - Danh sách "Đề cương & Các Tuần học" hiển thị các module của khóa học
  */
 const Sidebar: React.FC = () => {
+  const [modules, setModules] = useState<ModuleItem[]>(initialModules);
+
+  // Module nào đang được sửa (null = không mở form sửa)
+  const [editingModule, setEditingModule] = useState<ModuleItem | null>(null);
+  // Có đang mở form Thêm Module mới không
+  const [isCreating, setIsCreating] = useState(false);
+
+  const isFormOpen = isCreating || editingModule !== null;
+  const formMode: "create" | "edit" = isCreating ? "create" : "edit";
+
+  const handleOpenCreate = () => {
+    setEditingModule(null);
+    setIsCreating(true);
+  };
+
+  const handleOpenEdit = (module: ModuleItem) => {
+    setIsCreating(false);
+    setEditingModule(module);
+  };
+
+  const handleCloseForm = () => {
+    setIsCreating(false);
+    setEditingModule(null);
+  };
+
+  /** Xử lý khi form submit - thêm mới hoặc cập nhật module tùy theo chế độ */
+  const handleSubmitForm = (values: ModuleFormValues) => {
+    if (formMode === "create") {
+      const nextId = modules.length > 0 ? Math.max(...modules.map((m) => m.id)) + 1 : 1;
+      setModules((prev) => [...prev, { id: nextId, ...values }]);
+    } else if (editingModule) {
+      setModules((prev) =>
+        prev.map((m) => (m.id === editingModule.id ? { id: m.id, ...values } : m))
+      );
+    }
+    handleCloseForm();
+  };
   return (
     <aside className={styles.sidebar}>
       <div className={styles.headerRow}>
         <span className={styles.headerTitle}>📋 Đề cương &amp; Các Tuần học</span>
-        <button className={styles.addBtn}>+ Thêm Module</button>
+        <button className={styles.addBtn} onClick={handleOpenCreate}>+ Thêm Module</button>
       </div>
 
       <ul className={styles.list}>
         {modules.map((m) => (
           <li
             key={m.id}
-            className={`${styles.item} ${
-              m.status === "active" ? styles.itemActive : ""
-            }`}
+            className={`${styles.item} ${m.status === "active" ? styles.itemActive : ""
+              }`}
           >
             <div className={styles.itemRow}>
               <StatusIcon status={m.status} />
@@ -93,6 +130,14 @@ const Sidebar: React.FC = () => {
                 )}
                 {m.extra && <span className={styles.extraLink}>✓ {m.extra}</span>}
               </div>
+              <button
+                className={styles.editIconBtn}
+                onClick={() => handleOpenEdit(m)}
+                aria-label={`Sửa ${m.title}`}
+                title="Sửa Module"
+              >
+                ✏
+              </button>
             </div>
             {m.status === "active" && <span className={styles.activeDot} />}
           </li>
@@ -100,6 +145,14 @@ const Sidebar: React.FC = () => {
       </ul>
 
       <button className={styles.showAllBtn}>Xem đầy đủ 16 Tuần học ▾</button>
+      {isFormOpen && (
+        <ModuleForm
+          mode={formMode}
+          initialData={editingModule ?? undefined}
+          onSubmit={handleSubmitForm}
+          onClose={handleCloseForm}
+        />
+      )}
     </aside>
   );
 };

@@ -106,13 +106,11 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           <nav className={styles.tabs}>
             <button className={`${styles.tab} ${styles.tabActive}`}>Spring 2025</button>
-            <button className={styles.tab}>Schedule</button>
-            <button className={styles.tab}>Directory</button>
           </nav>
 
           <div className={styles.right}>
-            <button className={styles.iconBtn} aria-label="Notifications">🔔</button>
-            <button className={styles.iconBtn} aria-label="Help">❓</button>
+            {/* <button className={styles.iconBtn} aria-label="Notifications">🔔</button>
+            <button className={styles.iconBtn} aria-label="Help">❓</button> */}
             <div className={styles.user} onClick={() => setShowMenu(!showMenu)}>
               <div className={styles.avatar}>AL</div>
               <div className={styles.userInfo}>

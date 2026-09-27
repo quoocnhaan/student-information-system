@@ -28,16 +28,22 @@
 
 .cell {
   min-height: 96px;
-  border-right: 1px solid #f0f1f3;
-  border-bottom: 1px solid #f0f1f3;
   padding: 6px;
+
+  box-sizing: border-box;
+
+  border: 1px solid #f0f1f3;
+
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
 
-.cell:nth-child(7n) {
-  border-right: none;
+  cursor: pointer;
+
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .cellMuted {
@@ -48,6 +54,32 @@
 .cellMuted .dateNum {
   color: #d1d5db;
 }
+
+.cellSelected {
+  position: relative;
+
+  /* Không thay đổi kích thước cell */
+  border: 1px solid #f0f1f3;
+
+  box-shadow:
+    inset 0 0 0 2px var(--primary),
+    0 0 0 2px color-mix(in srgb,
+      var(--primary) 15%,
+      transparent);
+
+  background-color: color-mix(in srgb,
+      var(--primary) 5%,
+      transparent);
+
+  z-index: 2;
+
+  animation: selectedPulse 0.2s ease-out;
+}
+
+.cell:hover {
+  transform: translateY(-2px);
+}
+
 
 .dateNum {
   font-size: 12px;
@@ -98,17 +130,55 @@
 }
 
 /* Category colors — must match CalendarLegend.tsx */
-.chipLecture { background: #eef3ff; color: #3b5fe3; }
-.chipDeadline { background: #fef2f2; color: #dc2626; }
-.chipExam { background: #f3f0ff; color: #7c3aed; }
-.chipOffice { background: #ecfdf3; color: #15803d; }
-.chipSeminar { background: #fff8eb; color: #b45309; }
-.chipInstitutional { background: #f3f4f6; color: #4b5563; }
+.chipLecture {
+  background: #eef3ff;
+  color: #3b5fe3;
+}
+
+.chipDeadline {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.chipExam {
+  background: #f3f0ff;
+  color: #7c3aed;
+}
+
+.chipOffice {
+  background: #ecfdf3;
+  color: #15803d;
+}
+
+.chipSeminar {
+  background: #fff8eb;
+  color: #b45309;
+}
+
+.chipInstitutional {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+@keyframes selectedPulse {
+  0% {
+    transform: scale(0.98);
+  }
+
+  60% {
+    transform: scale(1.01);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
 
 @media (max-width: 640px) {
   .cell {
     min-height: 72px;
   }
+
   .chip {
     font-size: 9px;
   }

@@ -1,7 +1,29 @@
 import { Search, Grid, List, Star, Clock, BadgeCheck, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import styles from './CourseCatalog.module.css';
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 
 export function CourseCatalog() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleGoToCourse = () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    if (user.role === "student") {
+      navigate(`/course/:id`);
+      // navigate(`/student/course/${courseId}`);
+      return;
+    }
+
+    if (user.role === "teacher") {
+      navigate(`/directory`);
+      return;
+    }
+  };
   return (
     <div className={styles.container}>
       <div className={styles.toolbar}>
@@ -77,7 +99,7 @@ export function CourseCatalog() {
                 <div className={styles.progressFill} style={{ width: '72%' }}></div>
               </div>
             </div>
-            <button className={styles.actionBtn}>
+            <button className={styles.actionBtn} onClick={() => handleGoToCourse()}>
               Go to Course <ArrowRight size={16} />
             </button>
           </div>
@@ -127,7 +149,7 @@ export function CourseCatalog() {
                 <div className={styles.progressFill} style={{ width: '54%' }}></div>
               </div>
             </div>
-            <button className={styles.actionBtn}>
+            <button className={styles.actionBtn} onClick={() => handleGoToCourse()}>
               Go to Course <ArrowRight size={16} />
             </button>
           </div>
@@ -177,7 +199,7 @@ export function CourseCatalog() {
                 <div className={styles.progressFill} style={{ width: '65%' }}></div>
               </div>
             </div>
-            <button className={styles.actionBtn}>
+            <button className={styles.actionBtn} onClick={() => handleGoToCourse()}>
               Go to Course <ArrowRight size={16} />
             </button>
           </div>
@@ -228,7 +250,7 @@ export function CourseCatalog() {
                 <div className={styles.progressFill} style={{ width: '88%' }}></div>
               </div>
             </div>
-            <button className={styles.actionBtn}>
+            <button className={styles.actionBtn} onClick={() => handleGoToCourse()}>
               Go to Course <ArrowRight size={16} />
             </button>
           </div>

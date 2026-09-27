@@ -1,9 +1,42 @@
-import { useState } from 'react';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+import { roleRoutes } from "../routes/roleRoutes";
 import { BookOpen, ShieldCheck, User, Lock, Eye, EyeOff, ArrowRight, BookMarked, HelpCircle, Mail, Globe } from 'lucide-react';
 import styles from './Login.module.css';
 
+
 export function Login() {
   const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const handleSubmit = async (
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
+    e.preventDefault();
+
+    // Tạm thời giả lập response từ backend
+    const response = {
+      user: {
+        id: "1",
+        username: username,
+        role: "teacher" as const,
+      },
+      accessToken: "fake-token",
+    };
+    // Dùng khi có backend
+
+    // const response = await loginApi(
+    //   username,
+    //   password
+    // );
+
+    login(response.user);
+
+    navigate(roleRoutes[response.user.role]);
+  };
 
   return (
     <div className={styles.container}>
@@ -69,7 +102,7 @@ export function Login() {
             <span className={styles.dividerText}>hoặc sử dụng tài khoản hệ thống</span>
           </div>
 
-          <form className={styles.form} onSubmit={(e) => e.preventDefault()}>
+          <form className={styles.form} onSubmit={handleSubmit}>
             <div>
               <label className={styles.inputLabel}>
                 Tên đăng nhập hoặc Email học đường
@@ -80,6 +113,8 @@ export function Login() {
                   type="text"
                   className={styles.inputField}
                   placeholder="mssv@universitas.edu hoặc user_id"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   required
                 />
               </div>
@@ -95,6 +130,8 @@ export function Login() {
                   type={showPassword ? "text" : "password"}
                   className={styles.inputField}
                   placeholder="••••••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                 />
                 <button
