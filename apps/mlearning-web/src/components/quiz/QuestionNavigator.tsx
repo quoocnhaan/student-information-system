@@ -3,10 +3,11 @@ import type { NavigatorState } from './types';
 
 interface Props {
   data: NavigatorState;
+  onSelect?: (questionNumber: number) => void;
 }
 
 /** Sidebar card showing the answered/flagged/unanswered breakdown and a jump-to grid. */
-export default function QuestionNavigator({ data }: Props) {
+export default function QuestionNavigator({ data, onSelect }: Props) {
   const numbers = Array.from({ length: data.totalQuestions }, (_, i) => i + 1);
 
   return (
@@ -40,9 +41,9 @@ export default function QuestionNavigator({ data }: Props) {
           return (
             <button
               key={n}
-              className={`${styles.cell} ${isAnswered ? styles.cellAnswered : ''} ${
-                isCurrent ? styles.cellCurrent : ''
-              }`}
+              className={`${styles.cell} ${isAnswered ? styles.cellAnswered : ''} ${isCurrent ? styles.cellCurrent : ''
+                }`}
+              onClick={() => onSelect?.(n)}
             >
               {n}
               {isFlagged && <span className={styles.flagDot} />}
@@ -52,7 +53,10 @@ export default function QuestionNavigator({ data }: Props) {
       </div>
 
       {data.nextUnanswered !== null && (
-        <button className={styles.jumpBtn}>
+        <button
+          className={styles.jumpBtn}
+          onClick={() => data.nextUnanswered !== null && onSelect?.(data.nextUnanswered)}
+        >
           ⏵ Jump to Next Unanswered (#{data.nextUnanswered})
         </button>
       )}
