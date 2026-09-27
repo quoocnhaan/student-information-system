@@ -1,6 +1,5 @@
 """FastAPI application entry point for the knowledge module."""
 
-import asyncio
 from contextlib import asynccontextmanager
 from time import perf_counter
 from uuid import uuid4
@@ -10,13 +9,12 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.v1.router import router as v1_router
+from app.api.internal_jobs import router as internal_jobs_router
 from app.config import get_settings
 from app.infrastructure.minio import MinioObjectStore
+from app.infrastructure.job_service import JobServiceClient
 from app.infrastructure.surreal import SurrealDatabase
-from app.job_status_subscription import run_job_status_subscription
 from app.observability.logging import configure_logging, get_logger
-from app.observability.metrics import JOB_STATE
-from app.websocket_hub import JobStatusHub
 
 
 @asynccontextmanager
@@ -25,9 +23,8 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     app.state.settings = settings
     database: SurrealDatabase | None = None
-    status_stop = asyncio.Event()
-    status_task: asyncio.Task[None] | None = None
     app.state.object_store = MinioObjectStore(settings)
+    app.state.job_client = JobServiceClient(settings)
 
     if settings.surreal_enabled:
         database = SurrealDatabase(settings)
@@ -36,20 +33,10 @@ async def lifespan(app: FastAPI):
             await database.apply_schema()
         app.state.database = database
 
-    app.state.job_status_hub = JobStatusHub()
-    app.state.job_status_live = False
-    if settings.surreal_enabled:
-        status_task = asyncio.create_task(
-            run_job_status_subscription(app, settings, status_stop)
-        )
-
     try:
         yield
     finally:
-        status_stop.set()
-        if status_task is not None:
-            status_task.cancel()
-            await asyncio.gather(status_task, return_exceptions=True)
+        await app.state.job_client.close()
         if database is not None:
             await database.close()
 
@@ -103,17 +90,10 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(v1_router)
+    app.include_router(internal_jobs_router)
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics(request: Request) -> Response:
-        database = getattr(request.app.state, "database", None)
-        if database is not None:
-            try:
-                counts = await database.get_job_counts()
-                for state in ("queued", "running", "completed", "failed"):
-                    JOB_STATE.labels(status=state).set(counts.get(state, 0))
-            except Exception:
-                logger.exception("job_metrics_refresh_failed")
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return app

@@ -20,21 +20,28 @@ class FakeObjectStore:
 class FakeDatabase:
     def __init__(self) -> None:
         self.documents: dict[str, dict[str, object]] = {}
-        self.jobs: dict[str, dict[str, object]] = {}
 
     async def create_document(
         self, record_id: str, document: dict[str, object]
     ) -> None:
         self.documents[record_id] = document
 
-    async def create_job(
-        self, record_id: str, document_record_id: str, job_type: str
-    ) -> None:
-        self.jobs[record_id] = {
+    async def delete_document(self, record_id: str) -> None:
+        self.documents.pop(record_id, None)
+
+
+class FakeJobClient:
+    def __init__(self) -> None:
+        self.jobs: dict[str, dict[str, object]] = {}
+
+    async def create(self, document_id: str) -> dict[str, object]:
+        record_id = "job_" + document_id.split("doc_", 1)[1]
+        job = {
             "id": f"job:{record_id}",
-            "type": job_type,
-            "document_id": f"document:{document_record_id}",
-            "ocr_draft_id": None,
+            "owner": "knowledge",
+            "type": "ocr_pdf",
+            "subject_id": document_id,
+            "result_ref": None,
             "status": "queued",
             "step": "queued",
             "progress": 0,
@@ -42,37 +49,29 @@ class FakeDatabase:
             "processed_pages": 0,
             "error": None,
         }
+        self.jobs[job["id"]] = job
+        return job
 
-    async def create_document_with_job(
-        self,
-        document_record_id: str,
-        document: dict[str, object],
-        job_record_id: str,
-        job_type: str,
-    ) -> None:
-        await self.create_document(document_record_id, document)
-        await self.create_job(job_record_id, document_record_id, job_type)
+    async def get(self, job_id: str) -> dict[str, object] | None:
+        return self.jobs.get(job_id)
 
-    async def get_job(self, record_id: str) -> dict[str, object] | None:
-        return self.jobs.get(record_id)
+    async def close(self) -> None:
+        pass
 
-    async def delete_document(self, record_id: str) -> None:
-        self.documents.pop(record_id, None)
-
-
-def create_upload_client() -> tuple[TestClient, FakeObjectStore, FakeDatabase]:
+def create_upload_client() -> tuple[TestClient, FakeObjectStore, FakeDatabase, FakeJobClient]:
     app = create_app()
     object_store = FakeObjectStore()
     database = FakeDatabase()
     app.dependency_overrides[get_object_store] = lambda: object_store
     app.dependency_overrides[get_database] = lambda: database
-    return TestClient(app), object_store, database
+    return TestClient(app), object_store, database, FakeJobClient()
 
 
 def test_upload_pdf_stores_the_object_and_creates_a_processing_document() -> None:
-    client, object_store, database = create_upload_client()
+    client, object_store, database, jobs = create_upload_client()
 
     with client:
+        client.app.state.job_client = jobs
         response = client.post(
             "/v1/documents",
             files={"file": ("regulations.pdf", b"%PDF-1.7 sample", "application/pdf")},
@@ -86,7 +85,7 @@ def test_upload_pdf_stores_the_object_and_creates_a_processing_document() -> Non
     assert len(object_store.objects) == 1
     assert database.documents
     assert next(iter(database.documents.values()))["process_status"] == "processing"
-    assert database.jobs
+    assert jobs.jobs
 
     job_response = client.get(f"/v1/jobs/{body['job_id']}")
     assert job_response.status_code == 200
@@ -94,7 +93,7 @@ def test_upload_pdf_stores_the_object_and_creates_a_processing_document() -> Non
 
 
 def test_upload_rejects_non_pdf_content() -> None:
-    client, _, _ = create_upload_client()
+    client, _, _, _ = create_upload_client()
 
     with client:
         response = client.post(
@@ -106,7 +105,7 @@ def test_upload_rejects_non_pdf_content() -> None:
 
 
 def test_job_status_rejects_non_generated_record_ids() -> None:
-    client, _, _ = create_upload_client()
+    client, _, _, _ = create_upload_client()
 
     with client:
         response = client.get("/v1/jobs/not-a-generated-job-id")

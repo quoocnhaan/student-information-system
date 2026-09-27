@@ -15,8 +15,6 @@ const failedJob = (id: string, sequence: number): JobStatus => ({
   progress: 100,
   processed_pages: 0,
   sequence,
-  attempts: 1,
-  max_attempts: 3,
 });
 
 afterEach(() => {

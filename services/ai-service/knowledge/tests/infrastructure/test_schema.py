@@ -32,15 +32,15 @@ def test_schema_configures_the_documented_vector_index() -> None:
     assert "HNSW DIMENSION 768 DIST COSINE TYPE F32" in schema
 
 
-def test_schema_keeps_dispatch_state_on_jobs() -> None:
+def test_schema_has_no_local_job_table() -> None:
     schema = (Path(__file__).parents[2] / "db" / "schema.surql").read_text(
         encoding="utf-8"
     )
 
-    assert "dispatch_published_at ON TABLE job" in schema
-    assert "dispatch_publish_attempts ON TABLE job" in schema
-    assert "dispatch_lease_owner ON TABLE job" in schema
-    assert "job_dispatch_due ON TABLE job" in schema
+    assert "dispatch_published_at ON TABLE job" not in schema
+    assert "dispatch_lease_owner ON TABLE job" not in schema
+    assert "job_dispatch_due ON TABLE job" not in schema
+    assert "DEFINE TABLE IF NOT EXISTS job" not in schema
     assert "DEFINE TABLE IF NOT EXISTS outbox_event" not in schema
 
 

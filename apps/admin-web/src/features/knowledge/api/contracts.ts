@@ -31,9 +31,6 @@ export const jobStatusSchema = z.object({
   sequence: z.number().int().positive(),
   updated_at: z.string().nullable().optional(),
   error: z.string().nullable().optional(),
-  attempts: z.number().int().min(0),
-  max_attempts: z.number().int().positive(),
-  next_attempt_at: z.string().nullable().optional(),
 });
 
 export const statusMessageSchema = jobStatusSchema.omit({ id: true }).extend({

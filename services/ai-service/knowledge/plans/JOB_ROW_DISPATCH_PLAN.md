@@ -1,5 +1,7 @@
 # Job-row dispatch plan
 
+Superseded for dispatch and worker recovery by [DIRECT_API_JOB_PUBLISH_PLAN.md](DIRECT_API_JOB_PUBLISH_PLAN.md). The active implementation publishes from the API and has no dispatcher process.
+
 ## Goal
 
 Use `job` as the only durable database record for an asynchronous task, its RabbitMQ dispatch request, and its current progress. SurrealDB live queries on `job` wake the dispatcher and feed live progress to the API's existing WebSocket clients. Keep the existing durable RabbitMQ jobs queue, publisher confirms, generation-guarded worker claim, retries, and worker lease recovery. Remove `outbox_event` after the replacement is running. Live-query notifications are transient; the job row remains authoritative.

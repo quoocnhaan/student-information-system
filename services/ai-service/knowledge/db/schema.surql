@@ -32,40 +32,6 @@ DEFINE FIELD IF NOT EXISTS created_at ON TABLE document TYPE datetime DEFAULT ti
 DEFINE FIELD IF NOT EXISTS updated_at ON TABLE document TYPE datetime VALUE time::now();
 DEFINE INDEX IF NOT EXISTS document_source_object_key ON TABLE document FIELDS source.object_key UNIQUE;
 
-DEFINE TABLE IF NOT EXISTS job SCHEMAFULL;
--- Job processors define their own types and steps (for example: ocr, embed, index).
-DEFINE FIELD OVERWRITE type ON TABLE job TYPE string;
-DEFINE FIELD IF NOT EXISTS document_id ON TABLE job TYPE record<document>;
-DEFINE FIELD IF NOT EXISTS ocr_draft_id ON TABLE job TYPE option<record<ocr_draft>>;
-DEFINE FIELD IF NOT EXISTS status ON TABLE job TYPE string
-  ASSERT $value INSIDE ['queued', 'running', 'completed', 'failed'];
-DEFINE FIELD OVERWRITE step ON TABLE job TYPE string;
-DEFINE FIELD IF NOT EXISTS progress ON TABLE job TYPE int ASSERT $value >= 0 AND $value <= 100;
-DEFINE FIELD IF NOT EXISTS total_pages ON TABLE job TYPE option<int>;
-DEFINE FIELD IF NOT EXISTS processed_pages ON TABLE job TYPE int DEFAULT 0;
-DEFINE FIELD IF NOT EXISTS sequence ON TABLE job TYPE int DEFAULT 1 ASSERT $value >= 1;
-DEFINE FIELD IF NOT EXISTS dispatch_generation ON TABLE job TYPE int DEFAULT 1 ASSERT $value >= 1;
-DEFINE FIELD IF NOT EXISTS dispatch_published_at ON TABLE job TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS dispatch_publish_attempts ON TABLE job TYPE int DEFAULT 0 ASSERT $value >= 0;
-DEFINE FIELD IF NOT EXISTS dispatch_last_error ON TABLE job TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS dispatch_next_publish_at ON TABLE job TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS dispatch_lease_owner ON TABLE job TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS dispatch_lease_expires_at ON TABLE job TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS error ON TABLE job TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS attempts ON TABLE job TYPE int DEFAULT 0 ASSERT $value >= 0;
-DEFINE FIELD IF NOT EXISTS max_attempts ON TABLE job TYPE int DEFAULT 3 ASSERT $value >= 1;
-DEFINE FIELD IF NOT EXISTS next_attempt_at ON TABLE job TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS claimed_at ON TABLE job TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS worker_id ON TABLE job TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS lease_expires_at ON TABLE job TYPE option<datetime>;
-DEFINE FIELD IF NOT EXISTS created_at ON TABLE job TYPE datetime DEFAULT time::now() READONLY;
-DEFINE FIELD IF NOT EXISTS updated_at ON TABLE job TYPE datetime VALUE time::now();
-UPDATE job SET sequence = 1 WHERE sequence IS NONE;
-DEFINE INDEX IF NOT EXISTS job_document ON TABLE job FIELDS document_id;
-DEFINE INDEX IF NOT EXISTS job_status_created ON TABLE job FIELDS status, created_at;
-DEFINE INDEX IF NOT EXISTS job_claimable ON TABLE job FIELDS status, next_attempt_at, created_at;
-DEFINE INDEX IF NOT EXISTS job_dispatch_due ON TABLE job FIELDS status, dispatch_published_at, dispatch_next_publish_at, created_at;
-
 DEFINE TABLE IF NOT EXISTS ocr_draft SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS document_id ON TABLE ocr_draft TYPE record<document>;
 DEFINE FIELD IF NOT EXISTS status ON TABLE ocr_draft TYPE string ASSERT $value INSIDE ['draft', 'confirmed'];

@@ -22,6 +22,10 @@ class SourceDocumentDatabase(Protocol):
     async def document_exists_by_source_key(self, object_key: str) -> bool: ...
 
 
+class JobLookup(Protocol):
+    async def find_creation(self, document_id: str) -> dict | None: ...
+
+
 @dataclass
 class OrphanCleanupResult:
     scanned: int = 0
@@ -44,6 +48,7 @@ class OrphanCleanup:
         dry_run: bool,
         now: datetime | None = None,
         logger: logging.Logger | None = None,
+        job_client: JobLookup | None = None,
     ) -> None:
         self._object_store = object_store
         self._database = database
@@ -51,6 +56,7 @@ class OrphanCleanup:
         self._dry_run = dry_run
         self._now = now
         self._logger = logger or logging.getLogger(__name__)
+        self._job_client = job_client
 
     async def run_once(self) -> OrphanCleanupResult:
         """Inspect candidates; a failed lookup is always retained, never deleted."""
@@ -102,7 +108,48 @@ class OrphanCleanup:
                 result.delete_failures += 1
                 ORPHAN_CLEANUP.labels(result="delete_failure").inc()
                 self._logger.exception("orphan_cleanup_delete_failed", extra={"objectKey": source.object_key})
+        if self._job_client is not None:
+            await self._cleanup_documents_without_jobs(result, now)
         return result
+
+    async def _cleanup_documents_without_jobs(self, result: OrphanCleanupResult, now: datetime) -> None:
+        """Audit old processing documents left before central job creation."""
+
+        # The database adapter is the only production implementation of this
+        # optional extension; older test fakes exercise source-object cleanup.
+        if not hasattr(self._database, "list_processing_documents"):
+            return
+        for document in await self._database.list_processing_documents():
+            created = document.get("created_at")
+            if created is None:
+                continue
+            if not isinstance(created, datetime):
+                created = datetime.fromisoformat(str(created).replace("Z", "+00:00"))
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=UTC)
+            if created > now - self._grace:
+                continue
+            document_id = str(document["id"])
+            source_key = document.get("source", {}).get("object_key")
+            if not isinstance(source_key, str) or not _SOURCE_KEY.fullmatch(source_key):
+                continue
+            try:
+                if await self._job_client.find_creation(document_id) is not None:
+                    continue
+                if self._dry_run:
+                    result.dry_run_candidates += 1
+                    self._logger.info("missing_job_document_candidate", extra={"documentId": document_id})
+                    continue
+                # Recheck the job service immediately before deleting. A failed
+                # lookup retains the document and its PDF.
+                if await self._job_client.find_creation(document_id) is not None:
+                    continue
+                await self._database.delete_document(document_id.split(":", 1)[1])
+                await self._object_store.remove(source_key)
+                result.deleted += 1
+            except Exception:
+                result.lookup_failures += 1
+                self._logger.exception("missing_job_document_cleanup_failed", extra={"documentId": document_id})
 
 
 def _is_old(source: SourceObject, now: datetime, grace: timedelta) -> bool:

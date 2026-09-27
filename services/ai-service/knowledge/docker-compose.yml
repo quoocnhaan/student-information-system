@@ -14,6 +14,20 @@ services:
       timeout: 3s
       retries: 12
 
+  job-surrealdb:
+    image: surrealdb/surrealdb:v3.2.4
+    user: "0:0"
+    command: start --user ${JOB_SURREAL_USER:?Set JOB_SURREAL_USER in .env} --pass ${JOB_SURREAL_PASSWORD:?Set JOB_SURREAL_PASSWORD in .env} rocksdb:///data/database.db
+    ports:
+      - "127.0.0.1:8002:8000"
+    volumes:
+      - job_surreal_data:/data
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready", "--endpoint", "http://localhost:8000"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
   minio:
     image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
@@ -55,6 +69,33 @@ services:
       timeout: 5s
       retries: 6
 
+  job-service:
+    restart: unless-stopped
+    build:
+      context: ../../job-service
+    environment:
+      JOB_SURREAL_URL: ws://job-surrealdb:8000
+      JOB_SURREAL_USER: ${JOB_SURREAL_USER:?Set JOB_SURREAL_USER in .env}
+      JOB_SURREAL_PASSWORD: ${JOB_SURREAL_PASSWORD:?Set JOB_SURREAL_PASSWORD in .env}
+      JOB_SURREAL_NAMESPACE: sis
+      JOB_SURREAL_DATABASE: jobs
+      JOB_RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      JOB_WORKER_TOKEN: ${JOB_WORKER_TOKEN:?Set JOB_WORKER_TOKEN in .env}
+      JOB_OWNER_TOKENS_JSON: ${JOB_OWNER_TOKENS_JSON:?Set JOB_OWNER_TOKENS_JSON in .env}
+      JOB_REGISTERED_TYPES: ${JOB_REGISTERED_TYPES:-knowledge:ocr_pdf}
+      JOB_REPLAY_BATCH_SIZE: ${JOB_REPLAY_BATCH_SIZE:-100}
+    depends_on:
+      job-surrealdb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8010:8010"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8010/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
   knowledge-api:
     restart: unless-stopped
     build:
@@ -75,23 +116,20 @@ services:
       MINIO_SECURE: "false"
       # Docker reaches the LM Studio server running on the Windows host here.
       LMSTUDIO_BASE_URL: http://host.docker.internal:1234/v1
-      LMSTUDIO_OCR_MODEL: ${LMSTUDIO_OCR_MODEL:-lightonocr-2-1b}
       LMSTUDIO_CHAT_MODEL: ${LMSTUDIO_CHAT_MODEL:-qwen2.5-14b-instruct}
       LMSTUDIO_EMBEDDING_MODEL: ${LMSTUDIO_EMBEDDING_MODEL:-text-embedding-nomic-embed-text-v1.5}
       KNOWLEDGE_OCR_MAX_PAGES: ${KNOWLEDGE_OCR_MAX_PAGES:-100}
-      KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS: ${KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS:-4096}
-      KNOWLEDGE_OCR_TIMEOUT_SECONDS: ${KNOWLEDGE_OCR_TIMEOUT_SECONDS:-120}
-      KNOWLEDGE_WORKER_LEASE_SECONDS: ${KNOWLEDGE_WORKER_LEASE_SECONDS:-180}
-      KNOWLEDGE_WORKER_HEARTBEAT_SECONDS: ${KNOWLEDGE_WORKER_HEARTBEAT_SECONDS:-30}
-      KNOWLEDGE_JOB_MAX_ATTEMPTS: ${KNOWLEDGE_JOB_MAX_ATTEMPTS:-3}
-      KNOWLEDGE_JOB_RETRY_BASE_SECONDS: ${KNOWLEDGE_JOB_RETRY_BASE_SECONDS:-10}
-      KNOWLEDGE_JOB_RETRY_MAX_SECONDS: ${KNOWLEDGE_JOB_RETRY_MAX_SECONDS:-300}
+      KNOWLEDGE_JOB_SERVICE_URL: http://job-service:8010
+      KNOWLEDGE_JOB_SERVICE_OWNER_TOKEN: ${KNOWLEDGE_JOB_SERVICE_OWNER_TOKEN:?Set KNOWLEDGE_JOB_SERVICE_OWNER_TOKEN in .env}
+      KNOWLEDGE_WORKER_CALLBACK_TOKEN: ${KNOWLEDGE_WORKER_CALLBACK_TOKEN:?Set KNOWLEDGE_WORKER_CALLBACK_TOKEN in .env}
       KNOWLEDGE_WEBSOCKET_AUTH_TOKEN: ${KNOWLEDGE_WEBSOCKET_AUTH_TOKEN:-}
     depends_on:
       surrealdb:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      job-service:
+        condition: service_healthy
     ports:
       - "8000:8000"
     extra_hosts:
@@ -104,88 +142,32 @@ services:
       retries: 3
       start_period: 10s
 
-  knowledge-worker:
+  worker-service:
     restart: unless-stopped
     build:
-      context: .
-    command: python -m app.worker
+      context: ../../worker-service
     environment:
-      KNOWLEDGE_ENVIRONMENT: development
-      KNOWLEDGE_SURREAL_ENABLED: "true"
-      KNOWLEDGE_SURREAL_APPLY_SCHEMA_ON_STARTUP: "true"
-      SURREAL_URL: ws://surrealdb:8000
-      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
-      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
-      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
-      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
-      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
-      MINIO_SECURE: "false"
-      LMSTUDIO_BASE_URL: http://host.docker.internal:1234/v1
-      LMSTUDIO_OCR_MODEL: ${LMSTUDIO_OCR_MODEL:-lightonocr-2-1b}
-      KNOWLEDGE_OCR_MAX_PAGES: ${KNOWLEDGE_OCR_MAX_PAGES:-100}
-      KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS: ${KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS:-4096}
-      KNOWLEDGE_OCR_TIMEOUT_SECONDS: ${KNOWLEDGE_OCR_TIMEOUT_SECONDS:-120}
-      KNOWLEDGE_WORKER_LEASE_SECONDS: ${KNOWLEDGE_WORKER_LEASE_SECONDS:-180}
-      KNOWLEDGE_WORKER_HEARTBEAT_SECONDS: ${KNOWLEDGE_WORKER_HEARTBEAT_SECONDS:-30}
-      KNOWLEDGE_JOB_MAX_ATTEMPTS: ${KNOWLEDGE_JOB_MAX_ATTEMPTS:-3}
-      KNOWLEDGE_JOB_RETRY_BASE_SECONDS: ${KNOWLEDGE_JOB_RETRY_BASE_SECONDS:-10}
-      KNOWLEDGE_JOB_RETRY_MAX_SECONDS: ${KNOWLEDGE_JOB_RETRY_MAX_SECONDS:-300}
-      KNOWLEDGE_RABBITMQ_ENABLED: "true"
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
-      KNOWLEDGE_METRICS_PORT: "9100"
+      WORKER_RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      WORKER_JOB_SERVICE_URL: http://job-service:8010
+      WORKER_JOB_TOKEN: ${JOB_WORKER_TOKEN:?Set JOB_WORKER_TOKEN in .env}
+      WORKER_KNOWLEDGE_URL: http://knowledge-api:8000
+      WORKER_KNOWLEDGE_TOKEN: ${KNOWLEDGE_WORKER_CALLBACK_TOKEN:?Set KNOWLEDGE_WORKER_CALLBACK_TOKEN in .env}
+      WORKER_ENABLED_HANDLERS: ${WORKER_ENABLED_HANDLERS:-knowledge:ocr_pdf}
+      WORKER_LMSTUDIO_BASE_URL: ${WORKER_LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      WORKER_LMSTUDIO_OCR_MODEL: ${LMSTUDIO_OCR_MODEL:-lightonocr-2-1b}
+      WORKER_OCR_MAX_PAGES: ${KNOWLEDGE_OCR_MAX_PAGES:-100}
+      WORKER_OCR_MAX_OUTPUT_TOKENS: ${KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS:-4096}
+      WORKER_OCR_TIMEOUT_SECONDS: ${KNOWLEDGE_OCR_TIMEOUT_SECONDS:-60}
     depends_on:
-      surrealdb:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
+      job-service:
+        condition: service_healthy
+      knowledge-api:
+        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    expose:
-      - "9100"
     stop_grace_period: 5m
-
-  knowledge-dispatcher:
-    restart: unless-stopped
-    build:
-      context: .
-    command: python -m app.dispatcher
-    environment:
-      KNOWLEDGE_ENVIRONMENT: development
-      KNOWLEDGE_SURREAL_ENABLED: "true"
-      SURREAL_URL: ws://surrealdb:8000
-      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
-      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
-      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
-      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
-      KNOWLEDGE_RABBITMQ_ENABLED: "true"
-      KNOWLEDGE_RABBITMQ_PUBLISH_CONFIRM_TIMEOUT_SECONDS: ${KNOWLEDGE_RABBITMQ_PUBLISH_CONFIRM_TIMEOUT_SECONDS:-5}
-      KNOWLEDGE_DISPATCH_BATCH_SIZE: ${KNOWLEDGE_DISPATCH_BATCH_SIZE:-100}
-      KNOWLEDGE_DISPATCH_RETRY_BASE_SECONDS: ${KNOWLEDGE_DISPATCH_RETRY_BASE_SECONDS:-1}
-      KNOWLEDGE_DISPATCH_RETRY_MAX_SECONDS: ${KNOWLEDGE_DISPATCH_RETRY_MAX_SECONDS:-30}
-      KNOWLEDGE_DISPATCH_RECONCILE_SECONDS: ${KNOWLEDGE_DISPATCH_RECONCILE_SECONDS:-10}
-      KNOWLEDGE_DISPATCH_LEASE_SECONDS: ${KNOWLEDGE_DISPATCH_LEASE_SECONDS:-30}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
-      KNOWLEDGE_METRICS_PORT: "9100"
-    depends_on:
-      surrealdb:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    stop_grace_period: 30s
-    expose:
-      - "9100"
-    healthcheck:
-      test:
-        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9100/metrics')"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
 
   knowledge-orphan-cleanup:
     profiles: ["maintenance"]
@@ -208,11 +190,15 @@ services:
       KNOWLEDGE_ORPHAN_CLEANUP_DRY_RUN: ${KNOWLEDGE_ORPHAN_CLEANUP_DRY_RUN:-true}
       KNOWLEDGE_ORPHAN_CLEANUP_GRACE_SECONDS: ${KNOWLEDGE_ORPHAN_CLEANUP_GRACE_SECONDS:-86400}
       KNOWLEDGE_ORPHAN_CLEANUP_INTERVAL_SECONDS: ${KNOWLEDGE_ORPHAN_CLEANUP_INTERVAL_SECONDS:-3600}
+      KNOWLEDGE_JOB_SERVICE_URL: http://job-service:8010
+      KNOWLEDGE_JOB_SERVICE_OWNER_TOKEN: ${KNOWLEDGE_JOB_SERVICE_OWNER_TOKEN:?Set KNOWLEDGE_JOB_SERVICE_OWNER_TOKEN in .env}
     depends_on:
       surrealdb:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      job-service:
+        condition: service_healthy
 
   admin-web:
     build:
@@ -225,5 +211,6 @@ services:
 
 volumes:
   surreal_data:
+  job_surreal_data:
   minio_data:
   rabbitmq_data:

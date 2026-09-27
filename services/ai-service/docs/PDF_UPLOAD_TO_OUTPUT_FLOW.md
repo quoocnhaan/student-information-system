@@ -2,41 +2,21 @@
 
 ```mermaid
 flowchart TD
-    A[Upload PDF] --> B[MinIO source object]
-    A --> C[(SurrealDB document and queued job)]
-    C --> D[Job live query wakes dispatcher]
-    D --> E[Dispatcher claims job-row publish lease]
-    E --> F[(RabbitMQ shared jobs queue)]
-    F --> G[Worker claims matching generation]
-    G --> H[OCR pages and draft metadata]
-    H --> I[(SurrealDB draft, document, and completed job)]
-    C --> J[GET job snapshot]
-    G --> K[Job live query to WebSocket]
-    I --> K
+  U[Upload PDF] --> K[Knowledge saves PDF and document]
+  K --> J[(Job service database: queued job)]
+  J --> A[202 with document and job IDs]
+  J --> R[RabbitMQ jobs.knowledge.ocr_pdf]
+  R --> W[Worker claims job]
+  W --> O[Render pages and call LM Studio]
+  O --> D[Knowledge saves OCR draft and review document]
+  D --> C[Job service marks completed]
+  J --> S[Knowledge job status REST and WebSocket adapter]
+  W --> S
+  C --> S
 ```
 
-`POST /v1/documents` validates and stores the PDF, then commits the document
-and queued job in one SurrealDB transaction. It returns `202` after that commit;
-the API has no RabbitMQ publish step. A crash after commit leaves a queued job
-for the dispatcher to find.
+The document and job are in separate databases. Knowledge uses a stable creation key to make a repeated central job creation safe. Job service publishes after creation and replays queued jobs on startup or broker reconnect. Duplicate triggers cannot claim a job twice. The worker uses authenticated Knowledge callbacks for source and result, so it does not need MinIO or Knowledge database credentials.
 
-The dispatcher uses a SurrealDB live query for prompt wake-ups. It also scans
-on startup, after reconnects, and at a bounded interval because notifications
-can be missed. A queued job is published only if its current generation has no
-confirmed publish, its retry times are due, and no dispatch lease is active.
-It waits for RabbitMQ publisher confirmation before marking the generation
-published. If confirmation is uncertain, a later duplicate trigger is safe:
-the worker may claim that generation only once.
+A caught OCR error marks the document and job failed. A page request exceeding 60 seconds is a caught timeout. A worker process death after claim may leave the job running; there is no lease or periodic recovery scan.
 
-The worker reads `job.type` from the claimed database row, fetches the PDF from
-MinIO, records OCR progress, saves an OCR draft, and moves the document to
-`review`. A retry or recovered worker lease increments the job's dispatch
-generation and makes a new trigger eligible.
-
-`GET /v1/jobs/{job_id}` returns the authoritative progress snapshot. The API
-subscribes to database job changes and sends sequenced WebSocket updates to
-`/v1/ws/jobs/{job_id}`. When the WebSocket is unavailable, the browser polls
-REST every three seconds and ignores stale sequence numbers.
-
-See [KNOWLEDGE_WORKFLOW.md](KNOWLEDGE_WORKFLOW.md) for dispatch recovery and
-cutover details.
+See [workflow](KNOWLEDGE_WORKFLOW.md) and [presentation guide](UPLOAD_TO_OCR_PRESENTATION_GUIDE.md).

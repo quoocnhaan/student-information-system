@@ -32,7 +32,9 @@ async def ready(request: Request) -> ServiceStatus:
         database is not None and await database.is_ready()
     )
     object_store_ready = object_store is not None and await object_store.is_ready()
-    if not (database_ready and object_store_ready):
+    job_client = getattr(request.app.state, "job_client", None)
+    jobs_ready = job_client is not None and await job_client.ready()
+    if not (database_ready and object_store_ready and jobs_ready):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Knowledge service dependencies are not ready",

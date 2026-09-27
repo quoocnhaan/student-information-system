@@ -13,6 +13,8 @@ async def main(name: str) -> None:
         "001_job_row_dispatch_backfill",
         "002_remove_outbox_events",
         "003_remove_outbox_table",
+        "004_remove_job_dispatch_fields",
+        "005_remove_local_jobs",
     }:
         raise ValueError(f"Unknown migration: {name}")
     path = Path.cwd() / "db" / "migrations" / f"{name}.surql"

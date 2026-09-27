@@ -13,7 +13,7 @@ describe("knowledgeClient", () => {
     );
   });
 
-  it("accepts a broker status event without inventing a job type", () => {
+  it("accepts a database status event without inventing a job type", () => {
     const event = statusMessageSchema.parse({
       event_type: "job.status_changed",
       job_id: "job:job_59f0c6c42cfa4d4785b6039b32cd5377",
@@ -24,8 +24,6 @@ describe("knowledgeClient", () => {
       progress: 100,
       processed_pages: 4,
       total_pages: 4,
-      attempts: 1,
-      max_attempts: 3,
       error: null,
       updated_at: "2026-09-23T16:11:31Z",
     });

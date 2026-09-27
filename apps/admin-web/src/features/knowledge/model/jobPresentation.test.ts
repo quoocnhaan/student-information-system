@@ -11,8 +11,6 @@ const job: JobStatus = {
   progress: 50,
   processed_pages: 1,
   sequence: 2,
-  attempts: 1,
-  max_attempts: 3,
 };
 
 describe("job presentation", () => {

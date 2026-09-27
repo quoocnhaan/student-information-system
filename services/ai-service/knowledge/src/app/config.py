@@ -1,7 +1,5 @@
 """Environment-backed configuration for the knowledge module."""
 
-import os
-import socket
 from functools import lru_cache
 
 from pydantic import AliasChoices, Field, model_validator
@@ -67,12 +65,6 @@ class Settings(BaseSettings):
             "LMSTUDIO_BASE_URL", "KNOWLEDGE_LMSTUDIO_BASE_URL"
         ),
     )
-    lmstudio_ocr_model: str = Field(
-        default="lightonocr-2-1b",
-        validation_alias=AliasChoices(
-            "LMSTUDIO_OCR_MODEL", "KNOWLEDGE_LMSTUDIO_OCR_MODEL"
-        ),
-    )
     lmstudio_chat_model: str = Field(
         default="qwen2.5-14b-instruct",
         validation_alias=AliasChoices(
@@ -87,30 +79,6 @@ class Settings(BaseSettings):
     )
     max_upload_bytes: int = 50 * 1024 * 1024
     ocr_max_pages: int = 100
-    ocr_max_output_tokens: int = 4096
-    ocr_timeout_seconds: float = 120.0
-    worker_id: str = Field(
-        default_factory=lambda: f"{socket.gethostname()}-{os.getpid()}"
-    )
-    worker_lease_seconds: int = Field(default=180, ge=30)
-    worker_heartbeat_seconds: int = Field(default=30, ge=5)
-    job_max_attempts: int = Field(default=3, ge=1)
-    job_retry_base_seconds: int = Field(default=10, ge=1)
-    job_retry_max_seconds: int = Field(default=300, ge=1)
-    rabbitmq_enabled: bool = False
-    rabbitmq_url: str = Field(
-        default="amqp://guest:guest@localhost/",
-        validation_alias=AliasChoices("RABBITMQ_URL", "KNOWLEDGE_RABBITMQ_URL"),
-    )
-    rabbitmq_jobs_exchange: str = "knowledge.jobs"
-    rabbitmq_jobs_queue: str = "knowledge.jobs.ocr"
-    rabbitmq_publish_confirm_timeout_seconds: float = Field(default=5.0, gt=0)
-    dispatch_batch_size: int = Field(default=100, ge=1, le=1000)
-    dispatch_retry_base_seconds: float = Field(default=1.0, gt=0)
-    dispatch_retry_max_seconds: float = Field(default=30.0, gt=0)
-    dispatch_reconcile_seconds: float = Field(default=10.0, ge=1)
-    dispatch_lease_seconds: int = Field(default=30, ge=10)
-    recovery_sweep_seconds: float = Field(default=30.0, ge=1)
     orphan_cleanup_enabled: bool = False
     orphan_cleanup_grace_seconds: float = Field(default=86400.0, ge=0)
     orphan_cleanup_interval_seconds: float = Field(default=3600.0, gt=0)
@@ -120,8 +88,11 @@ class Settings(BaseSettings):
     # require this bearer token for WebSocket subscriptions.
     websocket_auth_token: str | None = None
     metrics_port: int | None = Field(default=None, ge=1, le=65535)
+    job_service_url: str = "http://localhost:8010"
+    job_service_owner_token: str = ""
+    worker_callback_token: str = ""
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="KNOWLEDGE_")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="KNOWLEDGE_", extra="ignore")
 
     @model_validator(mode="after")
     def require_surreal_settings_when_enabled(self) -> "Settings":
@@ -139,18 +110,6 @@ class Settings(BaseSettings):
                 "SURREAL_USER, SURREAL_PASSWORD, SURREAL_NAMESPACE, and "
                 "SURREAL_DATABASE are required when KNOWLEDGE_SURREAL_ENABLED=true"
             )
-        if self.worker_heartbeat_seconds >= self.worker_lease_seconds:
-            raise ValueError(
-                "KNOWLEDGE_WORKER_HEARTBEAT_SECONDS must be less than "
-                "KNOWLEDGE_WORKER_LEASE_SECONDS"
-            )
-        if self.dispatch_retry_base_seconds > self.dispatch_retry_max_seconds:
-            raise ValueError(
-                "KNOWLEDGE_DISPATCH_RETRY_BASE_SECONDS must not exceed "
-                "KNOWLEDGE_DISPATCH_RETRY_MAX_SECONDS"
-            )
-        if self.dispatch_lease_seconds <= self.rabbitmq_publish_confirm_timeout_seconds + 5:
-            raise ValueError("Dispatch lease must exceed broker confirmation timeout by 5 seconds")
         return self
 
 

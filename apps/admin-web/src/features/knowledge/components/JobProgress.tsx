@@ -18,8 +18,7 @@ export function JobProgress({ job, connection }: { job: JobStatus; connection: C
         <span className={`progress-fill ${tone}`} style={{ width: `${job.progress}%` }} />
       </div>
       <div className="split-row muted"><span>{job.progress}% complete · {pageProgress}</span><span className={`connection ${connection}`}>{connection === "live" ? "Live updates" : connection === "polling" ? "Checking for updates" : connection === "connecting" ? "Connecting" : "Offline"}</span></div>
-      <div className="job-details"><span>Attempt {job.attempts} of {job.max_attempts}</span><span>Job ID: <code>{job.id}</code></span></div>
-      {job.next_attempt_at && <p className="notice warning">Retry scheduled for {new Date(job.next_attempt_at).toLocaleString()}.</p>}
+      <div className="job-details"><span>Job ID: <code>{job.id}</code></span></div>
     </section>
   );
 }
