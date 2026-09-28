@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import styles from "./QuestionBankModal.module.css";
+import styles from "./Questionbankmodal.module.css";
 import QuestionForm, { type QuestionFormValues, type QuestionItem } from "./Questionform";
 
 interface QuestionBankModalProps {

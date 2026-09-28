@@ -1,35 +1,35 @@
-import React from "react";
+import type { ReactNode } from "react";
+import {
+  ClipboardCheck,
+  FileQuestion,
+  FileText,
+  RefreshCw,
+  ChevronDown,
+} from "lucide-react";
 import styles from "./ActivityCard.module.css";
 
 export type ActivityType = "document" | "assignment" | "quiz";
 
 export interface ActivityCardProps {
   type: ActivityType;
-  statusLabel: string; // ví dụ: "TÀI LIỆU ĐÃ ĐĂNG", "ĐANG MỞ TRẢ LỜI"
+  statusLabel: string;
   title: string;
   description: string;
   footer?: string;
   primaryActionLabel: string;
   secondaryActionLabel?: string;
-  extraNote?: string; // ví dụ số bài đã nộp / cần chấm
-  /** Gọi khi bấm nút chính (vd: "Cập nhật File", "SpeedGrader") */
+  extraNote?: string;
   onPrimaryAction?: () => void;
-  /** Gọi khi bấm nút phụ (vd: "Sửa Rubric", "Ngân hàng câu hỏi") */
   onSecondaryAction?: () => void;
 }
 
-/** Icon minh họa theo loại hoạt động */
-const typeIcon: Record<ActivityType, string> = {
-  document: "📄",
-  assignment: "📥",
-  quiz: "📋",
+const typeIcon: Record<ActivityType, ReactNode> = {
+  document: <FileText size={21} strokeWidth={1.8} />,
+  assignment: <ClipboardCheck size={22} strokeWidth={1.8} />,
+  quiz: <FileQuestion size={22} strokeWidth={1.8} />,
 };
 
-/**
- * ActivityCard - Thẻ hiển thị một hoạt động trong Module
- * (tài liệu bài giảng, bài tập/cổng nộp, hoặc bài kiểm tra quiz)
- */
-const ActivityCard: React.FC<ActivityCardProps> = ({
+const ActivityCard = ({
   type,
   statusLabel,
   title,
@@ -40,34 +40,73 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
   extraNote,
   onPrimaryAction,
   onSecondaryAction,
-}) => {
+}: ActivityCardProps) => {
+  const isAssignment = type === "assignment";
+
   return (
-    <div className={styles.card}>
-      <div className={styles.iconWrap}>
-        <span className={styles.icon}>{typeIcon[type]}</span>
+    <article className={styles.card}>
+      <div
+        className={`${styles.iconWrap} ${type === "assignment"
+            ? styles.assignmentIcon
+            : type === "document"
+              ? styles.documentIcon
+              : styles.quizIcon
+          }`}
+      >
+        {typeIcon[type]}
       </div>
 
       <div className={styles.content}>
-        <span className={`${styles.status} ${styles[type]}`}>{statusLabel}</span>
+        <div className={styles.metaRow}>
+          <span className={`${styles.status} ${styles[type]}`}>
+            {statusLabel}
+          </span>
+
+          {isAssignment && footer && (
+            <span className={styles.metaText}>{footer}</span>
+          )}
+        </div>
+
         <h3 className={styles.title}>{title}</h3>
-        <p className={styles.description}>{description}</p>
-        {footer && <span className={styles.footer}>{footer}</span>}
+
+        {description && (
+          <p className={styles.description}>{description}</p>
+        )}
+
+        {!isAssignment && footer && (
+          <span className={styles.footer}>{footer}</span>
+        )}
+
+        {extraNote && (
+          <span className={styles.extraNote}>{extraNote}</span>
+        )}
       </div>
 
       <div className={styles.actions}>
-        {extraNote && <span className={styles.extraNote}>{extraNote}</span>}
-        <div className={styles.buttonRow}>
-          {secondaryActionLabel && (
-            <button className={styles.secondaryBtn} onClick={onSecondaryAction}>
-              {secondaryActionLabel}
-            </button>
-          )}
-          <button className={styles.primaryBtn} onClick={onPrimaryAction}>
-            {primaryActionLabel}
+        {secondaryActionLabel && (
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            onClick={onSecondaryAction}
+          >
+            {secondaryActionLabel}
           </button>
-        </div>
+        )}
+
+        <button
+          type="button"
+          className={styles.primaryBtn}
+          onClick={onPrimaryAction}
+        >
+          {type === "document" ? (
+            <RefreshCw size={15} />
+          ) : (
+            <ChevronDown size={16} className={styles.buttonChevron} />
+          )}
+          {primaryActionLabel}
+        </button>
       </div>
-    </div>
+    </article>
   );
 };
 

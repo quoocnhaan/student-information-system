@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import styles from "./ActivityForm.module.css";
+import styles from "./Activityform.module.css";
 import type { ActivityCardProps, ActivityType } from "./ActivityCard";
 
 interface ActivityFormProps {

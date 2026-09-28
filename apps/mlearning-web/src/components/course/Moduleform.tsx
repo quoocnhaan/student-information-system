@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import styles from "./ModuleForm.module.css";
+import styles from "./Moduleform.module.css";
 import type { ModuleItem, ModuleStatus } from "./Sidebar";
 
 /** Dữ liệu form không gồm id (id do Sidebar tự sinh khi tạo mới) */
