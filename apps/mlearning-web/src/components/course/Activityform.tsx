@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import styles from "./ActivityForm.module.css";
-import type { ActivityCardProps, ActivityType } from "../ActivityCard/ActivityCard";
+import type { ActivityCardProps, ActivityType } from "./ActivityCard";
 
 interface ActivityFormProps {
     onSubmit: (values: ActivityCardProps) => void;
