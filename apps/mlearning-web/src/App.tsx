@@ -24,7 +24,7 @@ function App() {
                 <Route path="/calendar" element={<AcademicCalendarPage />} />
                 <Route path="/directory" element={<CourseManagement />} />
                 <Route path="/quiz-results" element={<QuizResultsPage />} />
-                <Route path="/quiz-taking" element={<QuizTakingPage />} />
+                <Route path="/course/:id/quiz-taking/:quizId" element={<QuizTakingPage />} />
                 <Route path="/course/:id" element={<CourseDetail />} />
               </Routes>
             </AppLayout>

@@ -1,4 +1,4 @@
-import type { ActivityCardProps } from "../ActivityCard/ActivityCard";
+import type { ActivityCardProps } from "./ActivityCard";
 import type { QuizFormValues } from "./Quizform";
 
 /** Định dạng chuỗi datetime-local ("2025-11-20T08:00") thành "20/11 08:00" cho dễ đọc */

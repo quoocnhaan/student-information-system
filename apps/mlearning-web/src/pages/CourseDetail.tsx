@@ -1,8 +1,75 @@
+import { useMemo, useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
-import { Clock, Download as DownloadIcon, MessageSquare, Video, Clock10, CheckCircle2, CircleDot, Lock as LockIcon, Users, Play, BookOpen, Book, Terminal as TerminalIcon, History as HistoryIcon, ExternalLink, HelpCircle, PlayCircle as PlayCircleIcon, FileText, CheckCircle as Mail, MapPin } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Clock, Download as DownloadIcon, MessageSquare, Video, Clock10, CheckCircle2, CircleDot, Lock as LockIcon, Users, Play, BookOpen, Book, PlayCircle as PlayCircleIcon, FileText, CheckCircle as Mail, MapPin } from 'lucide-react';
 import styles from './CourseDetail.module.css';
+import ActivityItem from '../components/course/Activityitem';
+import { activities } from '../components/course/Activitymockdata';
+
+// ---- Dữ liệu mẫu cho 2 activity dạng dropdown (thay bằng dữ liệu từ API khi có backend) ----
 
 export function CourseDetail() {
+  const [activeFilter, setActiveFilter] = useState<
+    'all' | 'lecture' | 'assignment' | 'quiz'
+  >('all');
+  const activityCounts = useMemo(() => {
+    return {
+      all: activities.length,
+
+      lecture: activities.filter(
+        (activity) => activity.type === 'resource'
+      ).length,
+
+      assignment: activities.filter(
+        (activity) => activity.type === 'assignment'
+      ).length,
+
+      quiz: activities.filter(
+        (activity) => activity.type === 'quiz'
+      ).length,
+    };
+  }, []);
+  const filteredActivities = useMemo(() => {
+    switch (activeFilter) {
+      case 'lecture':
+        return activities.filter(
+          (activity) => activity.type === 'resource'
+        );
+
+      case 'assignment':
+        return activities.filter(
+          (activity) => activity.type === 'assignment'
+        );
+
+      case 'quiz':
+        return activities.filter(
+          (activity) => activity.type === 'quiz'
+        );
+
+      default:
+        return activities;
+    }
+  }, [activeFilter]);
+
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+
+  const courseMaterials = activities.find(
+    (activity) => activity.id === 'course-materials'
+  );
+
+  const ps3Assignment = activities.find(
+    (activity) => activity.id === 'ps3'
+  );
+
+  const module4Quiz = activities.find(
+    (activity) => activity.id === 'quiz-m4'
+  );
+
+  const module5Quiz = activities.find(
+    (activity) => activity.id === 'quiz-m5'
+  );
+
   return (
     <div className={styles.container}>
       {/* HERO COURSE HEADER & STATS CARD */}
@@ -193,15 +260,6 @@ export function CourseDetail() {
                   </div>
                   <span className={`${styles.moduleStatusBadge} ${styles.moduleStatusActive}`}>3/4 Done</span>
                 </div>
-                <div className={styles.moduleMiniProgress}>
-                  <div className={styles.miniProgressHeader}>
-                    <span>Module Progress</span>
-                    <span>75%</span>
-                  </div>
-                  <div className={styles.miniProgressTrack}>
-                    <div className={styles.miniProgressFill} style={{ width: '75%' }}></div>
-                  </div>
-                </div>
               </div>
 
               <div className={`${styles.moduleItem} ${styles.moduleItemLocked}`}>
@@ -261,198 +319,82 @@ export function CourseDetail() {
                   Deconstruct the mechanics of distributed state machine replication, leader election edge-cases, log reconciliation safety, and partition tolerance.
                 </p>
               </div>
-
-              <div className={styles.bannerProgress}>
-                <div className={styles.circularProgress}>
-                  <svg>
-                    <circle className={styles.circularBg} cx="28" cy="28" r="24" strokeWidth="4"></circle>
-                    <circle className={styles.circularFill} cx="28" cy="28" r="24" strokeWidth="4" strokeDasharray="150" strokeDashoffset="37.5"></circle>
-                  </svg>
-                  <span className={styles.circularText}>75%</span>
-                </div>
-                <span className={styles.progressStatusText}>3 of 4 Done</span>
-              </div>
             </div>
 
             <div className={styles.filterTabs}>
-              <button className={`${styles.filterTab} ${styles.filterTabActive}`}>All Activities (5)</button>
-              <button className={`${styles.filterTab} ${styles.filterTabInactive}`}>Lectures (2)</button>
-              <button className={`${styles.filterTab} ${styles.filterTabInactive}`}>Readings (1)</button>
-              <button className={`${styles.filterTab} ${styles.filterTabInactive}`}>Assignments & Labs (1)</button>
-              <button className={`${styles.filterTab} ${styles.filterTabInactive}`}>Quizzes (1)</button>
+              <button
+                type="button"
+                className={`${styles.filterTab} ${activeFilter === 'all'
+                  ? styles.filterTabActive
+                  : styles.filterTabInactive
+                  }`}
+                onClick={() => setActiveFilter('all')}
+              >
+                All Activities ({activityCounts.all})
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.filterTab} ${activeFilter === 'lecture'
+                  ? styles.filterTabActive
+                  : styles.filterTabInactive
+                  }`}
+                onClick={() => setActiveFilter('lecture')}
+              >
+                Lectures ({activityCounts.lecture})
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.filterTab} ${activeFilter === 'assignment'
+                  ? styles.filterTabActive
+                  : styles.filterTabInactive
+                  }`}
+                onClick={() => setActiveFilter('assignment')}
+              >
+                Assignments & Labs ({activityCounts.assignment})
+              </button>
+
+              <button
+                type="button"
+                className={`${styles.filterTab} ${activeFilter === 'quiz'
+                  ? styles.filterTabActive
+                  : styles.filterTabInactive
+                  }`}
+                onClick={() => setActiveFilter('quiz')}
+              >
+                Quizzes ({activityCounts.quiz})
+              </button>
             </div>
           </div>
 
           <div className={styles.activityList}>
-            {/* Activity 1 */}
-            <article className={styles.activityItem}>
-              <div className={styles.activityLayout}>
-                <div className={styles.activityContent}>
-                  <div className={`${styles.activityIcon} ${styles.iconSuccess}`}>
-                    <Video size={22} />
-                  </div>
-                  <div className={styles.activityDetails}>
-                    <div className={styles.activityMeta}>
-                      <span className={`${styles.metaBadge} ${styles.metaBadgeSuccess}`}>Completed</span>
-                      <span className={styles.metaText}>42 mins</span>
-                      <span className={styles.metaDot}>•</span>
-                      <span className={styles.metaText}>Watched Oct 16</span>
-                    </div>
-                    <h3 className={styles.activityTitle}>Lecture 4.1: The State Machine Approach & Consensus Foundations</h3>
-                    <p className={styles.activityDesc}>Theoretical underpinnings of determinism, distributed logs, and non-blocking atomic commitments.</p>
-                  </div>
-                </div>
-                <div className={styles.activityActions}>
-                  <button className={styles.actionBtnSecondary}>
-                    <Play size={16} /> Rewatch
-                  </button>
-                  <button className={styles.actionBtnSecondary}>
-                    <FileText size={16} /> Slides
-                  </button>
-                  <button className={styles.actionBtnIcon}>
-                    <Book size={18} />
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            {/* Activity 2 */}
-            <article className={`${styles.activityItem} ${styles.activityItemActive}`}>
-              <div className={styles.activityLayout}>
-                <div className={styles.activityContent}>
-                  <div className={`${styles.activityIcon} ${styles.iconActive}`}>
-                    <PlayCircleIcon size={22} fill="var(--primary)" color="var(--primary-fixed)" />
-                  </div>
-                  <div className={styles.activityDetails}>
-                    <div className={styles.activityMeta}>
-                      <span className={`${styles.metaBadge} ${styles.metaBadgeWarning}`}>In Progress (40%)</span>
-                      <span className={styles.metaText}>45 mins total</span>
-                      <span className={styles.metaDot}>•</span>
-                      <span className={styles.metaTextPrimary}>18:24 remaining</span>
-                    </div>
-                    <h3 className={styles.activityTitle}>Lecture 4.2: Raft Leader Election, Heartbeats & Log Invariants</h3>
-                    <p className={styles.activityDesc}>Detailed step-through of randomized election timers, RequestVote RPC semantics, and split-brain resolution.</p>
-                  </div>
-                </div>
-                <div className={styles.activityActions}>
-                  <button className={styles.actionBtnPrimary}>
-                    <Play size={18} fill="currentColor" /> Resume Video (18:24)
-                  </button>
-                </div>
-              </div>
-              <div className={styles.inlineScrubber}>
-                <div className={styles.scrubberTrack}>
-                  <div className={styles.scrubberFill} style={{ width: '40%' }}></div>
-                </div>
-                <div className={styles.scrubberTime}>
-                  <span className={`${styles.scrubberText} ${styles.scrubberTextActive}`}>18:24</span>
-                  <span>/</span>
-                  <span className={styles.scrubberText}>45:00</span>
-                </div>
-                <button className={styles.scrubberLink}>
-                  <FileText size={16} /> Companion Notes
-                </button>
-              </div>
-            </article>
-
-            {/* Activity 3 */}
-            <article className={styles.activityItem}>
-              <div className={styles.activityLayout}>
-                <div className={styles.activityContent}>
-                  <div className={`${styles.activityIcon} ${styles.iconSuccess}`}>
-                    <BookOpen size={22} />
-                  </div>
-                  <div className={styles.activityDetails}>
-                    <div className={styles.activityMeta}>
-                      <span className={`${styles.metaBadge} ${styles.metaBadgeSuccess}`}>Read & Annotated</span>
-                      <span className={styles.metaText}>Required Paper</span>
-                    </div>
-                    <h3 className={styles.activityTitle}>In Search of an Understandable Consensus Algorithm</h3>
-                    <p className={styles.activityDesc}>Diego Ongaro and John Ousterhout (Stanford University, USENIX ATC)</p>
-                  </div>
-                </div>
-                <div className={styles.activityActions}>
-                  <button className={styles.actionBtnSecondary}>
-                    <BookOpen size={18} color="var(--primary)" /> Open PDF Reader
-                  </button>
-                  <span className={styles.tagBadge}>14 Highlights</span>
-                </div>
-              </div>
-            </article>
-
-            {/* Activity 4 */}
-            <article className={`${styles.activityItem} ${styles.activityItemUrgent} ${styles.assignmentActivity}`}>
-              <div className={styles.urgentTag}>
-                <Clock10 size={14} /> Due in 4 Days (Oct 28)
-              </div>
-              <div className={styles.activityLayout}>
-                <div className={styles.activityContent}>
-                  <div className={`${styles.activityIcon} ${styles.iconActive}`}>
-                    <TerminalIcon size={24} />
-                  </div>
-                  <div className={styles.activityDetails}>
-                    <div className={styles.activityMeta}>
-                      <span className={`${styles.metaBadge} ${styles.metaBadgePrimary}`}>Problem Set 3 • Core Lab</span>
-                      <span className={styles.metaText}>100 Points Possible</span>
-                    </div>
-                    <h3 className={styles.activityTitle}>Problem Set 3: Building a Fault-Tolerant Raft Consensus Core in Go</h3>
-                    <p className={styles.activityDesc}>Implement leader election (Part 2A) and log agreement (Part 2B). Your implementation must pass the strict network-partition and dropped-RPC stress testing framework.</p>
-                  </div>
-                </div>
-              </div>
-              <div className={styles.ciBox}>
-                <div className={styles.ciInfo}>
-                  <div className={styles.ciHeader}>
-                    <span className={styles.ciTitle}>Automated Grading CI Suite:</span>
-                    <span className={styles.ciStatusBadge}>4 / 6 Tests Passing</span>
-                    <span className={styles.ciScore}>(Score: 75/100 Pts)</span>
-                  </div>
-                  <div className={styles.ciTests}>
-                    <span className={styles.ciTestPass}>TestInitialElection: PASS</span>
-                    <span className={styles.metaDot}>•</span>
-                    <span className={styles.ciTestPass}>TestReElection: PASS</span>
-                    <span className={styles.metaDot}>•</span>
-                    <span className={styles.ciTestFail}>TestConcurrentPartitions: FAILED (timeout 3000ms)</span>
-                  </div>
-                </div>
-                <div className={styles.ciActions}>
-                  <button className={styles.actionBtnSecondary}>
-                    <HistoryIcon size={16} /> Submission Log (3)
-                  </button>
-                  <button className={styles.actionBtnPrimary}>
-                    <ExternalLink size={18} /> Open Web IDE & Runner
-                  </button>
-                </div>
-              </div>
-            </article>
-
-            {/* Activity 5 */}
-            <article className={styles.activityItem} style={{ opacity: 0.9 }}>
-              <div className={styles.activityLayout}>
-                <div className={styles.activityContent}>
-                  <div className={`${styles.activityIcon} ${styles.iconLocked}`}>
-                    <HelpCircle size={22} />
-                  </div>
-                  <div className={styles.activityDetails}>
-                    <div className={styles.activityMeta}>
-                      <span className={`${styles.metaBadge} ${styles.metaBadgeLocked}`}>Locked Activity</span>
-                      <span className={styles.metaText}>Estimated 15 mins • 10 Questions</span>
-                    </div>
-                    <h3 className={styles.activityTitle} style={{ color: 'var(--on-surface-variant)' }}>Module 4 Knowledge Check Quiz</h3>
-                    <p className={styles.activityDesc}>Short multiple-choice assessment covering Raft election conditions, state transitions, and safety guarantees.</p>
-                  </div>
-                </div>
-                <div className={styles.activityActions}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#b45309', backgroundColor: '#fef3c7', padding: '6px 12px', borderRadius: 'var(--radius-lg)' }}>
-                    <LockIcon size={14} /> Unlocks upon passing PS3 automated tests
-                  </div>
-                </div>
-              </div>
-            </article>
-
+            {filteredActivities.map((activity) => (
+              <ActivityItem
+                key={activity.id}
+                activity={activity}
+                onStartQuiz={(quizId) =>
+                  navigate(`/course/${id}/quiz-taking/${quizId}`)
+                }
+                onSaveSubmission={(assignmentId, file) => {
+                  console.log(
+                    'Save submission',
+                    assignmentId,
+                    file.name
+                  );
+                }}
+                onRemoveSubmission={(assignmentId) => {
+                  console.log(
+                    'Remove submission',
+                    assignmentId
+                  );
+                }}
+              />
+            ))}
           </div>
         </section>
       </div>
     </div>
   );
 }
+

@@ -1,18 +1,13 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { Pencil, Plus } from "lucide-react";
 import styles from "./ModuleContent.module.css";
-import Tabs, { type TabItem } from "../Tabs/Tabs";
-import ActivityCard, { type ActivityCardProps } from "../ActivityCard/ActivityCard";
+import ActivityCard, { type ActivityCardProps } from "./ActivityCard";
 import ModuleHeaderForm, { type ModuleHeaderValues } from "./Moduleheaderform";
 import ActivityForm from "./Activityform";
 import QuestionBankModal from "./Questionbankmodal";
 import type { QuestionFormValues, QuestionItem } from "./Questionform";
 
-const tabs: TabItem[] = [
-  { key: "all", label: "Tất cả hoạt động (5)" },
-  { key: "docs", label: "Tài liệu bài giảng (2)" },
-  { key: "assignments", label: "Bài tập & Cổng nộp (1)" },
-  { key: "quiz", label: "Bài kiểm tra Quiz & Điểm (2)" },
-];
+type FilterKey = "all" | ActivityCardProps["type"];
 
 const initialHeader: ModuleHeaderValues = {
   breadcrumbSmall: "📁 Khu vực Quản lý Học liệu & Hoạt động Tuần 7 - 8",
@@ -30,8 +25,8 @@ interface ModuleContentProps {
 }
 
 /**
- * ModuleContent - Nội dung chính khu vực phải: tiêu đề module (có thể sửa),
- * thanh tab lọc hoạt động, và danh sách các thẻ hoạt động (có thể thêm mới).
+ * ModuleContent - Nội dung chính khu vực phải: banner module (có thể sửa),
+ * tab lọc hoạt động theo loại, và danh sách các thẻ hoạt động (có thể thêm mới).
  * Với các thẻ Quiz, nút "Ngân hàng câu hỏi" mở QuestionBankModal để quản lý
  * câu hỏi + đáp án riêng cho quiz đó (lưu theo tiêu đề quiz).
  */
@@ -40,6 +35,7 @@ const ModuleContent: React.FC<ModuleContentProps> = ({ activities, onAddActivity
 
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [isAddingActivity, setIsAddingActivity] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
 
   // Ngân hàng câu hỏi của từng quiz, lưu theo tiêu đề quiz (title)
   const [questionBankByQuiz, setQuestionBankByQuiz] = useState<Record<string, QuestionItem[]>>(
@@ -47,6 +43,27 @@ const ModuleContent: React.FC<ModuleContentProps> = ({ activities, onAddActivity
   );
   // Tiêu đề quiz đang mở Ngân hàng câu hỏi (null = không mở modal nào)
   const [activeQuizTitle, setActiveQuizTitle] = useState<string | null>(null);
+
+  // Số lượng theo loại - tự cập nhật khi thêm hoạt động mới
+  const tabs = useMemo(() => {
+    const count = (type: ActivityCardProps["type"]) =>
+      activities.filter((a) => a.type === type).length;
+    return [
+      { key: "all" as FilterKey, label: `Tất cả hoạt động (${activities.length})` },
+      { key: "document" as FilterKey, label: `Tài liệu bài giảng (${count("document")})` },
+      { key: "assignment" as FilterKey, label: `Bài tập & Cổng nộp (${count("assignment")})` },
+      { key: "quiz" as FilterKey, label: `Bài kiểm tra Quiz & Điểm (${count("quiz")})` },
+    ];
+  }, [activities]);
+
+  // Giữ index gốc để key ổn định khi lọc
+  const visibleActivities = useMemo(
+    () =>
+      activities
+        .map((activity, index) => ({ activity, index }))
+        .filter(({ activity }) => activeFilter === "all" || activity.type === activeFilter),
+    [activities, activeFilter]
+  );
 
   const handleSaveHeader = (values: ModuleHeaderValues) => {
     setHeader(values);
@@ -67,35 +84,69 @@ const ModuleContent: React.FC<ModuleContentProps> = ({ activities, onAddActivity
 
   return (
     <section className={styles.wrapper}>
-      <div className={styles.moduleHeader}>
-        <div className={styles.moduleHeaderLeft}>
-          <span className={styles.breadcrumbSmall}>{header.breadcrumbSmall}</span>
-          <h2 className={styles.moduleTitle}>{header.moduleTitle}</h2>
+      <div className={styles.activeModuleBanner}>
+        <div className={styles.bannerLayout}>
+          <div className={styles.bannerText}>
+            <div className={styles.bannerTop}>
+              <span className={styles.bannerTag}>Đang diễn ra</span>
+              <span className={styles.bannerMeta}>{header.breadcrumbSmall}</span>
+            </div>
+            <h2 className={styles.bannerTitle}>{header.moduleTitle}</h2>
+          </div>
+
+          <div className={styles.bannerActions}>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnSecondary}`}
+              onClick={() => setIsEditingHeader(true)}
+            >
+              <Pencil size={16} /> Sửa Module
+            </button>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              onClick={() => setIsAddingActivity(true)}
+            >
+              <Plus size={16} /> Thêm vào Module
+            </button>
+          </div>
         </div>
-        <div className={styles.moduleHeaderActions}>
-          <button className={styles.editBtn} onClick={() => setIsEditingHeader(true)}>
-            ✏ Sửa Module
-          </button>
-          <button className={styles.addModuleBtn} onClick={() => setIsAddingActivity(true)}>
-            + Thêm vào Module
-          </button>
+
+        <div className={styles.filterTabs} role="tablist" aria-label="Lọc hoạt động theo loại">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={activeFilter === tab.key}
+              className={`${styles.filterTab} ${activeFilter === tab.key ? styles.filterTabActive : styles.filterTabInactive
+                }`}
+              onClick={() => setActiveFilter(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      <Tabs tabs={tabs} defaultKey="all" />
-
       <div className={styles.activityList}>
-        {activities.map((a, idx) => (
-          <ActivityCard
-            key={idx}
-            {...a}
-            onSecondaryAction={
-              a.type === "quiz" && a.secondaryActionLabel === "Ngân hàng câu hỏi"
-                ? () => setActiveQuizTitle(a.title)
-                : undefined
-            }
-          />
-        ))}
+        {visibleActivities.length === 0 ? (
+          <div className={styles.emptyState}>
+            Chưa có hoạt động nào thuộc loại này. Chọn "Thêm vào Module" để tạo mới.
+          </div>
+        ) : (
+          visibleActivities.map(({ activity: a, index }) => (
+            <ActivityCard
+              key={index}
+              {...a}
+              onSecondaryAction={
+                a.type === "quiz" && a.secondaryActionLabel === "Ngân hàng câu hỏi"
+                  ? () => setActiveQuizTitle(a.title)
+                  : undefined
+              }
+            />
+          ))
+        )}
       </div>
 
       {/* Modal Sửa tiêu đề Module */}

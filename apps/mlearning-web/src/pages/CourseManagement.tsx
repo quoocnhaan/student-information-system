@@ -1,10 +1,10 @@
 import React, { useState } from "react";
+import { Clock, Clock10 } from "lucide-react";
 import styles from "./CourseManagement.module.css";
-import Breadcrumb from "../components/course/Breadcrumb";
 import ActionBar from "../components/course/ActionBar";
 import Sidebar from "../components/course/Sidebar";
 import ModuleContent from "../components/course/ModuleContent";
-import type { ActivityCardProps } from "../components/ActivityCard/ActivityCard";
+import type { ActivityCardProps } from "../components/course/ActivityCard";
 import { quizFormToActivityCard } from "../components/course/Quizformtoactivitycard";
 
 const initialActivities: ActivityCardProps[] = [
@@ -38,6 +38,16 @@ const initialActivities: ActivityCardProps[] = [
   },
 ];
 
+// Số liệu tổng quan lớp học (dữ liệu mẫu - thay bằng dữ liệu từ API khi có backend)
+const TOTAL_STUDENTS = 128;
+const SUBMITTED = 114;
+const PENDING_GRADING = 14;
+const CURRENT_WEEK = 8;
+const TOTAL_WEEKS = 16;
+
+const submittedPercent = Math.round((SUBMITTED / TOTAL_STUDENTS) * 100);
+const semesterPercent = Math.round((CURRENT_WEEK / TOTAL_WEEKS) * 100);
+
 const CoursePage: React.FC = () => {
   const [activities, setActivities] = useState<ActivityCardProps[]>(initialActivities);
 
@@ -53,11 +63,106 @@ const CoursePage: React.FC = () => {
   };
 
   return (
-    <div className={styles.page}>
-      <Breadcrumb />
-      <ActionBar onCreateQuiz={handleCreateQuiz} />
+    <div className={styles.container}>
+      {/* HERO: thông tin môn học + thao tác chính + tổng quan lớp */}
+      <section className={styles.heroCard}>
+        <div className={styles.heroAccent} />
+        <div className={styles.heroGrid}>
+          <div className={styles.heroContent}>
+            <div className={styles.badgeRow}>
+              <span className={`${styles.badge} ${styles.badgePrimary}`}>
+                <span className={styles.badgeDot} />
+                CS 408 • Sau đại học
+              </span>
+              <span className={`${styles.badge} ${styles.badgeSecondary}`}>
+                Học kỳ Thu 2025 • 4 tín chỉ
+              </span>
+              <span className={`${styles.badge} ${styles.badgeSuccess}`}>
+                <span className={styles.badgeDot} />
+                Đang giảng dạy
+              </span>
+              <span className={`${styles.badge} ${styles.badgeSecondary}`}>
+                <Clock size={14} />
+                Thứ 2 / Thứ 4 · 10:00 - 11:30
+              </span>
+            </div>
 
-      <div className={styles.body}>
+            <div>
+              <h1 className={styles.courseTitle}>
+                CS 408: Hệ Phân tán &amp; Kiến trúc Đám mây
+              </h1>
+              <p className={styles.courseDesc}>
+                Quản lý học liệu, bài tập, bài kiểm tra và điểm số cho toàn bộ {TOTAL_WEEKS} tuần học:
+                giao thức đồng thuận (Paxos, Raft), RPC (gRPC/Protobuf), lưu trữ phân tán và mở rộng
+                microservices trên nền tảng đám mây.
+              </p>
+            </div>
+
+            <div className={styles.actionsWrap}>
+              <ActionBar onCreateQuiz={handleCreateQuiz} />
+            </div>
+          </div>
+
+          <div className={styles.performanceCard}>
+            <div className={styles.standingHeader}>
+              <span className={styles.standingTitle}>Tổng quan lớp học</span>
+              <span className={styles.standingBadge}>Đúng tiến độ</span>
+            </div>
+
+            <div className={styles.metricsGrid}>
+              <div className={styles.metricBox}>
+                <span className={styles.metricLabel}>Sĩ số</span>
+                <div className={styles.metricValueRow}>
+                  <span className={`${styles.metricValueMain} ${styles.metricValueMainPrimary}`}>
+                    {TOTAL_STUDENTS}
+                  </span>
+                  <span className={styles.metricValueSub}>sinh viên</span>
+                </div>
+                <span className={styles.metricFooter}>Đã ghi danh</span>
+              </div>
+              <div className={styles.metricBox}>
+                <span className={styles.metricLabel}>Nộp Problem Set 3</span>
+                <div className={styles.metricValueRow}>
+                  <span className={styles.metricValueMain}>{SUBMITTED}</span>
+                  <span className={styles.metricValueSub}>/ {TOTAL_STUDENTS}</span>
+                </div>
+                <span className={`${styles.metricFooter} ${styles.metricFooterSuccess}`}>
+                  {submittedPercent}% đã nộp
+                </span>
+              </div>
+            </div>
+
+            <div className={styles.progressSection}>
+              <div className={styles.progressHeader}>
+                <span className={styles.progressLabel}>
+                  Tiến độ học kỳ · Tuần {CURRENT_WEEK}/{TOTAL_WEEKS}
+                </span>
+                <span className={styles.progressValue}>{semesterPercent}%</span>
+              </div>
+              <div className={styles.progressTrack}>
+                <div className={styles.progressFill} style={{ width: `${semesterPercent}%` }} />
+              </div>
+            </div>
+
+            <div className={styles.alertBox}>
+              <Clock10 size={20} className={styles.alertIcon} />
+              <div className={styles.alertContent}>
+                <div className={styles.alertHeader}>
+                  <span className={styles.alertTitle}>Cần chấm điểm</span>
+                  <span className={styles.alertBadge}>Còn 2 ngày</span>
+                </div>
+                <p className={styles.alertDesc}>
+                  Problem Set 3: {PENDING_GRADING} bài mới đang chờ chấm
+                </p>
+                <span className={styles.alertFooter}>Hạn nộp Chủ Nhật · 23:59</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* LAYOUT 2 CỘT: đề cương (trái) + hoạt động của module (phải) */}
+      <div className={styles.mainLayout}>
         <div className={styles.sidebarCol}>
           <Sidebar />
         </div>
