@@ -1,8 +1,8 @@
-import type { DeadlineItem } from './types';
+import type { DeadlineItem, ScheduleItem } from './types';
 
 // October 2025 month grid (MON-SUN). Replace with real data from your backend/API.
 
-export const scheduleByDate = {
+export const scheduleByDate: Record<string, ScheduleItem[]> = {
   '2026-09-22': [
     {
       id: '1',

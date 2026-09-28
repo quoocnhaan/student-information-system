@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import styles from "./QuizForm.module.css";
+import styles from "./Quizform.module.css";
 
 /** Dữ liệu form Tạo Quiz */
 export interface QuizFormValues {

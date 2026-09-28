@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Clock, Download as DownloadIcon, MessageSquare, Video, Clock10, CheckCircle2, CircleDot, Lock as LockIcon, Users, Play, BookOpen, Book, PlayCircle as PlayCircleIcon, FileText, CheckCircle as Mail, MapPin } from 'lucide-react';
+import { Clock, Download as DownloadIcon, MessageSquare, Video, Clock10, CheckCircle2, CircleDot, Lock as LockIcon, Users, CheckCircle as Mail, MapPin } from 'lucide-react';
 import styles from './CourseDetail.module.css';
 import ActivityItem from '../components/course/Activityitem';
 import { activities } from '../components/course/Activitymockdata';
@@ -53,22 +53,6 @@ export function CourseDetail() {
 
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-
-  const courseMaterials = activities.find(
-    (activity) => activity.id === 'course-materials'
-  );
-
-  const ps3Assignment = activities.find(
-    (activity) => activity.id === 'ps3'
-  );
-
-  const module4Quiz = activities.find(
-    (activity) => activity.id === 'quiz-m4'
-  );
-
-  const module5Quiz = activities.find(
-    (activity) => activity.id === 'quiz-m5'
-  );
 
   return (
     <div className={styles.container}>

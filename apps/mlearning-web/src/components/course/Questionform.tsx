@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import styles from "./QuestionForm.module.css";
+import styles from "./Questionform.module.css";
 
 /** Loại câu hỏi: chọn 1 đáp án hoặc chọn nhiều đáp án */
 export type QuestionType = "single" | "multiple";

@@ -1,4 +1,4 @@
-import styles from './SubmitConfirmDialog.module.css';
+import styles from './Submitconfirmdialog.module.css';
 
 interface Props {
     open: boolean;
