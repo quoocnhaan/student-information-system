@@ -1,2 +1,8 @@
-services: {}
-
+services:
+  mlearning-web:
+    build:
+      context: ../apps/mlearning-web
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    restart: unless-stopped
