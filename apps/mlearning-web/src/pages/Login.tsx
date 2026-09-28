@@ -22,7 +22,7 @@ export function Login() {
       user: {
         id: "1",
         username: username,
-        role: "teacher" as const,
+        role: "student" as const,
       },
       accessToken: "fake-token",
     };
