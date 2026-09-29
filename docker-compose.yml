@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 1. Cấu hình Database dùng chung cho hệ thống SIS
   mysqldb:
@@ -15,47 +13,46 @@ services:
     networks:
       - sis_network
 
-  # 2. Cấu hình Academic Service
   academic-service:
     build:
-      context: ./services/academic-service # Đường dẫn trỏ vào thư mục chứa Dockerfile của academic
+      context: ./services/academic-service
     container_name: academic_service_app
     ports:
-      - "8080:8080" # Gọi API qua localhost:8081
+      - "8080:8080"
     depends_on:
       - mysqldb
     environment:
-      # Tự động tạo schema 'academic_db'
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysqldb:3306/academic_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=rootpassword
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
     networks:
       - sis_network
 
-  # 3. Cấu hình Activity Service
   activity-service:
     build:
       context: ./services/activity-service # Đường dẫn trỏ vào thư mục chứa Dockerfile của activity
     container_name: activity_service_app
     ports:
-      - "8081:8080" # Gọi API qua localhost:8082
+      - "8081:8080"
     depends_on:
       - mysqldb
     environment:
-      # Tự động tạo schema 'activity_db'
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysqldb:3306/activity_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=rootpassword
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
     networks:
       - sis_network
+
 
 # Định nghĩa volume để lưu trữ dữ liệu MySQL không bị mất khi tắt container
 volumes:
   mysql_data:
 
+
 # Định nghĩa network riêng cho hệ thống để các container có thể gọi nhau bằng tên (mysqldb, academic-service...)
 networks:
   sis_network:
-    driver: bridge
+    driver: bridge 
+
