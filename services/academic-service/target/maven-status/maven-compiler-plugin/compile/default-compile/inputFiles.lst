@@ -72,6 +72,12 @@ C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\repository\SemesterRepository.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\repository\StudentEnrollmentRepository.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\repository\StudentScoreRepository.java
+C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\AuthTokenHelperController.java
+C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\CustomAccessDeniedHandler.java
+C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\JwtAuthenticationEntryPoint.java
+C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\JwtAuthenticationFilter.java
+C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\JwtUtil.java
+C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\SecurityConfig.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\service\ClassesGradeComponentService.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\service\ClassesService.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\service\CourseService.java

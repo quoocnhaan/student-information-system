@@ -1,4 +1,5 @@
 com\example\activity\service\CourseService.class
+com\example\activity\security\SecurityConfig.class
 com\example\activity\entity\ClassesGradeComponent.class
 com\example\activity\dto\response\ClassesGradeComponentResponse.class
 com\example\activity\controller\FacultyController.class
@@ -44,10 +45,13 @@ com\example\activity\mapper\SemesterMapper.class
 com\example\activity\dto\request\FacultyRequest.class
 com\example\activity\mapper\StudentScoreMapperImpl.class
 com\example\activity\dto\request\ExamScheduleRequest.class
+com\example\activity\security\CustomAccessDeniedHandler.class
 com\example\activity\mapper\CourseMapperImpl.class
+com\example\activity\security\JwtAuthenticationFilter.class
 com\example\activity\exception\ResourceNotFoundException.class
 com\example\activity\repository\ClassesRepository.class
 com\example\activity\service\ClassesGradeComponentService.class
+com\example\activity\security\JwtAuthenticationEntryPoint.class
 com\example\activity\dto\request\GradeComponentRequest.class
 com\example\activity\dto\response\ExamScheduleResponse.class
 com\example\activity\exception\ErrorResponse$ErrorResponseBuilder.class
@@ -93,5 +97,7 @@ com\example\activity\entity\ExamSchedule.class
 com\example\activity\dto\response\StudentScoreResponse.class
 com\example\activity\mapper\SemesterMapperImpl.class
 com\example\activity\entity\Classes.class
+com\example\activity\security\JwtUtil.class
 com\example\activity\dto\response\GradeComponentResponse.class
+com\example\activity\security\AuthTokenHelperController.class
 com\example\activity\service\StudentEnrollmentService.class

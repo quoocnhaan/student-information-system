@@ -1,17 +1,24 @@
 $baseUrl = "http://localhost:8080/api"
 $tmpFile = [System.IO.Path]::GetTempFileName()
 
+# Fixed JWT Tokens for RBAC testing
+$adminToken = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJST0xFX0FETUlOIiwicm9sZXMiOlsiUk9MRV9BRE1JTiJdLCJpYXQiOjE3OTA2NzQ1NTIsImV4cCI6MjEwNjAzNDU1Mn0.4d95Rhj9mIzenP1ME7T9uMABuv1uoLLDH7MOc4nuNq-gkMF7DOf9My7Hq57Kp9N3gUx9zoxBMtbPckv456UisA"
+$lecturerToken = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJsZWN0dXJlcl8wMSIsInJvbGUiOiJST0xFX0xFQ1RVUkVSIiwicm9sZXMiOlsiUk9MRV9MRUNUVVJFUiJdLCJpYXQiOjE3OTA2NzQ1NTMsImV4cCI6MjEwNjAzNDU1M30.dMm39TRGrE9RuZu5O3tMc7r2ukXrTKChe4lZmVUqdCthFe0i2HeeN5OYc0piZnFQISIK_2pq844BZxrh2O5C9Q"
+$studentToken = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdHVkZW50XzAxIiwicm9sZSI6IlJPTEVfU1RVREVOVCIsInJvbGVzIjpbIlJPTEVfU1RVREVOVCJdLCJpYXQiOjE3OTA2NzQ1NTMsImV4cCI6MjEwNjAzNDU1M30.QmmEA9Fr6-sLzeUBFoKeroVA19SrkYwFjTXYfw8MRFAaHXTewZbhKOnwCOdOOmiVWsvlunIE972M8mylvgriRg"
+
 function Invoke-CurlJson {
     param(
         [string]$Method,
         [string]$Url,
-        [string]$JsonBody
+        [string]$JsonBody,
+        [string]$Token = $adminToken
     )
+    $authArgs = if ($Token) { @("-H", "Authorization: Bearer $Token") } else { @() }
     if ($JsonBody) {
         [System.IO.File]::WriteAllText($tmpFile, $JsonBody, [System.Text.Encoding]::UTF8)
-        $resp = curl.exe -s -w "\nHTTP_STATUS:%{http_code}" -X $Method $Url -H "Content-Type: application/json" -d "@$tmpFile"
+        $resp = curl.exe -s -w "`nHTTP_STATUS:%{http_code}" -X $Method $Url @authArgs -H "Content-Type: application/json" -d "@$tmpFile"
     } else {
-        $resp = curl.exe -s -w "\nHTTP_STATUS:%{http_code}" -X $Method $Url
+        $resp = curl.exe -s -w "`nHTTP_STATUS:%{http_code}" -X $Method $Url @authArgs
     }
     
     $parts = $resp -split "HTTP_STATUS:"

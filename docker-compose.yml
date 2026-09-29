@@ -1,5 +1,4 @@
 services:
-  # 1. Cấu hình Database dùng chung cho hệ thống SIS
   mysqldb:
     image: mysql:8.0
     container_name: sis_mysql_db
@@ -31,7 +30,7 @@ services:
 
   activity-service:
     build:
-      context: ./services/activity-service # Đường dẫn trỏ vào thư mục chứa Dockerfile của activity
+      context: ./services/activity-service 
     container_name: activity_service_app
     ports:
       - "8081:8080"
@@ -45,13 +44,9 @@ services:
     networks:
       - sis_network
 
-
-# Định nghĩa volume để lưu trữ dữ liệu MySQL không bị mất khi tắt container
 volumes:
   mysql_data:
 
-
-# Định nghĩa network riêng cho hệ thống để các container có thể gọi nhau bằng tên (mysqldb, academic-service...)
 networks:
   sis_network:
     driver: bridge 
