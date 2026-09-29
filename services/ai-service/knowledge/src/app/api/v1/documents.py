@@ -21,6 +21,7 @@ from app.api.v1.schemas.documents import (
 )
 from app.config import Settings, get_settings
 from app.dependencies import get_database, get_object_store
+from app.infrastructure.job_service import JobServiceError
 from app.infrastructure.minio import MinioObjectStore, ObjectStoreError
 from app.infrastructure.surreal import SurrealDatabase, SurrealDatabaseError
 
@@ -35,6 +36,7 @@ _DOCUMENT_RECORD_ID = re.compile(r"doc_[0-9a-f]{32}")
 )
 async def upload_pdf(
     file: Annotated[UploadFile, File(description="PDF source document")],
+    request: Request,
     database: Annotated[SurrealDatabase, Depends(get_database)],
     object_store: Annotated[MinioObjectStore, Depends(get_object_store)],
     settings: Annotated[Settings, Depends(get_settings)],
@@ -68,9 +70,7 @@ async def upload_pdf(
         )
 
     record_id = f"doc_{uuid4().hex}"
-    job_record_id = f"job_{uuid4().hex}"
     document_id = f"document:{record_id}"
-    job_id = f"job:{job_record_id}"
     object_key = f"documents/{record_id}/original.pdf"
     filename = Path(file.filename or "document.pdf").name
     document = {
@@ -92,21 +92,27 @@ async def upload_pdf(
         ) from error
 
     try:
-        await database.create_document_with_job(
-            record_id,
-            document,
-            job_record_id,
-            job_type="ocr",
-        )
+        await database.create_document(record_id, document)
     except SurrealDatabaseError as error:
-        # A connection can fail after COMMIT reaches the database. Keep the
-        # source object so an ambiguously committed durable job is still valid.
+        # A connection can fail after a durable write reaches SurrealDB. Keep
+        # the source object so conservative orphan cleanup can reconcile it.
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Document metadata could not be saved",
         ) from error
 
-    return DocumentUploadAcceptedResponse(document_id=document_id, job_id=job_id)
+    try:
+        job = await request.app.state.job_client.create(document_id)
+    except JobServiceError as error:
+        # The client cannot distinguish a failed request from a response lost
+        # after job creation. Keep the processing document and source so the
+        # idempotent creation key and orphan cleanup can reconcile safely.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OCR job could not be created",
+        ) from error
+
+    return DocumentUploadAcceptedResponse(document_id=document_id, job_id=str(job["id"]))
 
 
 @router.get("/{document_id}/result", response_model=DocumentResultResponse)

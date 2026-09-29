@@ -3,6 +3,7 @@ from io import BytesIO
 from fastapi.testclient import TestClient
 
 from app.dependencies import get_database, get_object_store
+from app.infrastructure.job_service import JobServiceError
 from app.main import create_app
 
 
@@ -58,6 +59,11 @@ class FakeJobClient:
     async def close(self) -> None:
         pass
 
+
+class FailingJobClient(FakeJobClient):
+    async def create(self, document_id: str) -> dict[str, object]:
+        raise JobServiceError("Central job creation failed")
+
 def create_upload_client() -> tuple[TestClient, FakeObjectStore, FakeDatabase, FakeJobClient]:
     app = create_app()
     object_store = FakeObjectStore()
@@ -102,6 +108,22 @@ def test_upload_rejects_non_pdf_content() -> None:
         )
 
     assert response.status_code == 415
+
+
+def test_upload_preserves_source_and_document_when_job_creation_is_ambiguous() -> None:
+    client, object_store, database, _ = create_upload_client()
+
+    with client:
+        client.app.state.job_client = FailingJobClient()
+        response = client.post(
+            "/v1/documents",
+            files={"file": ("regulations.pdf", b"%PDF-1.7 sample", "application/pdf")},
+        )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "OCR job could not be created"}
+    assert len(object_store.objects) == 1
+    assert len(database.documents) == 1
 
 
 def test_job_status_rejects_non_generated_record_ids() -> None:

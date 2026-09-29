@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -93,6 +93,13 @@ class Settings(BaseSettings):
     worker_callback_token: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="KNOWLEDGE_", extra="ignore")
+
+    @field_validator("metrics_port", mode="before")
+    @classmethod
+    def blank_metrics_port_is_none(cls, value: object) -> object:
+        """Allow an intentionally empty optional environment setting."""
+
+        return None if isinstance(value, str) and not value.strip() else value
 
     @model_validator(mode="after")
     def require_surreal_settings_when_enabled(self) -> "Settings":
