@@ -1,9 +1,23 @@
 import type { DeadlineItem, ScheduleItem } from './types';
+import type { ClassSession } from './WeekGrid';
+import { addDays, startOfWeek } from './calendarUtils';
 
-// October 2025 month grid (MON-SUN). Replace with real data from your backend/API.
+/**
+ * Mock data cho trang Academic Calendar.
+ * Ngày được tính theo TUẦN HIỆN TẠI (Thứ 2 = offset 0) để luôn có dữ liệu khi thử.
+ * Khi nối API thật, thay bằng dữ liệu trả về từ backend (key dạng 'YYYY-MM-DD').
+ */
+
+// Key theo giờ địa phương (không dùng toISOString vì bị lệch múi giờ)
+const dateKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const monday = startOfWeek(new Date());
+const dayOfThisWeek = (offset: number) => dateKey(addDays(monday, offset));
 
 export const scheduleByDate: Record<string, ScheduleItem[]> = {
-  '2026-09-22': [
+  // Thứ 3
+  [dayOfThisWeek(1)]: [
     {
       id: '1',
       courseCode: 'CS409',
@@ -11,14 +25,8 @@ export const scheduleByDate: Record<string, ScheduleItem[]> = {
       time: '09:00 - 10:00',
       location: 'Room A101',
       category: 'lecture',
-      actions: [
-        {
-          label: 'View',
-          primary: true,
-        },
-      ],
+      actions: [{ label: 'View', primary: true }],
     },
-
     {
       id: '2',
       courseCode: 'BIO215',
@@ -26,79 +34,84 @@ export const scheduleByDate: Record<string, ScheduleItem[]> = {
       time: '13:00 - 15:00',
       location: 'Room B202',
       category: 'lecture',
-      actions: [
-        {
-          label: 'View',
-          primary: false,
-        },
-      ],
+      actions: [{ label: 'View', primary: false }],
     },
     {
       id: '3',
       courseCode: 'BIO215',
-      title: 'Biology Lecture',
-      time: '13:00 - 15:00',
-      location: 'Room B202',
+      title: 'Biology Lab',
+      time: '15:30 - 17:30',
+      location: 'Lab B203',
       category: 'lecture',
-      actions: [
-        {
-          label: 'View',
-          primary: false,
-        },
-      ],
+      actions: [{ label: 'View', primary: false }],
     },
   ],
 
-  '2026-09-23': [
+  // Thứ 4
+  [dayOfThisWeek(2)]: [
     {
-      id: '3',
+      id: '4',
       courseCode: 'MATH240',
       title: 'Mathematics',
       time: '09:00 - 11:00',
       location: 'Room C301',
       category: 'lecture',
-      actions: [
-        {
-          label: 'View',
-          primary: true,
-        },
-      ],
+      actions: [{ label: 'View', primary: true }],
     },
   ],
 
-  '2026-09-24': [
+  // Thứ 5
+  [dayOfThisWeek(3)]: [
     {
-      id: '4',
+      id: '5',
       courseCode: 'CS409',
       title: 'Midterm Examination',
       time: '08:00 - 10:00',
       location: 'Exam Hall A',
       category: 'exam',
-      actions: [
-        {
-          label: 'View',
-          primary: true,
-        },
-      ],
+      actions: [{ label: 'View', primary: true }],
     },
   ],
-  '2026-09-25': [
+
+  // Thứ 6
+  [dayOfThisWeek(4)]: [
     {
-      id: '4',
-      courseCode: 'CS409',
+      id: '6',
+      courseCode: 'MATH240',
       title: 'Midterm Examination',
       time: '08:00 - 10:00',
-      location: 'Exam Hall A',
+      location: 'Exam Hall B',
       category: 'exam',
-      actions: [
-        {
-          label: 'View',
-          primary: true,
-        },
-      ],
+      actions: [{ label: 'View', primary: true }],
     },
   ],
 };
+
+// Màu hiển thị trong WeekGrid theo loại lịch
+const categoryColor: Record<string, string> = {
+  lecture: '#2141d6',
+  exam: '#dc2626',
+};
+
+/**
+ * Danh sách môn cho WeekGrid, được suy ra từ scheduleByDate
+ * nên hai view (tuần và panel Today) luôn dùng chung một nguồn dữ liệu.
+ * Phải khai báo SAU scheduleByDate.
+ */
+export const sessions: ClassSession[] = Object.entries(scheduleByDate).flatMap(([date, items]) =>
+  items.map((item) => {
+    const [startTime, endTime] = item.time.split(' - ').map((t) => t.trim());
+    return {
+      id: `${date}-${item.id}`,
+      subject: item.title,
+      date,
+      startTime,
+      endTime,
+      room: item.location,
+      color: categoryColor[item.category] ?? '#2141d6',
+    };
+  })
+);
 
 export const upcomingDeadlines: DeadlineItem[] = [
   {

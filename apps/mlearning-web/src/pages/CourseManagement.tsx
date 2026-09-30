@@ -1,92 +1,75 @@
-import React, { useState } from "react";
-import { Clock, Clock10 } from "lucide-react";
+import React, { useMemo, useState } from "react";
 import styles from "./CourseManagement.module.css";
-import ActionBar from "../components/course/ActionBar";
 import Sidebar from "../components/course/Sidebar";
-import ModuleContent from "../components/course/ModuleContent";
-import type { ActivityCardProps } from "../components/course/ActivityCard";
-import { quizFormToActivityCard } from "../components/course/Quizformtoactivitycard";
+import ActionBar from "../components/course/ActionBar";
+import ModuleHeaderForm, { type ModuleHeaderValues } from "../components/course/Moduleheaderform";
+import QuestionBankModal from "../components/course/Questionbankmodal";
+import type { QuestionFormValues, QuestionItem } from "../components/course/Questionform";
+import ActivityItem from "../components/course/Activityitem";
+import { activities as mockActivities } from "../components/course/Activitymockdata";
+import type { Activity } from "../components/course/Activitytypes";
 
-const initialActivities: ActivityCardProps[] = [
-  {
-    type: "document",
-    statusLabel: "TÀI LIỆU ĐÃ ĐĂNG · PDF · 4.2 MB",
-    title: "Slide Bài Giảng Tuần 4: Raft Consensus Engine, Log Replication & Safety Invariants",
-    description: "✓ 122/128 Sinh viên đã tải về",
-    footer: "Cập nhật: 02 tuần trước",
-    primaryActionLabel: "↻ Cập nhật File",
-    secondaryActionLabel: undefined,
-  },
-  {
-    type: "assignment",
-    statusLabel: "CÔNG NỘP BÀI TẬP LỚN",
-    title: "Problem Set 3: Xây dựng Fault-Tolerant Raft Node bằng Go & gRPC",
-    description: "Hạn nộp: Chủ Nhật, 23:59 (Còn 2 ngày)",
-    footer: "Đã nộp: 114 / 128 sinh viên",
-    extraNote: "14 bài mới chờ chấm",
-    primaryActionLabel: "SpeedGrader (14)",
-    secondaryActionLabel: "Sửa Rubric",
-  },
-  {
-    type: "quiz",
-    statusLabel: "ĐANG MỞ TRẢ LỜI",
-    title: "Quiz 04: Giao thức Bầu cử Leader Raft, Heartbeats & Election Safety",
-    description: "Thời lượng: 45 phút · 25 câu trắc nghiệm kỹ thuật",
-    footer: "Mở từ: 08:00 đến 22:00 hôm nay · Tính điểm trực tiếp vào cột Đánh giá quá trình (10%)",
-    primaryActionLabel: "Xem bảng đề & kết quả Quiz",
-    secondaryActionLabel: "Ngân hàng câu hỏi",
-  },
-];
-
-// Số liệu tổng quan lớp học (dữ liệu mẫu - thay bằng dữ liệu từ API khi có backend)
-const TOTAL_STUDENTS = 128;
-const SUBMITTED = 114;
-const PENDING_GRADING = 14;
-const CURRENT_WEEK = 8;
 const TOTAL_WEEKS = 16;
 
-const submittedPercent = Math.round((SUBMITTED / TOTAL_STUDENTS) * 100);
-const semesterPercent = Math.round((CURRENT_WEEK / TOTAL_WEEKS) * 100);
+type FilterKey = "all" | Activity["type"];
+
+const initialHeader: ModuleHeaderValues = {
+  breadcrumbSmall: "Khu vực Quản lý Học liệu & Hoạt động Tuần 7 - 8",
+  moduleTitle: "Module 4: Thuật toán Đồng thuận Raft & Distributed State",
+};
+
+let questionIdCounter = 0;
+const makeQuestionId = () => `q-${Date.now()}-${questionIdCounter++}`;
 
 const CoursePage: React.FC = () => {
-  const [activities, setActivities] = useState<ActivityCardProps[]>(initialActivities);
+  const [activities, setActivities] = useState<Activity[]>(mockActivities);
+  const [header, setHeader] = useState<ModuleHeaderValues>(initialHeader);
+  const [isEditingHeader, setIsEditingHeader] = useState(false);
 
-  const handleAddActivity = (activity: ActivityCardProps) => {
+  const [questionBankByQuiz, setQuestionBankByQuiz] =
+    useState<Record<string, QuestionItem[]>>({});
+  const [activeQuizTitle, setActiveQuizTitle] = useState<string | null>(null);
+
+  const handleAddActivity = (activity: Activity) => {
     setActivities((prev) => [...prev, activity]);
   };
 
-  /** Khi tạo Quiz thành công từ ActionBar -> chuyển thành 1 thẻ hoạt động và thêm vào danh sách */
-  const handleCreateQuiz: React.ComponentProps<typeof ActionBar>["onCreateQuiz"] = (
-    quizValues
-  ) => {
-    handleAddActivity(quizFormToActivityCard(quizValues));
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  // Số lượng theo loại - tự cập nhật khi thêm hoạt động mới
+  const tabs = useMemo(() => {
+    const count = (type: Activity["type"]) =>
+      activities.filter((a) => a.type === type).length;
+    return [
+      { key: "all" as FilterKey, label: `Tất cả hoạt động (${activities.length})` },
+      { key: "resource" as FilterKey, label: `Tài liệu bài giảng (${count("resource")})` },
+      { key: "assignment" as FilterKey, label: `Bài tập & Cổng nộp (${count("assignment")})` },
+      { key: "quiz" as FilterKey, label: `Bài kiểm tra Quiz & Điểm (${count("quiz")})` },
+    ];
+  }, [activities]);
+
+  const visibleActivities = useMemo(
+    () => activities.filter((a) => activeFilter === "all" || a.type === activeFilter),
+    [activities, activeFilter]
+  );
+
+  const handleSaveHeader = (values: ModuleHeaderValues) => {
+    setHeader(values);
+    setIsEditingHeader(false);
+  };
+
+  const handleAddQuestion = (quizTitle: string) => (values: QuestionFormValues) => {
+    setQuestionBankByQuiz((prev) => {
+      const current = prev[quizTitle] ?? [];
+      return { ...prev, [quizTitle]: [...current, { id: makeQuestionId(), ...values }] };
+    });
   };
 
   return (
     <div className={styles.container}>
-      {/* HERO: thông tin môn học + thao tác chính + tổng quan lớp */}
       <section className={styles.heroCard}>
         <div className={styles.heroAccent} />
         <div className={styles.heroGrid}>
           <div className={styles.heroContent}>
-            <div className={styles.badgeRow}>
-              <span className={`${styles.badge} ${styles.badgePrimary}`}>
-                <span className={styles.badgeDot} />
-                CS 408 • Sau đại học
-              </span>
-              <span className={`${styles.badge} ${styles.badgeSecondary}`}>
-                Học kỳ Thu 2025 • 4 tín chỉ
-              </span>
-              <span className={`${styles.badge} ${styles.badgeSuccess}`}>
-                <span className={styles.badgeDot} />
-                Đang giảng dạy
-              </span>
-              <span className={`${styles.badge} ${styles.badgeSecondary}`}>
-                <Clock size={14} />
-                Thứ 2 / Thứ 4 · 10:00 - 11:30
-              </span>
-            </div>
-
             <div>
               <h1 className={styles.courseTitle}>
                 CS 408: Hệ Phân tán &amp; Kiến trúc Đám mây
@@ -97,85 +80,84 @@ const CoursePage: React.FC = () => {
                 microservices trên nền tảng đám mây.
               </p>
             </div>
-
-            <div className={styles.actionsWrap}>
-              <ActionBar onCreateQuiz={handleCreateQuiz} />
-            </div>
-          </div>
-
-          <div className={styles.performanceCard}>
-            <div className={styles.standingHeader}>
-              <span className={styles.standingTitle}>Tổng quan lớp học</span>
-              <span className={styles.standingBadge}>Đúng tiến độ</span>
-            </div>
-
-            <div className={styles.metricsGrid}>
-              <div className={styles.metricBox}>
-                <span className={styles.metricLabel}>Sĩ số</span>
-                <div className={styles.metricValueRow}>
-                  <span className={`${styles.metricValueMain} ${styles.metricValueMainPrimary}`}>
-                    {TOTAL_STUDENTS}
-                  </span>
-                  <span className={styles.metricValueSub}>sinh viên</span>
-                </div>
-                <span className={styles.metricFooter}>Đã ghi danh</span>
-              </div>
-              <div className={styles.metricBox}>
-                <span className={styles.metricLabel}>Nộp Problem Set 3</span>
-                <div className={styles.metricValueRow}>
-                  <span className={styles.metricValueMain}>{SUBMITTED}</span>
-                  <span className={styles.metricValueSub}>/ {TOTAL_STUDENTS}</span>
-                </div>
-                <span className={`${styles.metricFooter} ${styles.metricFooterSuccess}`}>
-                  {submittedPercent}% đã nộp
-                </span>
-              </div>
-            </div>
-
-            <div className={styles.progressSection}>
-              <div className={styles.progressHeader}>
-                <span className={styles.progressLabel}>
-                  Tiến độ học kỳ · Tuần {CURRENT_WEEK}/{TOTAL_WEEKS}
-                </span>
-                <span className={styles.progressValue}>{semesterPercent}%</span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressFill} style={{ width: `${semesterPercent}%` }} />
-              </div>
-            </div>
-
-            <div className={styles.alertBox}>
-              <Clock10 size={20} className={styles.alertIcon} />
-              <div className={styles.alertContent}>
-                <div className={styles.alertHeader}>
-                  <span className={styles.alertTitle}>Cần chấm điểm</span>
-                  <span className={styles.alertBadge}>Còn 2 ngày</span>
-                </div>
-                <p className={styles.alertDesc}>
-                  Problem Set 3: {PENDING_GRADING} bài mới đang chờ chấm
-                </p>
-                <span className={styles.alertFooter}>Hạn nộp Chủ Nhật · 23:59</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
-      {/* LAYOUT 2 CỘT: đề cương (trái) + hoạt động của module (phải) */}
       <div className={styles.mainLayout}>
         <div className={styles.sidebarCol}>
           <Sidebar />
         </div>
         <div className={styles.contentCol}>
-          <ModuleContent activities={activities} onAddActivity={handleAddActivity} />
+          <section className={styles.wrapper}>
+            <div className={styles.activeModuleBanner}>
+              <div className={styles.bannerLayout}>
+                <div className={styles.bannerText}>
+                  <div className={styles.bannerTop}></div>
+                  <h2 className={styles.bannerTitle}>{header.moduleTitle}</h2>
+                </div>
+                <ActionBar
+                  onEditHeader={() => setIsEditingHeader(true)}
+                  onAddActivity={handleAddActivity}
+                />
+              </div>
+
+              <div
+                className={styles.filterTabs}
+                role="tablist"
+                aria-label="Lọc hoạt động theo loại"
+              >
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeFilter === tab.key}
+                    className={`${styles.filterTab} ${activeFilter === tab.key ? styles.filterTabActive : styles.filterTabInactive
+                      }`}
+                    onClick={() => setActiveFilter(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={styles.activityList}>
+              {visibleActivities.length === 0 ? (
+                <div className={styles.emptyState}>
+                  Chưa có hoạt động nào thuộc loại này. Chọn "Thêm vào Module" để tạo mới.
+                </div>
+              ) : (
+                visibleActivities.map((a) => <ActivityItem key={a.id} activity={a} />)
+              )}
+            </div>
+
+            {isEditingHeader && (
+              <ModuleHeaderForm
+                initialData={header}
+                onSubmit={handleSaveHeader}
+                onClose={() => setIsEditingHeader(false)}
+              />
+            )}
+
+            {activeQuizTitle && (
+              <QuestionBankModal
+                quizTitle={activeQuizTitle}
+                questions={questionBankByQuiz[activeQuizTitle] ?? []}
+                onAddQuestion={handleAddQuestion(activeQuizTitle)}
+                onClose={() => setActiveQuizTitle(null)}
+              />
+            )}
+          </section>
         </div>
       </div>
 
       <footer className={styles.footer}>
-        <span>Universitas Academic Portal · Phần hệ Quản lý Giảng dạy &amp; Đánh giá Học thuật trực tuyến</span>
-        <span>Hệ thống sao lưu điểm số tức thời · Bảo mật học thuật SSL 256-bit</span>
+        <span>Universitas Academic Portal</span>
       </footer>
     </div>
   );
 };
+
 export default CoursePage;

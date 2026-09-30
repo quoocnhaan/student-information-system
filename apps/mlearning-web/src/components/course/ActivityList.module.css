@@ -1,0 +1,36 @@
+.activityList {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+
+.emptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    min-height: 120px;
+    padding: 24px;
+
+    background: #ffffff;
+    border: 1px dashed #d1d5db;
+    border-radius: 12px;
+
+    color: #6b7280;
+    font-size: 14px;
+    text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .activityList {
+        gap: 12px;
+    }
+
+    .emptyState {
+        min-height: 100px;
+        padding: 20px 16px;
+        font-size: 13px;
+    }
+}

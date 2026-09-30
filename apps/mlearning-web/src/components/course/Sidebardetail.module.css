@@ -97,13 +97,15 @@
 
 .moduleItemHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
 .moduleItemContent {
-  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -142,36 +144,6 @@
 
 .moduleWeekActive {
   color: var(--primary);
-}
-
-.deleteBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-
-  color: #9ca3af;
-  cursor: pointer;
-
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
-}
-
-.deleteBtn:hover {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.deleteBtn:active {
-  transform: scale(0.95);
 }
 
 .activeTag {

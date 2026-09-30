@@ -56,7 +56,7 @@ export default function QuestionCard({
               : undefined
           }
         >
-          {isFlagged ? '⚑ Flagged for Review' : '⚑ Flag for Review'}
+          {isFlagged ? '⚑ Flagged' : '⚑ Flag '}
         </button>
       </div>
 

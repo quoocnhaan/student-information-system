@@ -64,6 +64,7 @@ export function CourseCatalog() {
 
   return (
     <div className={styles.container}>
+
       <div className={styles.toolbar}>
         <div className={styles.searchInput}>
           <Search size={20} className={styles.searchIcon} />

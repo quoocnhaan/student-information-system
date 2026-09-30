@@ -29,6 +29,27 @@
   color: #9ca3af;
 }
 
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #374151;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+
+.pillIcon {
+  font-size: 11px;
+}
+
+.pillTimer {
+  background: #fff8eb;
+  color: #b45309;
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -59,20 +80,38 @@
 .statAnswered {
   background: #eef3ff;
 }
-.statAnswered .statNum { color: #3b5fe3; }
-.statAnswered .statLabel { color: #6b82d6; }
+
+.statAnswered .statNum {
+  color: #3b5fe3;
+}
+
+.statAnswered .statLabel {
+  color: #6b82d6;
+}
 
 .statFlagged {
   background: #fff8eb;
 }
-.statFlagged .statNum { color: #b45309; }
-.statFlagged .statLabel { color: #c08a3e; }
+
+.statFlagged .statNum {
+  color: #b45309;
+}
+
+.statFlagged .statLabel {
+  color: #c08a3e;
+}
 
 .statUnanswered {
   background: #f3f4f6;
 }
-.statUnanswered .statNum { color: #4b5563; }
-.statUnanswered .statLabel { color: #9ca3af; }
+
+.statUnanswered .statNum {
+  color: #4b5563;
+}
+
+.statUnanswered .statLabel {
+  color: #9ca3af;
+}
 
 .grid {
   display: grid;

@@ -2,8 +2,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
-  max-width: 1600px;
-  margin: 20px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .toolbar {
@@ -163,6 +166,8 @@
   transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
+  aspect-ratio: 19 / 16;
+  cursor: pointer;
 }
 
 .courseCard:hover {
@@ -170,9 +175,10 @@
   border-color: var(--outline);
 }
 
+/* Ảnh chiếm 70% chiều cao card */
 .cardBanner {
   position: relative;
-  height: 144px;
+  flex: 0 0 70%;
   width: 100%;
   background-color: var(--surface-container);
   overflow: hidden;
@@ -182,11 +188,22 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
   transition: transform 0.3s ease;
 }
 
 .courseCard:hover .cardBanner img {
   transform: scale(1.05);
+}
+
+/* Phần nội dung chiếm 30% còn lại */
+.cardBody {
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .badgeTopLeft {
@@ -204,14 +221,6 @@
   right: 10px;
 }
 
-.cardBody {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  flex: 1;
-}
-
 .courseMeta {
   display: flex;
   align-items: center;
@@ -227,14 +236,11 @@
 }
 
 .courseTitle {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--on-surface);
-  line-height: 1.2;
-  transition: color 0.2s;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  text-align: center;
+  font-size: 22px;
 }
 
 .courseCard:hover .courseTitle {

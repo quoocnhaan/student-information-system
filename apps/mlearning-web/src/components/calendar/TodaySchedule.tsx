@@ -94,18 +94,12 @@ export default function TodaySchedule({
               <div className={styles.actions}>
 
                 {item.actions.map((action) => (
-
                   <button
                     key={action.label}
-                    className={
-                      action.primary
-                        ? styles.btnPrimary
-                        : styles.btnOutline
-                    }
+                    className={styles.btnPrimary}
                   >
                     {action.label}
                   </button>
-
                 ))}
 
               </div>
