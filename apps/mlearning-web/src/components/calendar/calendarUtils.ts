@@ -126,3 +126,20 @@ export function getCalendarDays(
 
     return days;
 }
+export const toDateKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+export const addDays = (d: Date, n: number) => {
+    const r = new Date(d);
+    r.setDate(r.getDate() + n);
+    return r;
+};
+
+// Tuần bắt đầu từ Thứ 2
+export const startOfWeek = (d: Date) => {
+    const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    r.setDate(r.getDate() - ((r.getDay() + 6) % 7));
+    return r;
+};
+
+export const isSameDay = (a: Date, b: Date) => toDateKey(a) === toDateKey(b);

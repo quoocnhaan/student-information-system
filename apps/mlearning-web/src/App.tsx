@@ -6,7 +6,7 @@ import { AcademicCalendarPage } from './pages/AcademicCalendarPage'
 import { CourseCatalog } from './pages/CourseCatalog'
 import { QuizTakingPage } from './pages/QuizTakingPage'
 import { QuizResultsPage } from './pages/QuizResultsPage'
-import { CourseDetail } from './pages/CourseDetail'
+import CourseDetail from './pages/CourseDetail'
 import { Login } from './pages/Login'
 
 function App() {

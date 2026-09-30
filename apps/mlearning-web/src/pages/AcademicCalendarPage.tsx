@@ -6,16 +6,18 @@ import CalendarLegend from '../components/calendar/CalendarLegend';
 import MiniCalendar from '../components/calendar/MiniCalendar';
 import TodaySchedule from '../components/calendar/TodaySchedule';
 import UpcomingDeadlines from '../components/calendar/UpcomingDeadlines';
-import SyncBar from '../components/calendar/SyncBar';
 import styles from './AcademicCalendarPage.module.css';
-
+import WeekGrid from '../components/calendar/WeekGrid';
+import { addDays, startOfWeek } from '../components/calendar/calendarUtils';
+import { sessions } from '../components/calendar/mockData';
 /**
  * Academic Calendar & Schedule page.
  * Static UI only — wire `mockData.ts` up to real API/state as needed.
  */
+type CalendarView = 'month' | 'week';
 export function AcademicCalendarPage() {
   const today = new Date();
-
+  const [view, setView] = useState<CalendarView>('month');
   const [currentMonth, setCurrentMonth] = useState(
     new Date(
       today.getFullYear(),
@@ -23,8 +25,18 @@ export function AcademicCalendarPage() {
       1
     )
   );
-
   const [selectedDate, setSelectedDate] = useState(today);
+  const shiftWeek = (weeks: number) => {
+    const next = addDays(selectedDate, weeks * 7);
+    setSelectedDate(next);
+    setCurrentMonth(new Date(next.getFullYear(), next.getMonth(), 1));
+  };
+  const handlePrevious = () => (view === 'week' ? shiftWeek(-1) : handlePreviousMonth());
+  const handleNext = () => (view === 'week' ? shiftWeek(1) : handleNextMonth());
+  const weekStart = startOfWeek(selectedDate);
+  const weekEnd = addDays(weekStart, 6);
+  const fmt = (d: Date) => `${d.getDate()}/${d.getMonth() + 1}`;
+  const rangeLabel = view === 'week' ? `${fmt(weekStart)} – ${fmt(weekEnd)}/${weekEnd.getFullYear()}` : undefined;
 
   // Tháng trước
   const handlePreviousMonth = () => {
@@ -87,15 +99,29 @@ export function AcademicCalendarPage() {
         <main className={styles.main}>
           <CalendarToolbar
             currentMonth={currentMonth}
-            onPreviousMonth={handlePreviousMonth}
-            onNextMonth={handleNextMonth}
-            onToday={handleToday} />
-          <MonthGrid
-            currentMonth={currentMonth}
-            selectedDate={selectedDate}
-            onSelectDate={handleSelectDate}
+            onPreviousMonth={handlePrevious}
+            onNextMonth={handleNext}
+            onToday={handleToday}
+            view={view}
+            onChangeView={setView}
+            rangeLabel={rangeLabel}
           />
-          <CalendarLegend />
+
+          {view === 'month' ? (
+            <MonthGrid
+              currentMonth={currentMonth}
+              selectedDate={selectedDate}
+              onSelectDate={handleSelectDate}
+            />
+          ) : (
+            <WeekGrid
+              selectedDate={selectedDate}
+              sessions={sessions}
+              onSelectDate={handleSelectDate}
+            />
+          )}
+
+          {view === 'month' && <CalendarLegend />}
         </main>
 
         <aside className={styles.sidebar}>
@@ -108,7 +134,7 @@ export function AcademicCalendarPage() {
           />
           <TodaySchedule selectedDate={selectedDate} />
           <UpcomingDeadlines />
-          <SyncBar />
+
         </aside>
       </div>
     </div>

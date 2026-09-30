@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { roleRoutes } from "../routes/roleRoutes";
-import { BookOpen, ShieldCheck, User, Lock, Eye, EyeOff, ArrowRight, HelpCircle, Mail, Globe } from 'lucide-react';
+import { BookOpen, User, Lock, Eye, EyeOff, ArrowRight, HelpCircle, Mail, Globe } from 'lucide-react';
 import styles from './Login.module.css';
 
 
@@ -87,32 +87,23 @@ export function Login() {
               <BookOpen size={32} />
             </div>
             <h1 className={styles.cardTitle}>Đăng nhập vào hệ thống</h1>
-            <p className={styles.cardSubtitle}>
-              Nhập tài khoản định danh sinh viên hoặc giảng viên của bạn để tiếp tục
-            </p>
           </div>
-
-          <button className={styles.ssoButton}>
-            <ShieldCheck size={20} />
-            Đăng nhập bằng tài khoản trường (@universitas.edu)
-          </button>
 
           <div className={styles.divider}>
             <div className={styles.dividerLine}></div>
-            <span className={styles.dividerText}>hoặc sử dụng tài khoản hệ thống</span>
           </div>
 
           <form className={styles.form} onSubmit={handleSubmit}>
             <div>
               <label className={styles.inputLabel}>
-                Tên đăng nhập hoặc Email học đường
+                Email
               </label>
               <div className={styles.inputGroup}>
                 <User size={20} className={styles.inputIcon} />
                 <input
                   type="text"
                   className={styles.inputField}
-                  placeholder="mssv@universitas.edu hoặc user_id"
+                  placeholder="mssv@universitas.edu"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
@@ -149,7 +140,6 @@ export function Login() {
                 <input type="checkbox" className={styles.checkbox} />
                 Ghi nhớ đăng nhập
               </label>
-              <a href="#forgot" className={styles.forgotLink}>Quên mật khẩu?</a>
             </div>
 
             <div style={{ marginTop: '8px' }}>
@@ -160,11 +150,6 @@ export function Login() {
             </div>
 
           </form>
-
-          <div className={styles.securityBadge}>
-            <ShieldCheck size={16} />
-            <span>Bảo mật chuẩn SSL 256-bit • Chứng thực Universitas ID</span>
-          </div>
         </div>
       </main>
 

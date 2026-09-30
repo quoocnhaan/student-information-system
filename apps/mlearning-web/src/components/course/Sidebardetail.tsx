@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
 import styles from "./Sidebar.module.css";
 import ModuleForm, { type ModuleFormValues } from "./Moduleform";
 
@@ -77,29 +76,11 @@ const Sidebar: React.FC = () => {
   const isFormOpen = isCreating || editingModule !== null;
   const formMode: "create" | "edit" = isCreating ? "create" : "edit";
 
-  const handleOpenCreate = () => {
-    setEditingModule(null);
-    setIsCreating(true);
-  };
-
   const handleCloseForm = () => {
     setIsCreating(false);
     setEditingModule(null);
   };
 
-  const handleDeleteModule = (id: number) => {
-    const moduleToDelete = modules.find((m) => m.id === id);
-
-    if (!moduleToDelete) return;
-
-    const confirmed = window.confirm(
-      `Bạn có chắc muốn xóa "${moduleToDelete.title}" không?`
-    );
-
-    if (!confirmed) return;
-
-    setModules((prev) => prev.filter((m) => m.id !== id));
-  };
   /** Xử lý khi form submit - thêm mới hoặc cập nhật module tùy theo chế độ */
   const handleSubmitForm = (values: ModuleFormValues) => {
     if (formMode === "create") {
@@ -121,9 +102,6 @@ const Sidebar: React.FC = () => {
             <h2 className={styles.sidebarTitle}>Đề cương môn học</h2>
             <span className={styles.sidebarSubtitle}>{modules.length} module • 16 tuần học</span>
           </div>
-          <button type="button" className={styles.addBtn} onClick={handleOpenCreate}>
-            <Plus size={14} /> Thêm Module
-          </button>
         </div>
 
         <ul className={styles.moduleList}>
@@ -153,25 +131,9 @@ const Sidebar: React.FC = () => {
                       >
                         {m.title}
                       </h3>
-
-                      {meta && (
-                        <span className={styles.moduleMeta}>
-                          {meta}
-                        </span>
-                      )}
+                      {meta && <span className={styles.moduleMeta}>{meta}</span>}
                     </div>
                   </div>
-
-                  {/* Nút xóa */}
-                  <button
-                    type="button"
-                    className={styles.deleteBtn}
-                    onClick={() => handleDeleteModule(m.id)}
-                    title="Xóa module"
-                    aria-label={`Xóa ${m.title}`}
-                  >
-                    <Trash2 size={16} />
-                  </button>
                 </div>
               </li>
             );

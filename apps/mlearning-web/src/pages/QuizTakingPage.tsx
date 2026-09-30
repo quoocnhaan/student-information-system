@@ -1,11 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import QuizTopBar from '../components/quiz/QuizTopBar';
-import ProgressBar from '../components/quiz/ProgressBar';
 import QuestionCard from '../components/quiz/QuestionCard';
-import CitationNote from '../components/quiz/CitationNote';
 import QuestionNavigator from '../components/quiz/QuestionNavigator';
-import SubmitPanel from '../components/quiz/SubmitPanel';
 import SubmitConfirmDialog from '../components/quiz/Submitconfirmdialog';
 import { questions, navigatorState as baseNavigatorState } from '../components/quiz/mockData';
 import type { AnswerOption } from '../components/quiz/types';
@@ -14,25 +10,11 @@ import styles from './QuizTakingPage.module.css';
 type Direction = 'next' | 'prev';
 type OptionId = AnswerOption['id'];
 
-const QUIZ_DURATION_SECONDS = 25 * 60 + 29; // 25:29, matches the original static UI
+const QUIZ_DURATION_SECONDS = 0.5 * 60 + 29; // 25:29
 
-/**
- * Quiz Taking page — single question view with navigator sidebar.
- *
- * Answers and flags are owned HERE (not inside QuestionCard), keyed by
- * question number, so they survive navigating between questions and the
- * QuestionNavigator can reflect them live.
- *
- * Submission happens in two ways, both going through SubmitConfirmDialog:
- *  - manual: "Submit Quiz" on the last question opens the dialog with
- *    "Go back" + "Confirm Submit" (variant="manual")
- *  - timeout: when QuizTopBar's countdown reaches 0, the SAME dialog opens
- *    but locked — no "Go back", not dismissible, only "Confirm Submit"
- *    (variant="timeout")
- */
 export function QuizTakingPage() {
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
+  const { id, quizId } = useParams<{ id: string; quizId: string }>();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<Direction>('next');
@@ -43,8 +25,30 @@ export function QuizTakingPage() {
   const [flaggedIds, setFlaggedIds] = useState<number[]>(baseNavigatorState.flaggedIds);
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+
+  // ---------- Timer ----------
+  const [endTime] = useState(() => Date.now() + QUIZ_DURATION_SECONDS * 1000);
+  const [secondsLeft, setSecondsLeft] = useState(QUIZ_DURATION_SECONDS);
   const [isTimeUp, setIsTimeUp] = useState(false);
 
+  useEffect(() => {
+    if (isTimeUp) return;
+
+    const timer = setInterval(() => {
+      const left = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+      setSecondsLeft(left);
+      if (left === 0) setIsTimeUp(true);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [endTime, isTimeUp]);
+
+  // Hết giờ -> tự mở dialog nộp bài
+  useEffect(() => {
+    if (isTimeUp) setShowSubmitConfirm(true);
+  }, [isTimeUp]);
+
+  // ---------- Derived state ----------
   const currentQuestion = questions[currentIndex];
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === questions.length - 1;
@@ -56,7 +60,6 @@ export function QuizTakingPage() {
     .map(([questionNumber]) => Number(questionNumber));
   const answeredCount = answeredIds.length;
   const unansweredCount = questions.length - answeredCount;
-  const percentComplete = Math.round((answeredCount / questions.length) * 100);
 
   const navigatorState = {
     ...baseNavigatorState,
@@ -69,8 +72,8 @@ export function QuizTakingPage() {
     flaggedCount: flaggedIds.length,
   };
 
+  // ---------- Handlers ----------
   const goToIndex = (index: number, dir: Direction) => {
-    // Once time is up the quiz is locked — ignore any further navigation.
     if (isTimeUp) return;
     if (index < 0 || index >= questions.length || index === currentIndex) return;
     setDirection(dir);
@@ -99,44 +102,33 @@ export function QuizTakingPage() {
   const handleToggleFlag = () => {
     if (isTimeUp) return;
     const num = currentQuestion.number;
-    setFlaggedIds((prev) => (prev.includes(num) ? prev.filter((flagId) => flagId !== num) : [...prev, num]));
+    setFlaggedIds((prev) =>
+      prev.includes(num) ? prev.filter((flagId) => flagId !== num) : [...prev, num]
+    );
   };
 
   const handleConfirmSubmit = () => {
-    // TODO: wire this up to the real submit-quiz API call before navigating away.
+    console.log('submit quiz', quizId, 'of course', id);
+    // TODO: gọi API nộp bài với quizId
     setShowSubmitConfirm(false);
     navigate(`/course/${id}`);
   };
 
-  // Timer ran out: lock the quiz and open the confirm dialog in its
-  // non-dismissible, single-button "timeout" variant.
-  const handleTimeExpired = () => {
-    setIsTimeUp(true);
-    setShowSubmitConfirm(true);
-  };
-
-  // Shared by the "Submit Quiz" button on the last question AND the
-  // "Submit Quiz & Finish" button in the sidebar SubmitPanel.
   const handleOpenSubmitConfirm = () => {
     if (isTimeUp) return;
     setShowSubmitConfirm(true);
   };
 
+  const handleCancelSubmit = () => {
+    // Hết giờ thì không cho đóng dialog, bắt buộc nộp bài
+    if (isTimeUp) return;
+    setShowSubmitConfirm(false);
+  };
+
   return (
     <div className={styles.page}>
-      <QuizTopBar durationSeconds={QUIZ_DURATION_SECONDS} onExpire={handleTimeExpired} />
-      <ProgressBar
-        currentQuestion={currentQuestion.number}
-        total={currentQuestion.totalQuestions}
-        isCurrentAnswered={currentAnswer !== null}
-        percentComplete={percentComplete}
-      />
-
       <div className={styles.content}>
         <main className={styles.main}>
-          {/* key={currentQuestion.number} re-triggers the CSS entrance
-              animation on every navigation. Answer state itself is
-              controlled via `answers`, independent of this remount. */}
           <div
             key={currentQuestion.number}
             className={direction === 'next' ? styles.questionEnterNext : styles.questionEnterPrev}
@@ -154,17 +146,14 @@ export function QuizTakingPage() {
               isFlagged={isCurrentFlagged}
               onToggleFlag={handleToggleFlag}
             />
-            <CitationNote citation={currentQuestion.citation} />
           </div>
         </main>
 
         <aside className={styles.sidebar}>
-          <QuestionNavigator data={navigatorState} onSelect={handleJump} />
-          <SubmitPanel
-            unanswered={unansweredCount}
-            flagged={navigatorState.flaggedCount}
-            onSubmit={handleOpenSubmitConfirm}
-            disabled={isTimeUp}
+          <QuestionNavigator
+            data={navigatorState}
+            secondsLeft={secondsLeft}
+            onSelect={handleJump}
           />
         </aside>
       </div>
@@ -176,7 +165,7 @@ export function QuizTakingPage() {
         answeredCount={answeredCount}
         unansweredCount={unansweredCount}
         flaggedCount={flaggedIds.length}
-        onCancel={() => setShowSubmitConfirm(false)}
+        onCancel={handleCancelSubmit}
         onConfirm={handleConfirmSubmit}
       />
     </div>

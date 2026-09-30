@@ -62,10 +62,11 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Link
               key={item.path}
               to={item.path}
-              className={`${styles.navItem} ${location.pathname === item.path ? styles.active : ''}`}
+              className={`${styles.navItem} ${location.pathname === item.path ? styles.navItemActive : ''
+                }`}
             >
-              {item.icon}
-              <span>{item.label}</span>
+              <span className={styles.navIcon}>{item.icon}</span>
+              <span className={styles.navLabel}>{item.label}</span>
             </Link>
           ))}
         </nav>
@@ -95,18 +96,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       <main className={styles.mainContent}>
         {/* Topbar */}
         <header className={styles.navbar}>
-          <div className={styles.searchWrap}>
-            <span className={styles.searchIcon}>🔍</span>
-            <input
-              className={styles.searchInput}
-              type="text"
-              placeholder="Search calendar events, exams, assign..."
-            />
-          </div>
-
-          <nav className={styles.tabs}>
-            <button className={`${styles.tab} ${styles.tabActive}`}>Spring 2025</button>
-          </nav>
 
           <div className={styles.right}>
             {/* <button className={styles.iconBtn} aria-label="Notifications">🔔</button>

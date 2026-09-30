@@ -22,7 +22,7 @@ export default function AnswerOption({ option, selected, onSelect }: Props) {
       <div className={styles.body}>
         <div className={styles.topRow}>
           <span className={styles.label}>Option {option.id}</span>
-          {selected && <span className={styles.badge}>Your Selection</span>}
+          {selected && <span className={styles.badge}></span>}
         </div>
         <p className={styles.text}>
           <RichTextInline segments={option.text} />

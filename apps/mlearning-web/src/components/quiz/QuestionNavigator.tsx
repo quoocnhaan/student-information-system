@@ -3,20 +3,46 @@ import type { NavigatorState } from './types';
 
 interface Props {
   data: NavigatorState;
+  secondsLeft: number;          // thời gian còn lại do cha quản lý
   onSelect?: (questionNumber: number) => void;
 }
 
-/** Sidebar card showing the answered/flagged/unanswered breakdown and a jump-to grid. */
-export default function QuestionNavigator({ data, onSelect }: Props) {
+function formatTime(totalSeconds: number): string {
+  const clamped = Math.max(0, totalSeconds);
+  const minutes = Math.floor(clamped / 60);
+  const seconds = clamped % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+export default function QuestionNavigator({ data, secondsLeft, onSelect }: Props) {
   const numbers = Array.from({ length: data.totalQuestions }, (_, i) => i + 1);
+
+  const isLow = secondsLeft <= 60 && secondsLeft > 0;
+  const isExpired = secondsLeft <= 0;
 
   return (
     <div className={styles.card}>
       <div className={styles.header}>
-        <span className={styles.headerIcon}>▦</span>
         <span className={styles.headerTitle}>Question Navigator</span>
-        <span className={styles.headerTotal}>{data.totalQuestions} Total</span>
+        <div className={styles.left}>
+          <span
+            className={`${styles.pill} ${styles.pillTimer}`}
+            style={
+              isExpired
+                ? { color: '#991b1b', backgroundColor: '#fee2e2', borderColor: '#fca5a5' }
+                : isLow
+                  ? { color: '#b45309', backgroundColor: '#fffbeb', borderColor: '#f59e0b' }
+                  : undefined
+            }
+            role="timer"
+            aria-live="off"
+          >
+            <span className={styles.pillIcon}>⏱</span>{' '}
+            {isExpired ? 'Submitting' : formatTime(secondsLeft)}
+          </span>
+        </div>
       </div>
+
 
       <div className={styles.stats}>
         <div className={`${styles.statBox} ${styles.statAnswered}`}>
@@ -51,15 +77,6 @@ export default function QuestionNavigator({ data, onSelect }: Props) {
           );
         })}
       </div>
-
-      {data.nextUnanswered !== null && (
-        <button
-          className={styles.jumpBtn}
-          onClick={() => data.nextUnanswered !== null && onSelect?.(data.nextUnanswered)}
-        >
-          ⏵ Jump to Next Unanswered (#{data.nextUnanswered})
-        </button>
-      )}
     </div>
   );
 }
