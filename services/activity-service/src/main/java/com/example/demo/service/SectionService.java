@@ -25,6 +25,7 @@ public class SectionService {
     private final SectionMapper sectionMapper;
 
     public SectionResponse create(SectionRequest request) {
+        validateSection(request);
         Classes classes = classesRepository.findById(request.getIdClasses())
                 .orElseThrow(() -> ResourceNotFoundException.of("Classes", request.getIdClasses()));
 
@@ -54,6 +55,7 @@ public class SectionService {
     }
 
     public SectionResponse update(String id, SectionRequest request) {
+        validateSection(request);
         Section entity = sectionRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Section", id));
 
@@ -71,5 +73,11 @@ public class SectionService {
             throw ResourceNotFoundException.of("Section", id);
         }
         sectionRepository.deleteById(id);
+    }
+
+    private void validateSection(SectionRequest request) {
+        if (request.getName() != null && request.getName().length() > 255) {
+            throw new IllegalArgumentException("name khong duoc vuot qua 255 ky tu");
+        }
     }
 }

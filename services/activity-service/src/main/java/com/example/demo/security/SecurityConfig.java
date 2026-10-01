@@ -36,6 +36,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
                         .requestMatchers(
+                                "/health",
                                 "/api/health",
                                 "/api/auth/**",
                                 "/swagger-ui/**",
@@ -46,11 +47,12 @@ public class SecurityConfig {
                         ).permitAll()
 
                         // Question & Option management: only ADMIN and LECTURER
-                        .requestMatchers("/api/questions/**", "/api/question-options/**").hasAnyRole("ADMIN", "LECTURER")
+                        .requestMatchers("/api/questions/**", "/api/options/**", "/api/question-options/**").hasAnyRole("ADMIN", "LECTURER")
 
-                        // Quiz Attempts: Student starts test (POST), Student/Lecturer/Admin submits (PUT), Admin deletes
+                        // Quiz Attempts: Student starts test (POST), Student/Lecturer/Admin submits (PUT), Lecturer/Admin grades (PATCH), Admin deletes
                         .requestMatchers(HttpMethod.POST, "/api/attempts/**").hasRole("STUDENT")
                         .requestMatchers(HttpMethod.PUT, "/api/attempts/**").hasAnyRole("STUDENT", "LECTURER", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/attempts/**").hasAnyRole("ADMIN", "LECTURER")
                         .requestMatchers(HttpMethod.DELETE, "/api/attempts/**").hasRole("ADMIN")
 
                         // Student Answers: Student answers (POST, PUT), Admin deletes

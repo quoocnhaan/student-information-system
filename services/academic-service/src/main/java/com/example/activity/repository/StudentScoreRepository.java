@@ -20,4 +20,7 @@ public interface StudentScoreRepository extends JpaRepository<StudentScore, Stri
     Optional<StudentScore> findById(String id);
 
     boolean existsByEnrollment_EnrollmentIdAndGradeComponent_IdGradeComponents(String enrollmentId, String idGradeComponents);
+
+    @EntityGraph(attributePaths = {"gradeComponent", "enrollment"})
+    List<StudentScore> findByEnrollment_StudentId(String studentId);
 }

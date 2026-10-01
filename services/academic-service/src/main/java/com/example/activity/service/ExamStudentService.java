@@ -10,6 +10,7 @@ import com.example.activity.mapper.ExamStudentMapper;
 import com.example.activity.repository.ExamStudentRepository;
 import com.example.activity.repository.ExamScheduleRepository;
 import lombok.RequiredArgsConstructor;
+import com.example.activity.security.SecurityUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,11 @@ public class ExamStudentService {
 
     @Transactional(readOnly = true)
     public List<ExamStudentResponse> getAll() {
+        if (SecurityUtils.isCurrentUserStudent()) {
+            return examStudentRepository.findByStudentId(SecurityUtils.getCurrentUsername()).stream()
+                    .map(examStudentMapper::toResponse)
+                    .toList();
+        }
         return examStudentRepository.findAll().stream()
                 .map(examStudentMapper::toResponse)
                 .toList();
@@ -32,7 +38,9 @@ public class ExamStudentService {
 
     @Transactional(readOnly = true)
     public ExamStudentResponse getById(Integer id) {
-        return examStudentMapper.toResponse(findEntity(id));
+        ExamStudent entity = findEntity(id);
+        SecurityUtils.checkStudentAccess(entity.getStudentId(), "view exam registration");
+        return examStudentMapper.toResponse(entity);
     }
 
     @Transactional

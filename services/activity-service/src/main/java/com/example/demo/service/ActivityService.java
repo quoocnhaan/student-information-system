@@ -25,6 +25,7 @@ public class ActivityService {
     private final ActivityMapper activityMapper;
 
     public ActivityResponse create(ActivityRequest request) {
+        validateDates(request.getTimeOpen(), request.getTimeClose());
         Section section = sectionRepository.findById(request.getIdSection())
                 .orElseThrow(() -> ResourceNotFoundException.of("Section", request.getIdSection()));
 
@@ -54,6 +55,7 @@ public class ActivityService {
     }
 
     public ActivityResponse update(String id, ActivityRequest request) {
+        validateDates(request.getTimeOpen(), request.getTimeClose());
         Activity entity = activityRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Activity", id));
 
@@ -67,6 +69,12 @@ public class ActivityService {
         entity.setSection(section);
 
         return activityMapper.toResponse(activityRepository.save(entity));
+    }
+
+    private void validateDates(java.time.LocalDate open, java.time.LocalDate close) {
+        if (open != null && close != null && close.isBefore(open)) {
+            throw new IllegalArgumentException("timeClose phai sau hoac bang timeOpen");
+        }
     }
 
     public void delete(String id) {

@@ -22,4 +22,7 @@ public interface StudentEnrollmentRepository extends JpaRepository<StudentEnroll
     boolean existsByClasses_IdClassesAndStudentId(String idClasses, String studentId);
 
     long countByClasses_IdClasses(String idClasses);
+
+    @EntityGraph(attributePaths = {"classes"})
+    List<StudentEnrollment> findByStudentId(String studentId);
 }

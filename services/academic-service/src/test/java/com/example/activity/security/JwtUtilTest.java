@@ -15,8 +15,8 @@ public class JwtUtilTest {
     @BeforeEach
     void setUp() {
         jwtUtil = new JwtUtil();
-        ReflectionTestUtils.setField(jwtUtil, "secret", "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970");
-        ReflectionTestUtils.setField(jwtUtil, "expiration", 315360000000L); // 10 years
+        ReflectionTestUtils.setField(jwtUtil, "secret", "c8f1e2d3b4a5968778695a4b3c2d1e0fa1b2c3d4e5f60718293a4b5c6d7e8f90");
+        ReflectionTestUtils.setField(jwtUtil, "expiration", 14400000L); // 4 hours
     }
 
     @Test

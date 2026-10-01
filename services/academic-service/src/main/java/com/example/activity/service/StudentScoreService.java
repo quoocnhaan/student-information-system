@@ -14,6 +14,7 @@ import com.example.activity.repository.StudentScoreRepository;
 import com.example.activity.repository.GradeComponentRepository;
 import com.example.activity.repository.StudentEnrollmentRepository;
 import lombok.RequiredArgsConstructor;
+import com.example.activity.security.SecurityUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,11 @@ public class StudentScoreService {
 
     @Transactional(readOnly = true)
     public List<StudentScoreResponse> getAll() {
+        if (SecurityUtils.isCurrentUserStudent()) {
+            return studentScoreRepository.findByEnrollment_StudentId(SecurityUtils.getCurrentUsername()).stream()
+                    .map(studentScoreMapper::toResponse)
+                    .toList();
+        }
         return studentScoreRepository.findAll().stream()
                 .map(studentScoreMapper::toResponse)
                 .toList();
@@ -38,7 +44,11 @@ public class StudentScoreService {
 
     @Transactional(readOnly = true)
     public StudentScoreResponse getById(String id) {
-        return studentScoreMapper.toResponse(findEntity(id));
+        StudentScore entity = findEntity(id);
+        if (entity.getEnrollment() != null) {
+            SecurityUtils.checkStudentAccess(entity.getEnrollment().getStudentId(), "view score");
+        }
+        return studentScoreMapper.toResponse(entity);
     }
 
     @Transactional

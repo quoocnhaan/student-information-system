@@ -25,6 +25,7 @@ public class FileService {
     private final FileMapper fileMapper;
 
     public FileResponse create(FileRequest request) {
+        validateUrl(request.getFileUrl());
         Activity activity = activityRepository.findById(request.getIdActivity())
                 .orElseThrow(() -> ResourceNotFoundException.of("Activity", request.getIdActivity()));
 
@@ -54,6 +55,7 @@ public class FileService {
     }
 
     public FileResponse update(String id, FileRequest request) {
+        validateUrl(request.getFileUrl());
         FileEntity entity = fileRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("File", id));
 
@@ -65,6 +67,25 @@ public class FileService {
         entity.setActivity(activity);
 
         return fileMapper.toResponse(fileRepository.save(entity));
+    }
+
+    private void validateUrl(String urlStr) {
+        if (urlStr == null || urlStr.isBlank()) {
+            throw new IllegalArgumentException("fileUrl khong duoc de trong");
+        }
+        try {
+            java.net.URI uri = new java.net.URI(urlStr);
+            if (uri.getScheme() == null || uri.getHost() == null) {
+                throw new IllegalArgumentException("fileUrl phai la URL hop le (vi du: http://example.com/file.pdf)");
+            }
+            if (!uri.getScheme().equalsIgnoreCase("http") &&
+                !uri.getScheme().equalsIgnoreCase("https") &&
+                !uri.getScheme().equalsIgnoreCase("ftp")) {
+                throw new IllegalArgumentException("fileUrl scheme khong hop le");
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("fileUrl khong phai URL hop le: " + e.getMessage());
+        }
     }
 
     public void delete(String id) {

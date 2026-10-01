@@ -17,4 +17,7 @@ public interface ExamStudentRepository extends JpaRepository<ExamStudent, Intege
     boolean existsByExamSchedule_ExamIdAndStudentId(String examId, String studentId);
 
     long countByExamSchedule_ExamId(String examId);
+
+    @EntityGraph(attributePaths = {"examSchedule"})
+    List<ExamStudent> findByStudentId(String studentId);
 }

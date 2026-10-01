@@ -10,4 +10,5 @@ import java.util.List;
 public interface AssignmentStudentApproveRepository extends JpaRepository<AssignmentStudentApprove, String> {
     List<AssignmentStudentApprove> findByAssignment_IdAssignment(String idAssignment);
     List<AssignmentStudentApprove> findByIdStudent(String idStudent);
+    List<AssignmentStudentApprove> findByAssignment_IdAssignmentAndIdStudent(String idAssignment, String idStudent);
 }

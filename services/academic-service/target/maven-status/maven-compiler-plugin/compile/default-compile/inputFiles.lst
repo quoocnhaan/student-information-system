@@ -78,6 +78,7 @@ C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\JwtAuthenticationFilter.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\JwtUtil.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\SecurityConfig.java
+C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\security\SecurityUtils.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\service\ClassesGradeComponentService.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\service\ClassesService.java
 C:\Users\phucd\Desktop\student-information-system\services\academic-service\src\main\java\com\example\activity\service\CourseService.java

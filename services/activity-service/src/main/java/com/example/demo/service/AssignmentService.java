@@ -4,6 +4,7 @@ import com.example.demo.dto.request.AssignmentRequest;
 import com.example.demo.dto.response.AssignmentResponse;
 import com.example.demo.entity.Activity;
 import com.example.demo.entity.Assignment;
+import com.example.demo.exception.DuplicateResourceException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.mapper.AssignmentMapper;
 import com.example.demo.repository.ActivityRepository;
@@ -31,7 +32,7 @@ public class AssignmentService {
         // Ep quan he 1-1: 1 activity chi duoc gan voi 1 assignment
         assignmentRepository.findByActivity_IdActivity(request.getIdActivity())
                 .ifPresent(a -> {
-                    throw new IllegalStateException("Activity " + request.getIdActivity() + " da co assignment roi");
+                    throw new DuplicateResourceException("Activity " + request.getIdActivity() + " da co assignment roi");
                 });
 
         Assignment entity = assignmentMapper.toEntity(request);

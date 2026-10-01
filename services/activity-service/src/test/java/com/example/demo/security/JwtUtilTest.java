@@ -15,15 +15,15 @@ public class JwtUtilTest {
     @BeforeEach
     void setUp() {
         jwtUtil = new JwtUtil();
-        ReflectionTestUtils.setField(jwtUtil, "secret", "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970");
-        ReflectionTestUtils.setField(jwtUtil, "expiration", 315360000000L); // 10 years
+        ReflectionTestUtils.setField(jwtUtil, "secret", "c8f1e2d3b4a5968778695a4b3c2d1e0fa1b2c3d4e5f60718293a4b5c6d7e8f90");
+        ReflectionTestUtils.setField(jwtUtil, "expiration", 14400000L); // 4 hours
     }
 
     @Test
-    void testValidatePredefinedTokens() {
-        String adminToken = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJST0xFX0FETUlOIiwicm9sZXMiOlsiUk9MRV9BRE1JTiJdLCJpYXQiOjE3OTA2NzQ1NTIsImV4cCI6MjEwNjAzNDU1Mn0.4d95Rhj9mIzenP1ME7T9uMABuv1uoLLDH7MOc4nuNq-gkMF7DOf9My7Hq57Kp9N3gUx9zoxBMtbPckv456UisA";
-        String lecturerToken = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJsZWN0dXJlcl8wMSIsInJvbGUiOiJST0xFX0xFQ1RVUkVSIiwicm9sZXMiOlsiUk9MRV9MRUNUVVJFUiJdLCJpYXQiOjE3OTA2NzQ1NTMsImV4cCI6MjEwNjAzNDU1M30.dMm39TRGrE9RuZu5O3tMc7r2ukXrTKChe4lZmVUqdCthFe0i2HeeN5OYc0piZnFQISIK_2pq844BZxrh2O5C9Q";
-        String studentToken = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdHVkZW50XzAxIiwicm9sZSI6IlJPTEVfU1RVREVOVCIsInJvbGVzIjpbIlJPTEVfU1RVREVOVCJdLCJpYXQiOjE3OTA2NzQ1NTMsImV4cCI6MjEwNjAzNDU1M30.QmmEA9Fr6-sLzeUBFoKeroVA19SrkYwFjTXYfw8MRFAaHXTewZbhKOnwCOdOOmiVWsvlunIE972M8mylvgriRg";
+    void testValidateTokens() {
+        String adminToken = jwtUtil.generateToken("admin", "ROLE_ADMIN");
+        String lecturerToken = jwtUtil.generateToken("lecturer_01", "ROLE_LECTURER");
+        String studentToken = jwtUtil.generateToken("student_01", "ROLE_STUDENT");
 
         assertTrue(jwtUtil.validateToken(adminToken));
         assertTrue(jwtUtil.validateToken(lecturerToken));

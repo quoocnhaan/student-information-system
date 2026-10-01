@@ -10,6 +10,8 @@ import com.example.activity.mapper.StudentEnrollmentMapper;
 import com.example.activity.repository.StudentEnrollmentRepository;
 import com.example.activity.repository.ClassesRepository;
 import lombok.RequiredArgsConstructor;
+import com.example.activity.security.SecurityUtils;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,11 @@ public class StudentEnrollmentService {
 
     @Transactional(readOnly = true)
     public List<StudentEnrollmentResponse> getAll() {
+        if (SecurityUtils.isCurrentUserStudent()) {
+            return studentEnrollmentRepository.findByStudentId(SecurityUtils.getCurrentUsername()).stream()
+                    .map(studentEnrollmentMapper::toResponse)
+                    .toList();
+        }
         return studentEnrollmentRepository.findAll().stream()
                 .map(studentEnrollmentMapper::toResponse)
                 .toList();
@@ -32,11 +39,22 @@ public class StudentEnrollmentService {
 
     @Transactional(readOnly = true)
     public StudentEnrollmentResponse getById(String id) {
-        return studentEnrollmentMapper.toResponse(findEntity(id));
+        StudentEnrollment entity = findEntity(id);
+        SecurityUtils.checkStudentAccess(entity.getStudentId(), "view enrollment");
+        return studentEnrollmentMapper.toResponse(entity);
     }
 
     @Transactional
     public StudentEnrollmentResponse create(StudentEnrollmentRequest request) {
+        if (SecurityUtils.isCurrentUserStudent()) {
+            String currentUsername = SecurityUtils.getCurrentUsername();
+            if (request.getStudentId() != null && !request.getStudentId().isBlank() && !request.getStudentId().equals(currentUsername)) {
+                throw new AccessDeniedException("Access Denied: You cannot register enrollment for another student");
+            }
+            if (request.getStudentId() == null || request.getStudentId().isBlank()) {
+                request.setStudentId(currentUsername);
+            }
+        }
         if (request.getEnrollmentId() == null || request.getEnrollmentId().isBlank()) {
             throw new IllegalArgumentException("enrollmentId is required");
         }
@@ -52,11 +70,23 @@ public class StudentEnrollmentService {
         }
         StudentEnrollment entity = studentEnrollmentMapper.toEntity(request);
         entity.setClasses(classes);
+
+        // Security (F-04): Students cannot self-assign final score, letter grade, pass status, or enrollment status
+        if (SecurityUtils.isCurrentUserStudent() || !SecurityUtils.isCurrentUserAdmin()) {
+            entity.setFinalScore(null);
+            entity.setLetterGrade(null);
+            entity.setIsPassed(null);
+            entity.setEnrollmentStatus(null);
+        }
+
         return studentEnrollmentMapper.toResponse(studentEnrollmentRepository.save(entity));
     }
 
     @Transactional
     public StudentEnrollmentResponse update(String id, StudentEnrollmentRequest request) {
+        if (SecurityUtils.isCurrentUserStudent()) {
+            throw new AccessDeniedException("Access Denied: Students cannot update enrollments");
+        }
         if (request.getEnrollmentId() != null && !request.getEnrollmentId().isBlank() && !request.getEnrollmentId().equals(id)) {
             throw new IllegalArgumentException("Path variable id and request body enrollmentId do not match");
         }

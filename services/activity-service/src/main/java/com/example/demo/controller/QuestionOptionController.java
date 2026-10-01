@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/options")
+@RequestMapping({"/api/options", "/api/question-options"})
 @RequiredArgsConstructor
 public class QuestionOptionController {
 

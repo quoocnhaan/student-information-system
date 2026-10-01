@@ -19,10 +19,10 @@ import java.util.*;
 @Component
 public class JwtUtil {
 
-    @Value("${security.jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}")
+    @Value("${security.jwt.secret}")
     private String secret;
 
-    @Value("${security.jwt.expiration:315360000000}")
+    @Value("${security.jwt.expiration:14400000}")
     private long expiration;
 
     private SecretKey getSigningKey() {

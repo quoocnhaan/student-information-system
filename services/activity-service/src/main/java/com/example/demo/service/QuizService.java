@@ -4,6 +4,7 @@ import com.example.demo.dto.request.QuizRequest;
 import com.example.demo.dto.response.QuizResponse;
 import com.example.demo.entity.Activity;
 import com.example.demo.entity.Quiz;
+import com.example.demo.exception.DuplicateResourceException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.mapper.QuizMapper;
 import com.example.demo.repository.ActivityRepository;
@@ -25,13 +26,14 @@ public class QuizService {
     private final QuizMapper quizMapper;
 
     public QuizResponse create(QuizRequest request) {
+        validateQuiz(request);
         Activity activity = activityRepository.findById(request.getIdActivity())
                 .orElseThrow(() -> ResourceNotFoundException.of("Activity", request.getIdActivity()));
 
         // Ep quan he 1-1: 1 activity chi duoc gan voi 1 quiz
         quizRepository.findByActivity_IdActivity(request.getIdActivity())
                 .ifPresent(q -> {
-                    throw new IllegalStateException("Activity " + request.getIdActivity() + " da co quiz roi");
+                    throw new DuplicateResourceException("Activity " + request.getIdActivity() + " da co quiz roi");
                 });
 
         Quiz entity = quizMapper.toEntity(request);
@@ -61,6 +63,7 @@ public class QuizService {
     }
 
     public QuizResponse update(String id, QuizRequest request) {
+        validateQuiz(request);
         Quiz entity = quizRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Quiz", id));
 
@@ -73,6 +76,15 @@ public class QuizService {
         entity.setActivity(activity);
 
         return quizMapper.toResponse(quizRepository.save(entity));
+    }
+
+    private void validateQuiz(QuizRequest request) {
+        if (request.getDuration() != null && request.getDuration() <= 0) {
+            throw new IllegalArgumentException("duration phai lon hon 0");
+        }
+        if (request.getAttemptsLimit() != null && request.getAttemptsLimit() <= 0) {
+            throw new IllegalArgumentException("attemptsLimit phai lon hon 0");
+        }
     }
 
     public void delete(String id) {

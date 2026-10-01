@@ -10,4 +10,6 @@ import java.util.List;
 public interface AttemptRepository extends JpaRepository<Attempt, String> {
     List<Attempt> findByQuiz_IdQuiz(String idQuiz);
     List<Attempt> findByIdStudent(String idStudent);
+    long countByQuiz_IdQuizAndIdStudent(String idQuiz, String idStudent);
+    List<Attempt> findByQuiz_IdQuizAndIdStudent(String idQuiz, String idStudent);
 }

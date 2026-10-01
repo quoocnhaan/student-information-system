@@ -48,6 +48,18 @@ public class AttemptController {
         return ResponseEntity.ok(attemptService.update(id, request));
     }
 
+    @PatchMapping("/{id}/grade")
+    public ResponseEntity<AttemptResponse> updateGrade(
+            @PathVariable String id,
+            @RequestBody(required = false) AttemptRequest request,
+            @RequestParam(required = false) Float grade) {
+        Float finalGrade = grade;
+        if (finalGrade == null && request != null) {
+            finalGrade = request.getGrade();
+        }
+        return ResponseEntity.ok(attemptService.updateGrade(id, finalGrade));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         attemptService.delete(id);

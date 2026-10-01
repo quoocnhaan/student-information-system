@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface SectionRepository extends JpaRepository<Section, String> {
     List<Section> findByClasses_IdClasses(String idClasses);
+    boolean existsByClasses_IdClasses(String idClasses);
 }

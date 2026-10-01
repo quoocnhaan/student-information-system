@@ -12,6 +12,7 @@ com\example\activity\dto\response\StudentEnrollmentResponse.class
 com\example\activity\mapper\ExamStudentMapperImpl.class
 com\example\activity\mapper\ClassesMapperImpl.class
 com\example\activity\mapper\GradeComponentMapper.class
+com\example\activity\security\SecurityUtils.class
 com\example\activity\mapper\FacultyMapperImpl.class
 com\example\activity\controller\MajorController.class
 com\example\activity\controller\ExamStudentController.class
