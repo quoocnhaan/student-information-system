@@ -10,7 +10,7 @@ import styles from './QuizTakingPage.module.css';
 type Direction = 'next' | 'prev';
 type OptionId = AnswerOption['id'];
 
-const QUIZ_DURATION_SECONDS = 0.5 * 60 + 29; // 25:29
+const QUIZ_DURATION_SECONDS = 23 * 60 + 29; // 25:29
 
 export function QuizTakingPage() {
   const navigate = useNavigate();

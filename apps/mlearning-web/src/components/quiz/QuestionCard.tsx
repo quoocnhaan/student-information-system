@@ -84,13 +84,13 @@ export default function QuestionCard({
           disabled={isFirst}
           style={isFirst ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
         >
-          ← Previous Question
+          ← Previous
         </button>
         <button className={styles.btnLink} onClick={onClearSelection}>
           Clear Selection
         </button>
         <button className={styles.btnPrimary} onClick={isLast ? onSubmitClick : onNext}>
-          {isLast ? 'Submit Quiz' : 'Save & Next Question →'}
+          {isLast ? 'Submit Quiz' : 'Next →'}
         </button>
       </div>
     </div>

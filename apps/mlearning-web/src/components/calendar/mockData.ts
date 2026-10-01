@@ -90,7 +90,7 @@ export const scheduleByDate: Record<string, ScheduleItem[]> = {
 // Màu hiển thị trong WeekGrid theo loại lịch
 const categoryColor: Record<string, string> = {
   lecture: '#2141d6',
-  exam: '#dc2626',
+  exam: '#07df41ff',
 };
 
 /**

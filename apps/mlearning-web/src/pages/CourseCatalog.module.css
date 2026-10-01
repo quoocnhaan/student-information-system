@@ -7,6 +7,9 @@
   margin: 0;
   padding: 20px;
   box-sizing: border-box;
+  background-color: hwb(0 100% 0% / 0.775);
+  border-radius: 15px;
+  border: 1px solid #e5e7eb;
 }
 
 .toolbar {
@@ -200,10 +203,12 @@
 .cardBody {
   flex: 1;
   min-height: 0;
-  padding: 16px;
+  padding: 6px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  container-type: size;
 }
 
 .badgeTopLeft {
@@ -240,7 +245,8 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-align: center;
-  font-size: 22px;
+  font-size: 30cqh;
+  line-height: 1.15;
 }
 
 .courseCard:hover .courseTitle {

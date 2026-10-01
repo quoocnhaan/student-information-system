@@ -137,14 +137,13 @@
 }
 
 .cellAnswered {
-  background: #f8f9ff;
+  background: #d0dfff;
   color: #374151;
 }
 
 .cellCurrent {
   border: 1.5px solid #3b5fe3;
   color: #3b5fe3;
-  background: #fff;
 }
 
 .flagDot {

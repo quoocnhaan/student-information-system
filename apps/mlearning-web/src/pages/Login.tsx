@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { roleRoutes } from "../routes/roleRoutes";
-import { BookOpen, User, Lock, Eye, EyeOff, ArrowRight, HelpCircle, Mail, Globe } from 'lucide-react';
+import { BookOpen, User, Lock, Eye, EyeOff, ArrowRight, Mail, } from 'lucide-react';
 import styles from './Login.module.css';
 
 
@@ -58,24 +58,6 @@ export function Login() {
             <span className={styles.logoTitle}>Universitas</span>
             <span className={styles.logoSubtitle}>Academic Portal</span>
           </div>
-        </div>
-
-        <div className={styles.headerActions}>
-          <div className={styles.statusIndicator}>
-            <span className={styles.statusDot}></span>
-            <span>Hệ thống hoạt động bình thường</span>
-          </div>
-          <div className={styles.dividerVertical}></div>
-          <div className={styles.langSelector}>
-            <button className={styles.langBtnActive}>
-              <Globe size={16} /> Tiếng Việt
-            </button>
-            <button className={styles.langBtn}>EN</button>
-          </div>
-          <a href="#help" className={styles.helpLink}>
-            <HelpCircle size={18} />
-            <span>Trợ giúp</span>
-          </a>
         </div>
       </header>
 

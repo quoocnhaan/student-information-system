@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { CourseCard } from '../components/course/Coursecard';
 import { courses } from '../components/course/Coursedata';
-
+import PageHeader from '../components/ui/PageHeader';
 const PAGE_SIZE = 8; // tối đa 8 card / trang
 
 type PageToken = number | '...';
@@ -14,13 +14,23 @@ export function CourseCatalog() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc');
 
-  const totalPages = Math.max(1, Math.ceil(courses.length / PAGE_SIZE));
+  const sortedCourses = useMemo(() => {
+    return [...courses].sort((a, b) => {
+      if (sortBy === 'asc') {
+        return a.title.localeCompare(b.title);
+      }
+      return b.title.localeCompare(a.title);
+    });
+  }, [sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedCourses.length / PAGE_SIZE));
 
   const pagedCourses = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return courses.slice(start, start + PAGE_SIZE);
-  }, [currentPage]);
+    return sortedCourses.slice(start, start + PAGE_SIZE);
+  }, [currentPage, sortedCourses]);
 
   const handleGoToCourse = () => {
     if (!user) {
@@ -63,69 +73,77 @@ export function CourseCatalog() {
   }, [currentPage, totalPages]);
 
   return (
-    <div className={styles.container}>
+    <div className={styles.page}>
+      <PageHeader title="Course" />
+      <div className={styles.container}>
 
-      <div className={styles.toolbar}>
-        <div className={styles.searchInput}>
-          <Search size={20} className={styles.searchIcon} />
-          <input type="text" placeholder="Filter displayed course titles or topics..." />
-        </div>
+        <div className={styles.toolbar}>
+          <div className={styles.searchInput}>
+            <Search size={20} className={styles.searchIcon} />
+            <input type="text" placeholder="Filter displayed course titles or topics..." />
+          </div>
 
-        <div className={styles.controls}>
-          <div className={styles.sortSelect}>
-            <label htmlFor="sortSelector">Sort by:</label>
-            <select id="sortSelector">
-              <option>Recommended / Popular</option>
-              <option>Highest Rated (4.5+ ★)</option>
-              <option>Academic Rigor / Difficulty</option>
-              <option>Course Code (Ascending)</option>
-            </select>
+          <div className={styles.controls}>
+            <div className={styles.sortSelect}>
+              <label htmlFor="sortSelector">Sort by:</label>
+              <select
+                id="sortSelector"
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value as 'asc' | 'desc');
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="asc">Course Name (A to Z)</option>
+                <option value="desc">Course Name (Z to A)</option>
+              </select>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div id="course-grid-top" />
-      {/* key={currentPage} khiến grid remount mỗi lần đổi trang -> animation fade/slide chạy lại */}
-      <div className={styles.grid} key={currentPage} style={{ animation: 'catalogFadeSlide 0.35s ease' }}>
-        {pagedCourses.map((course) => (
-          <CourseCard key={course.id} course={course} onGoToCourse={handleGoToCourse} />
-        ))}
-      </div>
-
-      <div className={styles.pagination}>
-        <div className={styles.pageInfo}>
-          Showing <span>{pagedCourses.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{(currentPage - 1) * PAGE_SIZE + pagedCourses.length}</span> of <span>{courses.length}</span> Available Courses
+        <div id="course-grid-top" />
+        {/* key={currentPage} khiến grid remount mỗi lần đổi trang -> animation fade/slide chạy lại */}
+        <div className={styles.grid} key={currentPage} style={{ animation: 'catalogFadeSlide 0.35s ease' }}>
+          {pagedCourses.map((course) => (
+            <CourseCard key={course.id} course={course} onGoToCourse={handleGoToCourse} />
+          ))}
         </div>
-        <div className={styles.pageControls}>
-          <button
-            className={`${styles.pageBtn} ${styles.pageBtnBorder} ${styles.pageBtnAnimated}`}
-            disabled={currentPage === 1}
-            onClick={() => goToPage(currentPage - 1)}
-          >
-            <ChevronLeft size={16} />
-          </button>
 
-          {pageNumbers.map((p, idx) =>
-            p === '...' ? (
-              <span key={`ellipsis-${idx}`} style={{ color: 'var(--on-surface-variant)', fontSize: '12px' }}>...</span>
-            ) : (
-              <button
-                key={p}
-                className={`${styles.pageBtn} ${styles.pageBtnAnimated} ${p === currentPage ? styles.active : ''}`}
-                onClick={() => goToPage(p)}
-              >
-                {p}
-              </button>
-            )
-          )}
+        <div className={styles.pagination}>
+          <div className={styles.pageInfo}>
+            Showing <span>{pagedCourses.length ? (currentPage - 1) * PAGE_SIZE + 1 : 0}-{(currentPage - 1) * PAGE_SIZE + pagedCourses.length}</span> of <span>{courses.length}</span> Available Courses
+          </div>
+          <div className={styles.pageControls}>
+            <button
+              className={`${styles.pageBtn} ${styles.pageBtnBorder} ${styles.pageBtnAnimated}`}
+              disabled={currentPage === 1}
+              onClick={() => goToPage(currentPage - 1)}
+            >
+              <ChevronLeft size={16} />
+            </button>
 
-          <button
-            className={`${styles.pageBtn} ${styles.pageBtnBorder} ${styles.pageBtnAnimated}`}
-            disabled={currentPage === totalPages}
-            onClick={() => goToPage(currentPage + 1)}
-          >
-            <ChevronRight size={16} />
-          </button>
+            {pageNumbers.map((p, idx) =>
+              p === '...' ? (
+                <span key={`ellipsis-${idx}`} style={{ color: 'var(--on-surface-variant)', fontSize: '12px' }}>...</span>
+              ) : (
+                <button
+                  key={p}
+                  className={`${styles.pageBtn} ${styles.pageBtnAnimated} ${p === currentPage ? styles.active : ''}`}
+                  onClick={() => goToPage(p)}
+                >
+                  {p}
+                </button>
+              )
+            )}
+
+            <button
+              className={`${styles.pageBtn} ${styles.pageBtnBorder} ${styles.pageBtnAnimated}`}
+              disabled={currentPage === totalPages}
+              onClick={() => goToPage(currentPage + 1)}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

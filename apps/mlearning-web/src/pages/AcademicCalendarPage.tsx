@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import PageHeader from '../components/calendar/PageHeader';
+import PageHeader from '../components/ui/PageHeader';
 import CalendarToolbar from '../components/calendar/CalendarToolbar';
 import MonthGrid from '../components/calendar/MonthGrid';
 import CalendarLegend from '../components/calendar/CalendarLegend';
 import MiniCalendar from '../components/calendar/MiniCalendar';
 import TodaySchedule from '../components/calendar/TodaySchedule';
-import UpcomingDeadlines from '../components/calendar/UpcomingDeadlines';
 import styles from './AcademicCalendarPage.module.css';
 import WeekGrid from '../components/calendar/WeekGrid';
 import { addDays, startOfWeek } from '../components/calendar/calendarUtils';
@@ -93,7 +92,7 @@ export function AcademicCalendarPage() {
 
   return (
     <div className={styles.page}>
-      <PageHeader />
+      <PageHeader title="Calendar" />
 
       <div className={styles.content}>
         <main className={styles.main}>
@@ -133,8 +132,6 @@ export function AcademicCalendarPage() {
             onSelectDate={handleSelectDate}
           />
           <TodaySchedule selectedDate={selectedDate} />
-          <UpcomingDeadlines />
-
         </aside>
       </div>
     </div>

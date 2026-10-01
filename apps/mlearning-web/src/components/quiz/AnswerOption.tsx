@@ -12,6 +12,9 @@ interface Props {
 export default function AnswerOption({ option, selected, onSelect }: Props) {
   return (
     <label className={`${styles.option} ${selected ? styles.optionSelected : ''}`}>
+      <div className={styles.topRow}>
+        <span className={styles.label}>{option.id}</span>
+      </div>
       <input
         type="radio"
         name="quiz-answer"
@@ -20,10 +23,6 @@ export default function AnswerOption({ option, selected, onSelect }: Props) {
         onChange={() => onSelect(option.id)}
       />
       <div className={styles.body}>
-        <div className={styles.topRow}>
-          <span className={styles.label}>Option {option.id}</span>
-          {selected && <span className={styles.badge}></span>}
-        </div>
         <p className={styles.text}>
           <RichTextInline segments={option.text} />
         </p>
