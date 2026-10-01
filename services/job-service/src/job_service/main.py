@@ -6,7 +6,16 @@ import secrets
 from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, WebSocket, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    WebSocket,
+    status,
+)
 from pydantic import BaseModel, Field
 
 from job_service.config import Settings, get_settings
@@ -48,10 +57,17 @@ class FailJob(BaseModel):
 
 
 def _bearer(authorization: str | None, token: str) -> bool:
-    return bool(token and authorization and authorization.startswith("Bearer ") and secrets.compare_digest(authorization[7:], token))
+    return bool(
+        token
+        and authorization
+        and authorization.startswith("Bearer ")
+        and secrets.compare_digest(authorization[7:], token)
+    )
 
 
-def _worker(request: Request, authorization: Annotated[str | None, Header()] = None) -> None:
+def _worker(
+    request: Request, authorization: Annotated[str | None, Header()] = None
+) -> None:
     if not _bearer(authorization, request.app.state.settings.worker_token):
         raise HTTPException(status_code=401, detail="Worker authentication required")
 
@@ -96,12 +112,26 @@ async def ready(request: Request) -> dict:
 
 
 @app.post("/internal/v1/jobs", status_code=201)
-async def create_job(body: CreateJob, request: Request, background: BackgroundTasks, authorization: Annotated[str | None, Header()] = None) -> dict:
+async def create_job(
+    body: CreateJob,
+    request: Request,
+    background: BackgroundTasks,
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict:
     await _owner(request, body.owner, authorization)
-    if (body.owner, body.type) not in request.app.state.settings.allowed_types or not _KEY.fullmatch(body.creation_key):
-        raise HTTPException(status_code=422, detail="Unregistered job type or invalid creation key")
+    if (
+        body.owner,
+        body.type,
+    ) not in request.app.state.settings.allowed_types or not _KEY.fullmatch(
+        body.creation_key
+    ):
+        raise HTTPException(
+            status_code=422, detail="Unregistered job type or invalid creation key"
+        )
     try:
-        row = await request.app.state.store.create(body.owner, body.type, body.subject_id, body.creation_key)
+        row = await request.app.state.store.create(
+            body.owner, body.type, body.subject_id, body.creation_key
+        )
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     background.add_task(request.app.state.publisher.publish, row)
@@ -117,7 +147,12 @@ async def get_job(job_id: str, request: Request) -> dict:
 
 
 @app.get("/internal/v1/jobs/by-creation/{owner}/{creation_key}")
-async def find_by_creation(owner: str, creation_key: str, request: Request, authorization: Annotated[str | None, Header()] = None) -> dict:
+async def find_by_creation(
+    owner: str,
+    creation_key: str,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict:
     await _owner(request, owner, authorization)
     row = await request.app.state.store.find_creation(owner, creation_key)
     if row is None:
@@ -126,17 +161,26 @@ async def find_by_creation(owner: str, creation_key: str, request: Request, auth
 
 
 @app.post("/internal/v1/jobs/{job_id}/claim")
-async def claim(job_id: str, body: ClaimJob, request: Request, _: Annotated[None, Depends(_worker)]) -> dict:
+async def claim(
+    job_id: str, body: ClaimJob, request: Request, _: Annotated[None, Depends(_worker)]
+) -> dict:
     if (body.owner, body.type) not in request.app.state.settings.allowed_types:
         raise HTTPException(status_code=409, detail="Job type disabled")
-    row = await request.app.state.store.claim(job_id, body.claim_id, body.owner, body.type)
+    row = await request.app.state.store.claim(
+        job_id, body.claim_id, body.owner, body.type
+    )
     if row is None:
         raise HTTPException(status_code=409, detail="Job not claimable")
     return {**snapshot(row), "claim_id": body.claim_id}
 
 
 @app.get("/internal/v1/jobs/{job_id}/claims/{claim_id}")
-async def verify_claim(job_id: str, claim_id: str, request: Request, authorization: Annotated[str | None, Header()] = None) -> dict:
+async def verify_claim(
+    job_id: str,
+    claim_id: str,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict:
     row = await request.app.state.store.get(job_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -147,7 +191,12 @@ async def verify_claim(job_id: str, claim_id: str, request: Request, authorizati
 
 
 @app.patch("/internal/v1/jobs/{job_id}/progress")
-async def progress(job_id: str, body: ProgressJob, request: Request, _: Annotated[None, Depends(_worker)]) -> dict:
+async def progress(
+    job_id: str,
+    body: ProgressJob,
+    request: Request,
+    _: Annotated[None, Depends(_worker)],
+) -> dict:
     previous = await request.app.state.store.get(job_id)
     if previous is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -157,22 +206,30 @@ async def progress(job_id: str, body: ProgressJob, request: Request, _: Annotate
         raise HTTPException(status_code=422, detail="Progress cannot decrease")
     if body.progress < previous.get("progress", 0):
         raise HTTPException(status_code=422, detail="Progress cannot decrease")
-    row = await request.app.state.store.progress(job_id, body.claim_id, body.model_dump(exclude={"claim_id"}))
+    row = await request.app.state.store.progress(
+        job_id, body.claim_id, body.model_dump(exclude={"claim_id"})
+    )
     if row is None:
         raise HTTPException(status_code=409, detail="Claim or progress conflict")
     return snapshot(row)
 
 
 @app.post("/internal/v1/jobs/{job_id}/complete")
-async def complete(job_id: str, body: FinishJob, request: Request, _: Annotated[None, Depends(_worker)]) -> dict:
-    row = await request.app.state.store.finish(job_id, body.claim_id, result_ref=body.result_ref)
+async def complete(
+    job_id: str, body: FinishJob, request: Request, _: Annotated[None, Depends(_worker)]
+) -> dict:
+    row = await request.app.state.store.finish(
+        job_id, body.claim_id, result_ref=body.result_ref
+    )
     if row is None:
         raise HTTPException(status_code=409, detail="Claim or terminal state conflict")
     return snapshot(row)
 
 
 @app.post("/internal/v1/jobs/{job_id}/fail")
-async def fail(job_id: str, body: FailJob, request: Request, _: Annotated[None, Depends(_worker)]) -> dict:
+async def fail(
+    job_id: str, body: FailJob, request: Request, _: Annotated[None, Depends(_worker)]
+) -> dict:
     row = await request.app.state.store.finish(job_id, body.claim_id, error=body.error)
     if row is None:
         raise HTTPException(status_code=409, detail="Claim or terminal state conflict")
@@ -192,18 +249,34 @@ async def stream_job(websocket: WebSocket, job_id: str) -> None:
             return
         job_id = str(row["id"])
         await websocket.accept()
-        await websocket.send_json({"event_type": "job.status_snapshot", **snapshot(row), "job_id": str(row["id"])})
+        await websocket.send_json(
+            {
+                "event_type": "job.status_snapshot",
+                **snapshot(row),
+                "job_id": str(row["id"]),
+            }
+        )
         last_sequence = int(row.get("sequence", 1))
         async for event in events:
             changed = event.get("result", event) if isinstance(event, dict) else None
-            changed_id = str(changed.get("id")) if isinstance(changed, dict) and changed.get("id") else None
+            changed_id = (
+                str(changed.get("id"))
+                if isinstance(changed, dict) and changed.get("id")
+                else None
+            )
             if changed_id is not None and changed_id != job_id:
                 continue
             row = await store.get(job_id)
             if row is None or int(row.get("sequence", 0)) <= last_sequence:
                 continue
             last_sequence = int(row["sequence"])
-            await websocket.send_json({"event_type": "job.status_changed", **snapshot(row), "job_id": str(row["id"])})
+            await websocket.send_json(
+                {
+                    "event_type": "job.status_changed",
+                    **snapshot(row),
+                    "job_id": str(row["id"]),
+                }
+            )
     except Exception:
         try:
             await websocket.close(code=1013, reason="Job status unavailable")

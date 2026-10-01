@@ -19,13 +19,18 @@ def record_id(value: Any) -> str:
 
 def snapshot(row: dict[str, Any]) -> dict[str, Any]:
     return {
-        "id": str(row["id"]), "owner": row["owner"], "type": row["type"],
-        "subject_id": row["subject_id"], "status": row["status"],
-        "step": row["step"], "progress": row["progress"],
+        "id": str(row["id"]),
+        "owner": row["owner"],
+        "type": row["type"],
+        "subject_id": row["subject_id"],
+        "status": row["status"],
+        "step": row["step"],
+        "progress": row["progress"],
         "total_pages": row.get("total_pages"),
         "processed_pages": row.get("processed_pages", 0),
         "sequence": row.get("sequence", 1),
-        "result_ref": row.get("result_ref"), "error": row.get("error"),
+        "result_ref": row.get("result_ref"),
+        "error": row.get("error"),
         "updated_at": str(row["updated_at"]) if row.get("updated_at") else None,
     }
 
@@ -39,8 +44,15 @@ class JobStore:
         client = AsyncSurreal(self.settings.surreal_url)
         try:
             await client.connect()
-            await client.signin({"username": self.settings.surreal_user, "password": self.settings.surreal_password})
-            await client.use(self.settings.surreal_namespace, self.settings.surreal_database)
+            await client.signin(
+                {
+                    "username": self.settings.surreal_user,
+                    "password": self.settings.surreal_password,
+                }
+            )
+            await client.use(
+                self.settings.surreal_namespace, self.settings.surreal_database
+            )
         except Exception:
             await client.close()
             raise
@@ -72,14 +84,18 @@ class JobStore:
         rows = await self.client.query(f"SELECT * FROM job:{rid};")
         return rows[0] if rows else None
 
-    async def find_creation(self, owner: str, creation_key: str) -> dict[str, Any] | None:
+    async def find_creation(
+        self, owner: str, creation_key: str
+    ) -> dict[str, Any] | None:
         rows = await self.client.query(
             "SELECT * FROM job WHERE owner = $owner AND creation_key = $key LIMIT 1;",
             {"owner": owner, "key": creation_key},
         )
         return rows[0] if rows else None
 
-    async def create(self, owner: str, type_: str, subject_id: str, creation_key: str) -> dict[str, Any]:
+    async def create(
+        self, owner: str, type_: str, subject_id: str, creation_key: str
+    ) -> dict[str, Any]:
         existing = await self.find_creation(owner, creation_key)
         if existing is not None:
             if existing["type"] != type_ or existing["subject_id"] != subject_id:
@@ -91,7 +107,12 @@ class JobStore:
                 f"CREATE job:{rid} CONTENT {{owner: $owner, type: $type, "
                 "subject_id: $subject, creation_key: $key, status: 'queued', "
                 "step: 'queued', progress: 0, processed_pages: 0, sequence: 1};",
-                {"owner": owner, "type": type_, "subject": subject_id, "key": creation_key},
+                {
+                    "owner": owner,
+                    "type": type_,
+                    "subject": subject_id,
+                    "key": creation_key,
+                },
             )
             return rows[0]
         except Exception:
@@ -104,7 +125,9 @@ class JobStore:
                 raise ValueError("creation key already belongs to another job")
             return existing
 
-    async def claim(self, job_id: str, claim_id: str, owner: str, type_: str) -> dict[str, Any] | None:
+    async def claim(
+        self, job_id: str, claim_id: str, owner: str, type_: str
+    ) -> dict[str, Any] | None:
         rid = record_id(job_id)
         if not _JOB_ID.fullmatch(rid):
             return None
@@ -119,14 +142,24 @@ class JobStore:
                 if rows:
                     return rows[0]
                 existing = await self.get(job_id)
-                return existing if existing and existing.get("status") == "running" and existing.get("claim_id") == claim_id and existing.get("owner") == owner and existing.get("type") == type_ else None
+                return (
+                    existing
+                    if existing
+                    and existing.get("status") == "running"
+                    and existing.get("claim_id") == claim_id
+                    and existing.get("owner") == owner
+                    and existing.get("type") == type_
+                    else None
+                )
             except Exception as error:
                 if "Transaction conflict" not in str(error) or attempt == 4:
                     raise
                 await asyncio.sleep(0.025 * 2**attempt)
         return None
 
-    async def progress(self, job_id: str, claim_id: str, changes: dict[str, Any]) -> dict[str, Any] | None:
+    async def progress(
+        self, job_id: str, claim_id: str, changes: dict[str, Any]
+    ) -> dict[str, Any] | None:
         rid = record_id(job_id)
         if not _JOB_ID.fullmatch(rid):
             return None
@@ -134,7 +167,12 @@ class JobStore:
         if not changes or set(changes) - fields:
             raise ValueError("Invalid progress fields")
         existing = await self.get(job_id)
-        if existing and existing.get("status") == "running" and existing.get("claim_id") == claim_id and all(existing.get(field) == value for field, value in changes.items()):
+        if (
+            existing
+            and existing.get("status") == "running"
+            and existing.get("claim_id") == claim_id
+            and all(existing.get(field) == value for field, value in changes.items())
+        ):
             return existing
         assignments = ", ".join(f"{field} = $changes.{field}" for field in changes)
         rows = await self.client.query(
@@ -145,27 +183,49 @@ class JobStore:
         )
         return rows[0] if rows else None
 
-    async def finish(self, job_id: str, claim_id: str, *, result_ref: str | None = None, error: str | None = None) -> dict[str, Any] | None:
+    async def finish(
+        self,
+        job_id: str,
+        claim_id: str,
+        *,
+        result_ref: str | None = None,
+        error: str | None = None,
+    ) -> dict[str, Any] | None:
         rid = record_id(job_id)
         if not _JOB_ID.fullmatch(rid):
             return None
         target = "failed" if error is not None else "completed"
         existing = await self.get(job_id)
-        if existing and existing.get("status") == target and existing.get("claim_id") == claim_id:
-            if (existing.get("result_ref") or None) == result_ref and (existing.get("error") or None) == error:
+        if (
+            existing
+            and existing.get("status") == target
+            and existing.get("claim_id") == claim_id
+        ):
+            if (existing.get("result_ref") or None) == result_ref and (
+                existing.get("error") or None
+            ) == error:
                 return existing
             return None
         rows = await self.client.query(
             f"UPDATE job:{rid} SET status = $status, step = $status, progress = 100, "
             "result_ref = $result_ref, error = $error, sequence += 1 "
             "WHERE status = 'running' AND claim_id = $claim_id RETURN AFTER;",
-            {"status": target, "claim_id": claim_id, "result_ref": result_ref, "error": error},
+            {
+                "status": target,
+                "claim_id": claim_id,
+                "result_ref": result_ref,
+                "error": error,
+            },
         )
         if rows:
             return rows[0]
         # A response can be lost after the update commits.
         existing = await self.get(job_id)
-        if existing and existing.get("status") == target and existing.get("claim_id") == claim_id:
+        if (
+            existing
+            and existing.get("status") == target
+            and existing.get("claim_id") == claim_id
+        ):
             return existing
         return None
 

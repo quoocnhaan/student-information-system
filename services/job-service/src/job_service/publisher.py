@@ -33,22 +33,43 @@ class JobPublisher:
 
     async def publish(self, row: dict) -> None:
         connection = self.connection
-        if connection is None or connection.is_closed or getattr(connection, "reconnecting", False):
-            self.logger.warning("broker_unavailable_for_job", extra={"job_id": str(row["id"])})
+        if (
+            connection is None
+            or connection.is_closed
+            or getattr(connection, "reconnecting", False)
+        ):
+            self.logger.warning(
+                "broker_unavailable_for_job", extra={"job_id": str(row["id"])}
+            )
             return
         channel = await connection.channel(publisher_confirms=False)
         try:
-            exchange = await channel.declare_exchange("jobs.v1", aio_pika.ExchangeType.DIRECT, durable=True)
-            dead = await channel.declare_exchange("jobs.dead", aio_pika.ExchangeType.TOPIC, durable=True)
+            exchange = await channel.declare_exchange(
+                "jobs.v1", aio_pika.ExchangeType.DIRECT, durable=True
+            )
+            dead = await channel.declare_exchange(
+                "jobs.dead", aio_pika.ExchangeType.TOPIC, durable=True
+            )
             dead_queue = await channel.declare_queue("jobs.dead", durable=True)
             await dead_queue.bind(dead, routing_key="#")
             key = f"{row['owner']}.{row['type']}"
-            queue = await channel.declare_queue(f"jobs.{key}", durable=True, arguments={"x-dead-letter-exchange": "jobs.dead"})
+            queue = await channel.declare_queue(
+                f"jobs.{key}",
+                durable=True,
+                arguments={"x-dead-letter-exchange": "jobs.dead"},
+            )
             await queue.bind(exchange, routing_key=key)
-            payload = {"version": 1, "owner": row["owner"], "type": row["type"], "job_id": str(row["id"])}
+            payload = {
+                "version": 1,
+                "owner": row["owner"],
+                "type": row["type"],
+                "job_id": str(row["id"]),
+            }
             message = aio_pika.Message(
-                json.dumps(payload).encode(), content_type="application/json",
-                delivery_mode=aio_pika.DeliveryMode.PERSISTENT, message_id=str(row["id"]),
+                json.dumps(payload).encode(),
+                content_type="application/json",
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                message_id=str(row["id"]),
             )
             await exchange.publish(message, routing_key=key, mandatory=True)
         finally:
@@ -57,7 +78,9 @@ class JobPublisher:
     async def replay(self) -> None:
         cursor = None
         while not self.stop.is_set():
-            rows = await self.store.queued_after(cursor, self.settings.replay_batch_size)
+            rows = await self.store.queued_after(
+                cursor, self.settings.replay_batch_size
+            )
             if not rows:
                 return
             for row in rows:
@@ -65,7 +88,9 @@ class JobPublisher:
                 try:
                     await self.publish(row)
                 except Exception:
-                    self.logger.exception("replay_publish_failed", extra={"job_id": str(row["id"])})
+                    self.logger.exception(
+                        "replay_publish_failed", extra={"job_id": str(row["id"])}
+                    )
                     if self.connection is None or self.connection.is_closed:
                         return
             if len(rows) < self.settings.replay_batch_size:
@@ -84,11 +109,15 @@ class JobPublisher:
                     reconnect = asyncio.create_task(self.reconnected.wait())
                     stopping = asyncio.create_task(self.stop.wait())
                     try:
-                        await asyncio.wait((reconnect, stopping), return_when=asyncio.FIRST_COMPLETED)
+                        await asyncio.wait(
+                            (reconnect, stopping), return_when=asyncio.FIRST_COMPLETED
+                        )
                     finally:
                         reconnect.cancel()
                         stopping.cancel()
-                        await asyncio.gather(reconnect, stopping, return_exceptions=True)
+                        await asyncio.gather(
+                            reconnect, stopping, return_exceptions=True
+                        )
                     if self.stop.is_set():
                         break
                     self.reconnected.clear()
