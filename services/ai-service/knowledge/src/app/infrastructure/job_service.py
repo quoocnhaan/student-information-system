@@ -23,13 +23,13 @@ class JobServiceClient:
     def headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.token}"}
 
-    async def create(self, document_id: str) -> dict:
+    async def create(self, *, job_type: str, subject_id: str, creation_key: str) -> dict:
         try:
             response = await self.client.post(
                 "/internal/v1/jobs", headers=self.headers(),
-                json={"owner": "knowledge", "type": "ocr_pdf", "subject_id": document_id, "creation_key": document_id},
+                json={"owner": "knowledge", "type": job_type, "subject_id": subject_id, "creation_key": creation_key},
             )
-            response.raise_for_status()
+            response.raise_for_status() #return API response code
             return response.json()
         except (httpx.HTTPError, ValueError) as error:
             raise JobServiceError("Central job creation failed") from error

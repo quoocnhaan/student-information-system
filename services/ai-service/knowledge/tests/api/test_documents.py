@@ -34,14 +34,15 @@ class FakeDatabase:
 class FakeJobClient:
     def __init__(self) -> None:
         self.jobs: dict[str, dict[str, object]] = {}
+        self.creation_keys: dict[str, str] = {}
 
-    async def create(self, document_id: str) -> dict[str, object]:
-        record_id = "job_" + document_id.split("doc_", 1)[1]
+    async def create(self, *, job_type: str, subject_id: str, creation_key: str) -> dict[str, object]:
+        record_id = "job_" + subject_id.split("doc_", 1)[1]
         job = {
             "id": f"job:{record_id}",
             "owner": "knowledge",
-            "type": "ocr_pdf",
-            "subject_id": document_id,
+            "type": job_type,
+            "subject_id": subject_id,
             "result_ref": None,
             "status": "queued",
             "step": "queued",
@@ -51,6 +52,7 @@ class FakeJobClient:
             "error": None,
         }
         self.jobs[job["id"]] = job
+        self.creation_keys[job["id"]] = creation_key
         return job
 
     async def get(self, job_id: str) -> dict[str, object] | None:
@@ -61,7 +63,7 @@ class FakeJobClient:
 
 
 class FailingJobClient(FakeJobClient):
-    async def create(self, document_id: str) -> dict[str, object]:
+    async def create(self, *, job_type: str, subject_id: str, creation_key: str) -> dict[str, object]:
         raise JobServiceError("Central job creation failed")
 
 def create_upload_client() -> tuple[TestClient, FakeObjectStore, FakeDatabase, FakeJobClient]:
@@ -92,6 +94,10 @@ def test_upload_pdf_stores_the_object_and_creates_a_processing_document() -> Non
     assert database.documents
     assert next(iter(database.documents.values()))["process_status"] == "processing"
     assert jobs.jobs
+    created_job = jobs.jobs[body["job_id"]]
+    assert created_job["type"] == "ocr_pdf"
+    assert created_job["subject_id"] == body["document_id"]
+    assert jobs.creation_keys[body["job_id"]] == body["document_id"]
 
     job_response = client.get(f"/v1/jobs/{body['job_id']}")
     assert job_response.status_code == 200

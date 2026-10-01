@@ -102,7 +102,9 @@ async def upload_pdf(
         ) from error
 
     try:
-        job = await request.app.state.job_client.create(document_id)
+        job = await request.app.state.job_client.create(
+            job_type="ocr_pdf", subject_id=document_id, creation_key=document_id
+        )
     except JobServiceError as error:
         # The client cannot distinguish a failed request from a response lost
         # after job creation. Keep the processing document and source so the
