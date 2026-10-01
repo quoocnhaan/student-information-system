@@ -3,6 +3,7 @@ import { scheduleByDate } from './mockData';
 import { formatDateKey } from './calendarUtils';
 
 
+
 interface TodayScheduleProps {
   selectedDate: Date;
 }
@@ -34,7 +35,7 @@ export default function TodaySchedule({
       <div className={styles.header}>
 
         <span className={styles.headerTitle}>
-          📅 Today's Schedule
+          Today's Schedule
         </span>
 
         <span className={styles.headerDate}>

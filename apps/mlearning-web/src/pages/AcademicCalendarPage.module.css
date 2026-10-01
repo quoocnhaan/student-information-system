@@ -5,10 +5,13 @@
 }
 
 .content {
+  background-color: hwb(0 100% 0% / 0.775);
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
+  border-radius: 15px;
   padding: 8px 20px 24px;
+  border: 1px solid #e5e7eb;
 }
 
 .main {
