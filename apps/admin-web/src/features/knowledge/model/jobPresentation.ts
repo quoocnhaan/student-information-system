@@ -4,6 +4,7 @@ const stepLabels: Record<string, string> = {
   queued: "Queued for processing",
   claimed: "Worker claimed the job",
   ocr: "Reading PDF pages",
+  correcting: "Correcting OCR pages",
   detecting_metadata: "Detecting metadata",
   saving_draft: "Saving OCR draft",
   retry_scheduled: "Retry scheduled",

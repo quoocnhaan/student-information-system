@@ -7,13 +7,16 @@ from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from app.api.v1.schemas.documents import (
     DocumentMetadataResponse,
     DocumentResultResponse,
     DocumentUploadAcceptedResponse,
+    ConfirmAcceptedResponse,
+    ConfirmRequest,
+    ChunkCorrectionRequest,
     OcrDraftResponse,
     OcrPageResponse,
     ReviewDraftUpdateRequest,
@@ -21,11 +24,11 @@ from app.api.v1.schemas.documents import (
 )
 from app.config import Settings, get_settings
 from app.dependencies import get_database, get_object_store
-from app.infrastructure.job_service import JobServiceError
 from app.infrastructure.minio import MinioObjectStore, ObjectStoreError
 from app.infrastructure.surreal import SurrealDatabase, SurrealDatabaseError
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+correction_router = APIRouter(prefix="/corrections", tags=["corrections"])
 _DOCUMENT_RECORD_ID = re.compile(r"doc_[0-9a-f]{32}")
 
 
@@ -36,12 +39,14 @@ _DOCUMENT_RECORD_ID = re.compile(r"doc_[0-9a-f]{32}")
 )
 async def upload_pdf(
     file: Annotated[UploadFile, File(description="PDF source document")],
+    background_tasks: BackgroundTasks,
     request: Request,
     database: Annotated[SurrealDatabase, Depends(get_database)],
     object_store: Annotated[MinioObjectStore, Depends(get_object_store)],
     settings: Annotated[Settings, Depends(get_settings)],
+    skip_llm_correction: Annotated[bool, Form()] = False,
 ) -> DocumentUploadAcceptedResponse:
-    """Persist a PDF and durable OCR job for the database-driven dispatcher."""
+    """Persist a PDF, document, and service-owned OCR job."""
 
     signature = await file.read(5)
     if signature != b"%PDF-":
@@ -70,6 +75,7 @@ async def upload_pdf(
         )
 
     record_id = f"doc_{uuid4().hex}"
+    job_record_id = f"job_{uuid4().hex}"
     document_id = f"document:{record_id}"
     object_key = f"documents/{record_id}/original.pdf"
     filename = Path(file.filename or "document.pdf").name
@@ -80,6 +86,7 @@ async def upload_pdf(
             "mime_type": "application/pdf",
         },
         "process_status": "processing",
+        "llm_correction": "skipped" if skip_llm_correction else "enabled",
         "status": "active",
     }
 
@@ -92,7 +99,7 @@ async def upload_pdf(
         ) from error
 
     try:
-        await database.create_document(record_id, document)
+        job = await database.create_document_with_job(record_id, document, job_record_id)
     except SurrealDatabaseError as error:
         # A connection can fail after a durable write reaches SurrealDB. Keep
         # the source object so conservative orphan cleanup can reconcile it.
@@ -101,20 +108,105 @@ async def upload_pdf(
             detail="Document metadata could not be saved",
         ) from error
 
-    try:
-        job = await request.app.state.job_client.create(
-            job_type="ocr_pdf", subject_id=document_id, creation_key=document_id
-        )
-    except JobServiceError as error:
-        # The client cannot distinguish a failed request from a response lost
-        # after job creation. Keep the processing document and source so the
-        # idempotent creation key and orphan cleanup can reconcile safely.
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="OCR job could not be created",
-        ) from error
-
+    publisher = getattr(request.app.state, "publisher", None)
+    if publisher is not None:
+        background_tasks.add_task(publisher.publish, job)
     return DocumentUploadAcceptedResponse(document_id=document_id, job_id=str(job["id"]))
+
+
+@router.post("/{document_id}/confirm", response_model=ConfirmAcceptedResponse, status_code=202)
+async def confirm_document(
+    document_id: str,
+    body: ConfirmRequest,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    database: Annotated[SurrealDatabase, Depends(get_database)],
+) -> ConfirmAcceptedResponse:
+    record_id = _document_record_id_or_none(document_id)
+    if record_id is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        job = await database.confirm_review(record_id, body.expected_revision)
+    except SurrealDatabaseError as error:
+        raise HTTPException(status_code=503, detail="Review could not be confirmed") from error
+    if job is None:
+        raise HTTPException(status_code=409, detail="Review is stale or not ready to confirm")
+    publisher = getattr(request.app.state, "publisher", None)
+    if publisher is not None and job["status"] == "queued":
+        background_tasks.add_task(publisher.publish, job)
+    return ConfirmAcceptedResponse(document_id=f"document:{record_id}", job_id=str(job["id"]))
+
+
+@router.get("/{document_id}/chunks")
+async def get_indexed_chunks(
+    document_id: str, database: Annotated[SurrealDatabase, Depends(get_database)],
+) -> dict:
+    record_id = _document_record_id_or_none(document_id)
+    if record_id is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if await database.get_document(record_id) is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    chunks = await database.indexed_chunks(record_id)
+    if chunks is None:
+        raise HTTPException(status_code=409, detail="Document is not indexed")
+    pages: dict[int, list[dict]] = {}
+    for chunk in chunks:
+        position = chunk["position"]
+        suggestion = chunk.get("suggestion")
+        pages.setdefault(int(position["page_start"]), []).append({
+            "id": str(chunk["id"]), "text": chunk["text"], "hierarchy": chunk["hierarchy"],
+            "chunk_index": position["chunk_index"], "page_start": position["page_start"],
+            "page_end": position["page_end"], "embedding_status": chunk.get("embedding_status", "ok"),
+            "updated_at": str(chunk.get("updated_at", "")),
+            "suggestion": ({"id": str(suggestion["id"]), "status": suggestion["status"],
+                            "base_text": suggestion["base_text"],
+                            "suggested_text": suggestion.get("suggested_text")}) if suggestion else None,
+        })
+    return {"document_id": f"document:{record_id}", "pages": [
+        {"page": page, "chunks": items} for page, items in sorted(pages.items())
+    ]}
+
+
+@router.post("/{document_id}/corrections", status_code=202)
+async def request_corrections(
+    document_id: str, body: ChunkCorrectionRequest, background_tasks: BackgroundTasks,
+    request: Request, database: Annotated[SurrealDatabase, Depends(get_database)],
+) -> dict:
+    record_id = _document_record_id_or_none(document_id)
+    if record_id is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    job = await database.request_chunk_correction(record_id, body.chunk_ids)
+    if job is None:
+        raise HTTPException(status_code=409, detail="Chunks are unavailable for correction")
+    publisher = getattr(request.app.state, "publisher", None)
+    if publisher is not None:
+        background_tasks.add_task(publisher.publish, job)
+    return {"job_id": str(job["id"])}
+
+
+@correction_router.post("/{suggestion_id}/accept", status_code=202)
+async def accept_correction(
+    suggestion_id: str, background_tasks: BackgroundTasks, request: Request,
+    database: Annotated[SurrealDatabase, Depends(get_database)],
+) -> dict:
+    outcome, job = await database.accept_suggestion(suggestion_id)
+    if outcome == "missing":
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+    if job is None:
+        raise HTTPException(status_code=409, detail="Suggestion is no longer applicable")
+    publisher = getattr(request.app.state, "publisher", None)
+    if publisher is not None:
+        background_tasks.add_task(publisher.publish, job)
+    return {"job_id": str(job["id"])}
+
+
+@correction_router.post("/{suggestion_id}/reject")
+async def reject_correction(
+    suggestion_id: str, database: Annotated[SurrealDatabase, Depends(get_database)],
+) -> dict:
+    if not await database.reject_suggestion(suggestion_id):
+        raise HTTPException(status_code=409, detail="Suggestion is no longer ready")
+    return {"status": "rejected"}
 
 
 @router.get("/{document_id}/result", response_model=DocumentResultResponse)
@@ -314,6 +406,7 @@ def _as_document_result(
             id=str(draft["id"]),
             status=str(draft["status"]),
             revision=int(draft.get("revision", 1)),
+            correction_status=draft.get("correction_status"),
             pages=[OcrPageResponse.model_validate(page) for page in pages],
         ),
     )

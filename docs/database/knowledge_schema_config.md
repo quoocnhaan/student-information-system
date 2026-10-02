@@ -39,7 +39,9 @@
 
 `program_scope.type`: `all | non_language_major | language_major | specific_programs`
 
-`process_status`: `processing | review | indexed | failed`
+`process_status`: `processing | review | indexing | indexed | failed`
+
+`llm_correction`: `enabled | skipped`; `embedding_model` records the model used for indexed chunks.
 
 `status`: `active | inactive`
 
@@ -66,7 +68,7 @@
 }
 ```
 
-`status`: `draft | confirmed`
+`status`: `draft | confirmed`. Draft pages retain `raw_text`, optional `corrected_text`, and optional `reviewed_text`; indexing selects `reviewed_text ?? corrected_text ?? raw_text` per page.
 
 ---
 
@@ -108,7 +110,9 @@
 }
 ```
 
-`embedding_text` = relevant hierarchy + chunk text.
+`embedding_text` = relevant hierarchy header lines (`Chương`, `Điều`, `Khoản`) followed by a blank line and chunk text. Every vector has 768 dimensions. `embedding_status` is `ok | stale`; `updated_at` changes when a chunk is edited. A stale chunk remains searchable with its previous vector until `reembed_chunk` succeeds.
+
+`correction_suggestion` stores `document_id`, `chunk_id`, `job_id`, `base_text`, optional `suggested_text`, and `status` (`pending | ready | accepted | rejected | outdated | failed`). Accepting a ready suggestion updates only the chunk, not the OCR draft, and queues re-embedding. Requests and accept/reject actions are available only for indexed documents.
 
 ---
 

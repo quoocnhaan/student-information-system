@@ -93,7 +93,7 @@ def test_completed_document_result_hides_object_key() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["ocr_draft"]["pages"] == [
-        {"page": 1, "raw_text": "Hello", "reviewed_text": None}
+        {"page": 1, "raw_text": "Hello", "reviewed_text": None, "corrected_text": None}
     ]
     assert body["ocr_draft"]["revision"] == 1
     assert "object_key" not in response.text
@@ -123,7 +123,7 @@ def test_reviewer_can_save_metadata_and_page_markdown() -> None:
     assert body["metadata"]["title"] == "Corrected regulations"
     assert body["ocr_draft"]["revision"] == 2
     assert body["ocr_draft"]["pages"] == [
-        {"page": 1, "raw_text": "Hello", "reviewed_text": "# Corrected"}
+        {"page": 1, "raw_text": "Hello", "reviewed_text": "# Corrected", "corrected_text": None}
     ]
 
 

@@ -1,1 +1,0 @@
-"""Shared background-job worker."""

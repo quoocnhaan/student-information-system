@@ -1,3 +1,5 @@
+Superseded by service-owned-jobs/README.md.
+
 # Central job service and shared worker plan
 
 ## Goal

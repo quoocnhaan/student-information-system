@@ -19,6 +19,7 @@ function websocketUrl(jobId: string): string {
 }
 
 export function useIngestionJob(jobId: string | undefined): IngestionViewState {
+  const [activeJobId, setActiveJobId] = useState(jobId);
   const [state, setState] = useState<IngestionViewState>({
     job: null,
     result: null,
@@ -28,12 +29,17 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
   });
   const jobRef = useRef<JobStatus | null>(null);
 
+  useEffect(() => setActiveJobId(jobId), [jobId]);
+
   const acceptJob = useCallback((next: JobStatus) => {
     if (jobRef.current?.id !== next.id) jobRef.current = null;
     if (jobRef.current !== null && next.sequence <= jobRef.current.sequence) return;
     const type = next.type ?? jobRef.current?.type;
     const resolved = type === undefined ? next : { ...next, type };
     jobRef.current = resolved;
+    if (resolved.status === "completed" && resolved.next_job_id && resolved.next_job_id !== resolved.id) {
+      setActiveJobId(resolved.next_job_id);
+    }
     setState((current) => ({
       ...current,
       job: resolved,
@@ -46,7 +52,7 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
   useEffect(() => {
     jobRef.current = null;
     setState({ job: null, result: null, connection: "connecting", loading: true, error: null });
-    if (!jobId) {
+    if (!activeJobId) {
       setState((current) => ({ ...current, loading: false, connection: "offline", error: new Error("A job ID is required.") }));
       return;
     }
@@ -60,7 +66,7 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
 
     const loadSnapshot = async () => {
       try {
-        const snapshot = await knowledgeClient.getJob(jobId, controller.signal);
+        const snapshot = await knowledgeClient.getJob(activeJobId, controller.signal);
         if (!cancelled) acceptJob(snapshot);
         return snapshot;
       } catch (error) {
@@ -88,7 +94,7 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
       pollTimer = undefined;
       setState((current) => ({ ...current, connection: "connecting" }));
-      socket = new WebSocket(websocketUrl(jobId));
+      socket = new WebSocket(websocketUrl(activeJobId));
       socket.onopen = () => {
         reconnectAttempts = 0;
         if (pollTimer !== undefined) window.clearTimeout(pollTimer);
@@ -133,10 +139,12 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
       if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
     };
-  }, [acceptJob, jobId]);
+  }, [acceptJob, activeJobId]);
 
   useEffect(() => {
-    if (!state.job || state.job.status !== "completed" || state.result !== null) return;
+    if (!state.job || state.job.next_job_id || state.result !== null ||
+      !["ocr", "correct"].includes(state.job.type ?? "") ||
+      !(state.job.status === "completed" || (state.job.status === "failed" && state.job.type === "correct"))) return;
     const controller = new AbortController();
     void knowledgeClient.getDocumentResult(state.job.document_id, controller.signal)
       .then((result) => setState((current) => ({ ...current, result })))

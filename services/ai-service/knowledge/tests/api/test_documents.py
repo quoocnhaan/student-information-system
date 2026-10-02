@@ -3,7 +3,6 @@ from io import BytesIO
 from fastapi.testclient import TestClient
 
 from app.dependencies import get_database, get_object_store
-from app.infrastructure.job_service import JobServiceError
 from app.main import create_app
 
 
@@ -21,65 +20,63 @@ class FakeObjectStore:
 class FakeDatabase:
     def __init__(self) -> None:
         self.documents: dict[str, dict[str, object]] = {}
+        self.jobs: dict[str, dict[str, object]] = {}
 
     async def create_document(
         self, record_id: str, document: dict[str, object]
     ) -> None:
         self.documents[record_id] = document
 
+    async def create_document_with_job(
+        self, record_id: str, document: dict[str, object], job_record_id: str
+    ) -> dict[str, object]:
+        self.documents[record_id] = document
+        job = {
+            "id": f"job:{job_record_id}", "type": "ocr_pdf",
+            "document_id": f"document:{record_id}", "status": "queued",
+            "step": "queued", "progress": 0, "processed_pages": 0,
+        }
+        self.jobs[job["id"]] = job
+        return job
+
+    async def get_job(self, job_id: str) -> dict[str, object] | None:
+        return self.jobs.get(job_id)
+
     async def delete_document(self, record_id: str) -> None:
         self.documents.pop(record_id, None)
 
 
-class FakeJobClient:
+
+class FakePublisher:
     def __init__(self) -> None:
-        self.jobs: dict[str, dict[str, object]] = {}
-        self.creation_keys: dict[str, str] = {}
+        self.published: list[dict[str, object]] = []
 
-    async def create(self, *, job_type: str, subject_id: str, creation_key: str) -> dict[str, object]:
-        record_id = "job_" + subject_id.split("doc_", 1)[1]
-        job = {
-            "id": f"job:{record_id}",
-            "owner": "knowledge",
-            "type": job_type,
-            "subject_id": subject_id,
-            "result_ref": None,
-            "status": "queued",
-            "step": "queued",
-            "progress": 0,
-            "total_pages": None,
-            "processed_pages": 0,
-            "error": None,
-        }
-        self.jobs[job["id"]] = job
-        self.creation_keys[job["id"]] = creation_key
-        return job
-
-    async def get(self, job_id: str) -> dict[str, object] | None:
-        return self.jobs.get(job_id)
+    async def publish(self, job: dict[str, object]) -> None:
+        self.published.append(job)
 
     async def close(self) -> None:
         pass
 
 
-class FailingJobClient(FakeJobClient):
-    async def create(self, *, job_type: str, subject_id: str, creation_key: str) -> dict[str, object]:
-        raise JobServiceError("Central job creation failed")
+class FailingPublisher(FakePublisher):
+    async def publish(self, job: dict[str, object]) -> None:
+        return None
 
-def create_upload_client() -> tuple[TestClient, FakeObjectStore, FakeDatabase, FakeJobClient]:
+def create_upload_client() -> tuple[TestClient, FakeObjectStore, FakeDatabase, FakePublisher]:
     app = create_app()
     object_store = FakeObjectStore()
     database = FakeDatabase()
     app.dependency_overrides[get_object_store] = lambda: object_store
     app.dependency_overrides[get_database] = lambda: database
-    return TestClient(app), object_store, database, FakeJobClient()
+    return TestClient(app), object_store, database, FakePublisher()
 
 
 def test_upload_pdf_stores_the_object_and_creates_a_processing_document() -> None:
     client, object_store, database, jobs = create_upload_client()
 
     with client:
-        client.app.state.job_client = jobs
+        client.app.state.database = database
+        client.app.state.publisher = jobs
         response = client.post(
             "/v1/documents",
             files={"file": ("regulations.pdf", b"%PDF-1.7 sample", "application/pdf")},
@@ -93,11 +90,11 @@ def test_upload_pdf_stores_the_object_and_creates_a_processing_document() -> Non
     assert len(object_store.objects) == 1
     assert database.documents
     assert next(iter(database.documents.values()))["process_status"] == "processing"
-    assert jobs.jobs
-    created_job = jobs.jobs[body["job_id"]]
+    assert database.jobs
+    created_job = database.jobs[body["job_id"]]
     assert created_job["type"] == "ocr_pdf"
-    assert created_job["subject_id"] == body["document_id"]
-    assert jobs.creation_keys[body["job_id"]] == body["document_id"]
+    assert created_job["document_id"] == body["document_id"]
+    assert jobs.published == [created_job]
 
     job_response = client.get(f"/v1/jobs/{body['job_id']}")
     assert job_response.status_code == 200
@@ -116,20 +113,21 @@ def test_upload_rejects_non_pdf_content() -> None:
     assert response.status_code == 415
 
 
-def test_upload_preserves_source_and_document_when_job_creation_is_ambiguous() -> None:
+def test_upload_succeeds_when_broker_is_unavailable() -> None:
     client, object_store, database, _ = create_upload_client()
 
     with client:
-        client.app.state.job_client = FailingJobClient()
+        client.app.state.database = database
+        client.app.state.publisher = FailingPublisher()
         response = client.post(
             "/v1/documents",
             files={"file": ("regulations.pdf", b"%PDF-1.7 sample", "application/pdf")},
         )
 
-    assert response.status_code == 503
-    assert response.json() == {"detail": "OCR job could not be created"}
+    assert response.status_code == 202
     assert len(object_store.objects) == 1
     assert len(database.documents) == 1
+    assert len(database.jobs) == 1
 
 
 def test_job_status_rejects_non_generated_record_ids() -> None:

@@ -16,6 +16,7 @@ class ProgramScopeType(StrEnum):
 class DocumentProcessStatus(StrEnum):
     PROCESSING = "processing"
     REVIEW = "review"
+    INDEXING = "indexing"
     INDEXED = "indexed"
     FAILED = "failed"
 
@@ -83,6 +84,7 @@ class OcrPage(BaseModel):
     page: int = Field(ge=1)
     raw_text: str
     reviewed_text: str | None = None
+    corrected_text: str | None = None
 
 
 class OcrDraftRecord(BaseModel):
@@ -91,6 +93,9 @@ class OcrDraftRecord(BaseModel):
     status: OcrDraftStatus
     revision: int = Field(default=1, ge=1)
     pages: list[OcrPage] = Field(default_factory=list)
+    correction_status: str | None = None
+    correction_model: str | None = None
+    correction_prompt_version: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -10,6 +10,7 @@ class JobStatusResponse(BaseModel):
     type: str
     document_id: str
     ocr_draft_id: str | None = None
+    next_job_id: str | None = None
     status: str
     step: str
     progress: int

@@ -15,6 +15,15 @@ class DocumentUploadAcceptedResponse(BaseModel):
     status: str = "processing"
 
 
+class ConfirmAcceptedResponse(BaseModel):
+    document_id: str
+    job_id: str
+
+
+class ConfirmRequest(BaseModel):
+    expected_revision: int = Field(ge=1)
+
+
 class SourceSummary(BaseModel):
     """Safe source fields exposed to the review UI."""
 
@@ -38,12 +47,14 @@ class OcrPageResponse(BaseModel):
     page: int
     raw_text: str
     reviewed_text: str | None = None
+    corrected_text: str | None = None
 
 
 class OcrDraftResponse(BaseModel):
     id: str
     status: str
     revision: int = Field(default=1, ge=1)
+    correction_status: str | None = None
     pages: list[OcrPageResponse]
 
 
@@ -86,3 +97,7 @@ class ReviewDraftUpdateRequest(BaseModel):
         if len(page_numbers) != len(set(page_numbers)):
             raise ValueError("page updates must contain unique page numbers")
         return self
+
+
+class ChunkCorrectionRequest(BaseModel):
+    chunk_ids: list[str] = Field(min_length=1, max_length=100)

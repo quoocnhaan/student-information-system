@@ -1,3 +1,5 @@
+Superseded by service-owned-jobs/README.md.
+
 # Extensible job routing plan
 
 ## Objective

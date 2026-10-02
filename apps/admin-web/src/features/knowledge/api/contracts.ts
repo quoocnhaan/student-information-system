@@ -23,6 +23,7 @@ export const jobStatusSchema = z.object({
   type: z.string().optional(),
   document_id: recordId,
   ocr_draft_id: recordId.nullable().optional(),
+  next_job_id: recordId.nullable().optional(),
   status: z.string(),
   step: z.string(),
   progress: z.number().int().min(0).max(100),
@@ -54,10 +55,12 @@ export const documentResultSchema = z.object({
     id: recordId,
     status: z.string(),
     revision: z.number().int().positive().default(1),
+    correction_status: z.enum(["pending", "completed", "failed", "skipped"]).nullable().optional(),
     pages: z.array(z.object({
       page: z.number().int().positive(),
       raw_text: z.string(),
       reviewed_text: z.string().nullable().optional(),
+      corrected_text: z.string().nullable().optional(),
     })),
   }),
 });
@@ -71,11 +74,26 @@ export const reviewDraftUpdateSchema = z.object({
   })),
 });
 
+export const jobAcceptedSchema = z.object({ job_id: recordId });
+export const indexedChunksSchema = z.object({
+  document_id: recordId,
+  pages: z.array(z.object({
+    page: z.number().int().positive(),
+    chunks: z.array(z.object({
+      id: recordId, text: z.string(), hierarchy: z.record(z.unknown()),
+      chunk_index: z.number().int(), page_start: z.number().int(), page_end: z.number().int(),
+      embedding_status: z.enum(["ok", "stale"]), updated_at: z.string(),
+      suggestion: z.object({ id: recordId, status: z.string(), base_text: z.string(), suggested_text: z.string().nullable().optional() }).nullable(),
+    })),
+  })),
+});
+
 export type UploadAccepted = z.infer<typeof uploadAcceptedSchema>;
 export type JobStatus = z.infer<typeof jobStatusSchema>;
 export type DocumentResult = z.infer<typeof documentResultSchema>;
 export type DocumentMetadata = z.infer<typeof documentMetadataSchema>;
 export type ReviewDraftUpdate = z.infer<typeof reviewDraftUpdateSchema>;
+export type IndexedChunks = z.infer<typeof indexedChunksSchema>;
 
 export class KnowledgeError extends Error {
   constructor(

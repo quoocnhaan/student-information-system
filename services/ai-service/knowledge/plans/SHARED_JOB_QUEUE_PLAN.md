@@ -1,3 +1,5 @@
+Superseded by service-owned-jobs/README.md.
+
 # Shared job queue plan
 
 ## Goal

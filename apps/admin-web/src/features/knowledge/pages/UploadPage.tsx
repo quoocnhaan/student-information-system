@@ -22,6 +22,7 @@ export function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [skipLlmCorrection, setSkipLlmCorrection] = useState(false);
   const [recent, setRecent] = useState<RecentIngestion[]>(loadRecent);
 
   const chooseFile = (next: File) => {
@@ -39,7 +40,7 @@ export function UploadPage() {
     setUploading(true);
     setError(null);
     try {
-      const accepted = await knowledgeClient.uploadPdf(file);
+      const accepted = await knowledgeClient.uploadPdf(file, undefined, skipLlmCorrection);
       const entry = { jobId: accepted.job_id, documentId: accepted.document_id, filename: file.name, createdAt: new Date().toISOString() };
       const nextRecent = [entry, ...recent.filter((item) => item.jobId !== entry.jobId)].slice(0, 8);
       localStorage.setItem("knowledge-recent-ingestions", JSON.stringify(nextRecent));
@@ -62,6 +63,7 @@ export function UploadPage() {
       <div className="card stack">
         <PdfDropzone disabled={uploading} onFile={chooseFile} />
         {file && <div className="selected-file"><span>{file.name}</span><span className="muted">{(file.size / 1024 / 1024).toFixed(2)} MiB</span></div>}
+        <label><input type="checkbox" checked={skipLlmCorrection} onChange={(event) => setSkipLlmCorrection(event.target.checked)} /> Skip LLM correction</label>
         {error && <p className="notice danger" role="alert">{error}</p>}
         <button className="primary-button" type="button" disabled={!file || uploading} onClick={() => void submit()}>
           {uploading ? "Uploading PDF…" : "Start OCR"}

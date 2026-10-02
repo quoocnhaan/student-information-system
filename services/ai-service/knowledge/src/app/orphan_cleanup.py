@@ -8,7 +8,6 @@ from prometheus_client import start_http_server
 from app.application.orphan_cleanup import OrphanCleanup
 from app.config import get_settings
 from app.infrastructure.minio import MinioObjectStore
-from app.infrastructure.job_service import JobServiceClient
 from app.infrastructure.surreal import SurrealDatabase
 from app.observability.logging import configure_logging, get_logger
 
@@ -27,7 +26,6 @@ async def run_orphan_cleanup() -> None:
     stop = asyncio.Event()
     _install_shutdown_handlers(stop)
     database = SurrealDatabase(settings)
-    job_client = JobServiceClient(settings)
     await database.connect()
     try:
         cleanup = OrphanCleanup(
@@ -36,7 +34,6 @@ async def run_orphan_cleanup() -> None:
             grace_seconds=settings.orphan_cleanup_grace_seconds,
             dry_run=settings.orphan_cleanup_dry_run,
             logger=logger,
-            job_client=job_client,
         )
         while not stop.is_set():
             await cleanup.run_once()
@@ -45,7 +42,6 @@ async def run_orphan_cleanup() -> None:
             except TimeoutError:
                 pass
     finally:
-        await job_client.close()
         await database.close()
 
 

@@ -1,3 +1,5 @@
+Superseded by service-owned-jobs/README.md.
+
 # Generic Knowledge job creation plan
 
 ## Objective

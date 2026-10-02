@@ -1,9 +1,12 @@
 import {
   documentResultSchema,
+  indexedChunksSchema,
+  jobAcceptedSchema,
   jobStatusSchema,
   KnowledgeError,
   type DocumentResult,
   type JobStatus,
+  type IndexedChunks,
   type ReviewDraftUpdate,
   type UploadAccepted,
   uploadAcceptedSchema,
@@ -34,9 +37,10 @@ async function responseJson(response: Response): Promise<unknown> {
 }
 
 export const knowledgeClient = {
-  async uploadPdf(file: File, signal?: AbortSignal): Promise<UploadAccepted> {
+  async uploadPdf(file: File, signal?: AbortSignal, skipLlmCorrection = false): Promise<UploadAccepted> {
     const form = new FormData();
     form.append("file", file);
+    form.append("skip_llm_correction", String(skipLlmCorrection));
     const body = await responseJson(await fetch("/v1/documents", { method: "POST", body: form, signal }));
     return uploadAcceptedSchema.parse(body);
   },
@@ -66,6 +70,35 @@ export const knowledgeClient = {
       },
     ));
     return documentResultSchema.parse(body);
+  },
+
+  async confirmDocument(documentId: string, expectedRevision: number): Promise<string> {
+    const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/confirm`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expected_revision: expectedRevision }),
+    }));
+    return jobAcceptedSchema.parse(body).job_id;
+  },
+
+  async getIndexedChunks(documentId: string): Promise<IndexedChunks> {
+    const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/chunks`));
+    return indexedChunksSchema.parse(body);
+  },
+
+  async requestCorrections(documentId: string, chunkIds: string[]): Promise<string> {
+    const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/corrections`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chunk_ids: chunkIds }),
+    }));
+    return jobAcceptedSchema.parse(body).job_id;
+  },
+
+  async acceptSuggestion(suggestionId: string): Promise<string> {
+    const body = await responseJson(await fetch(`/v1/corrections/${encodeURIComponent(suggestionId)}/accept`, { method: "POST" }));
+    return jobAcceptedSchema.parse(body).job_id;
+  },
+
+  async rejectSuggestion(suggestionId: string): Promise<void> {
+    await responseJson(await fetch(`/v1/corrections/${encodeURIComponent(suggestionId)}/reject`, { method: "POST" }));
   },
 
   getDocumentSourceUrl(documentId: string): string {

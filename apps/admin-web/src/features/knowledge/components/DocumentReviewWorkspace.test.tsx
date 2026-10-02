@@ -60,6 +60,19 @@ describe("DocumentReviewWorkspace", () => {
     expect(await screen.findByText("Review draft saved.")).toBeInTheDocument();
   });
 
+  it("saves pending edits before confirming the revised draft", async () => {
+    const saved = { ...result, ocr_draft: { ...result.ocr_draft, revision: 2 } };
+    const save = vi.spyOn(knowledgeClient, "saveDocumentReviewDraft").mockResolvedValue(saved);
+    const confirm = vi.spyOn(knowledgeClient, "confirmDocument").mockResolvedValue("job:job_index");
+    const onConfirmed = vi.fn();
+    render(<DocumentReviewWorkspace initialResult={result} onConfirmed={onConfirmed} />);
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Updated title" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and index" }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(result.document_id, 2));
+    expect(save).toHaveBeenCalledOnce();
+    expect(onConfirmed).toHaveBeenCalledWith("job:job_index");
+  });
+
   it("shows an undetected programme scope without converting it to all programmes", () => {
     render(<DocumentReviewWorkspace initialResult={{
       ...result,

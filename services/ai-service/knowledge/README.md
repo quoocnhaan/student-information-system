@@ -1,25 +1,21 @@
 # Knowledge API
 
-Knowledge owns source PDFs, document metadata, and OCR drafts. Background job records live in the separate job service database. The worker service owns OCR execution and receives the PDF through authenticated Knowledge callbacks; it has no Knowledge database or MinIO credentials.
+Knowledge owns source PDFs, document metadata, OCR drafts, and background jobs in one SurrealDB. The API publishes job IDs into the `knowledge` RabbitMQ vhost; worker processes run from the same image and access Knowledge's database and MinIO directly.
 
 ## Run locally
 
-From this directory, configure `.env` using `.env.example`, then run:
+Configure `.env` using `.env.example`, then run `docker compose up -d --build` from this directory. Knowledge is served at `http://localhost:8000` and the review UI at `http://localhost:5173`. The OCR worker calls LM Studio on the host at port 1234 by default.
 
-```powershell
-docker compose up -d --build
-```
+For the API workflow, see [Knowledge upload to OCR](../docs/UPLOAD_TO_OCR_PRESENTATION_GUIDE.md). For the shared architecture rules, see [background jobs](../../../docs/architecture/background-jobs.md). LM Studio must serve OCR, chat-correction, and 768-dimensional embedding models configured in `.env`.
 
-The stack serves Knowledge at `http://localhost:8000`, job service at `http://localhost:8010`, and the review UI at `http://localhost:5173`. The worker calls LM Studio on the host at port 1234 by default.
+## Job flow
 
-For the full API workflow, response outcomes, recovery model, and wire contract, read the canonical [Knowledge upload-to-OCR workflow](../docs/UPLOAD_TO_OCR_PRESENTATION_GUIDE.md). For service implementation details, see [job service](../../job-service/README.md) and [worker service](../../worker-service/README.md).
+PDF upload stores the source object, then creates the document and `ocr_pdf` job in one SurrealDB transaction. It publishes `{version, type, job_id}` after commit. The worker claims the job before acknowledging the message. OCR chains to `correct_ocr` unless the upload checked `skip_llm_correction`; correction failure still leaves raw OCR reviewable. A reviewer saves and confirms the draft; `index_document` chunks the reviewed/corrected/raw page text, embeds it, and atomically replaces the document's chunks. Indexed documents support `correct_chunks` suggestions and `reembed_chunk` after acceptance. A unique `(document_id, dedupe_key)` index prevents duplicate stages while correction and re-embed attempts receive unique keys.
 
-## Creating Knowledge jobs
+API flow: `POST /v1/documents` → `GET /v1/jobs/{id}` → `GET/PATCH /v1/documents/{id}/result|review-draft` → `POST /v1/documents/{id}/confirm` → `GET /v1/documents/{id}/chunks` → `POST /v1/documents/{id}/corrections` → `POST /v1/corrections/{id}/accept|reject`. The admin UI exposes the same flow. A stale suggestion never overwrites a newer chunk; the previous vector remains searchable until re-embedding completes.
 
-Knowledge producers call `JobServiceClient.create(job_type=..., subject_id=..., creation_key=...)`. The client supplies `owner="knowledge"`; each producer supplies its job type, subject, and a stable creation key. The PDF upload producer uses `ocr_pdf` and its document ID for both the subject and creation key.
-
-The Job Service deduplicates creation by `(owner, creation_key)`, across all job types for that owner. A new producer must use a distinct key for each operation and subject (and revision, if applicable), then reuse exactly that key on retries. Keys must be 1–128 characters from `A-Z`, `a-z`, `0-9`, `_`, `.`, `:`, and `-`. Before running a new type, register `knowledge:<type>` in `JOB_REGISTERED_TYPES` and provide an enabled worker handler. The existing Knowledge worker callbacks and public status response remain OCR-specific.
+New job types must be mapped in `app.jobs.routes.JOB_QUEUES` and registered in the worker pool for their queue. Queues represent workload profiles; worker replicas provide throughput.
 
 ## Existing installations
 
-Migrate or close all legacy Knowledge jobs before running `005_remove_local_jobs`. The migration removes only the old Knowledge `job` table. The Knowledge SurrealDB and MinIO volumes remain in place. In the local cutover, the old job table and queue were verified empty before the migration.
+For a deployment with central jobs, stop the old worker after in-flight jobs finish and stop the old job API. Run `python -m app.migrate_central_jobs` with `OLD_JOB_SURREAL_*` credentials to copy and verify every Knowledge job row. Start the Knowledge API to replay queued rows, then start `knowledge-worker-ocr`. Rows still `running` require operator review because there is no lease recovery. Fresh installations need no migration.

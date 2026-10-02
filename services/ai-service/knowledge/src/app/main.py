@@ -9,11 +9,10 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.v1.router import router as v1_router
-from app.api.internal_jobs import router as internal_jobs_router
 from app.config import get_settings
 from app.infrastructure.minio import MinioObjectStore
-from app.infrastructure.job_service import JobServiceClient
 from app.infrastructure.surreal import SurrealDatabase
+from app.jobs.publisher import JobPublisher
 from app.observability.logging import configure_logging, get_logger
 
 
@@ -24,7 +23,7 @@ async def lifespan(app: FastAPI):
     app.state.settings = settings
     database: SurrealDatabase | None = None
     app.state.object_store = MinioObjectStore(settings)
-    app.state.job_client = JobServiceClient(settings)
+    publisher: JobPublisher | None = None
 
     if settings.surreal_enabled:
         database = SurrealDatabase(settings)
@@ -32,11 +31,15 @@ async def lifespan(app: FastAPI):
         if settings.surreal_apply_schema_on_startup:
             await database.apply_schema()
         app.state.database = database
+        publisher = JobPublisher(database, settings)
+        publisher.start()
+        app.state.publisher = publisher
 
     try:
         yield
     finally:
-        await app.state.job_client.close()
+        if publisher is not None:
+            await publisher.close()
         if database is not None:
             await database.close()
 
@@ -90,7 +93,6 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(v1_router)
-    app.include_router(internal_jobs_router)
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics(request: Request) -> Response:

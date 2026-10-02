@@ -71,6 +71,10 @@ class Settings(BaseSettings):
             "LMSTUDIO_CHAT_MODEL", "KNOWLEDGE_LMSTUDIO_CHAT_MODEL"
         ),
     )
+    lmstudio_ocr_model: str = Field(
+        default="lightonocr-2-1b",
+        validation_alias=AliasChoices("LMSTUDIO_OCR_MODEL", "KNOWLEDGE_LMSTUDIO_OCR_MODEL"),
+    )
     lmstudio_embedding_model: str = Field(
         default="text-embedding-nomic-embed-text-v1.5",
         validation_alias=AliasChoices(
@@ -79,6 +83,12 @@ class Settings(BaseSettings):
     )
     max_upload_bytes: int = 50 * 1024 * 1024
     ocr_max_pages: int = 100
+    ocr_max_output_tokens: int = Field(default=4096, ge=1)
+    ocr_timeout_seconds: float = Field(default=60, gt=0)
+    correction_timeout_seconds: float = Field(default=120, gt=0)
+    chunk_max_tokens: int = Field(default=512, ge=1)
+    embedding_batch_size: int = Field(default=16, ge=1)
+    worker_queues: str = "ocr"
     orphan_cleanup_enabled: bool = False
     orphan_cleanup_grace_seconds: float = Field(default=86400.0, ge=0)
     orphan_cleanup_interval_seconds: float = Field(default=3600.0, gt=0)
@@ -88,9 +98,8 @@ class Settings(BaseSettings):
     # require this bearer token for WebSocket subscriptions.
     websocket_auth_token: str | None = None
     metrics_port: int | None = Field(default=None, ge=1, le=65535)
-    job_service_url: str = "http://localhost:8010"
-    job_service_owner_token: str = ""
-    worker_callback_token: str = ""
+    rabbitmq_url: str = "amqp://knowledge:knowledge@localhost:5672/knowledge"
+    job_replay_batch_size: int = Field(default=100, ge=1)
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="KNOWLEDGE_", extra="ignore")
 

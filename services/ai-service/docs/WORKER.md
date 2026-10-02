@@ -1,9 +1,7 @@
-# Worker service
+# Knowledge workers
 
-The independent [worker service](../../worker-service/README.md) consumes durable RabbitMQ queues. It validates a versioned `{version, owner, type, job_id}` envelope and selects an exact `(owner, type, version)` handler. Each handler has its own queue and consumer channel with prefetch one.
+`python -m app.worker` runs from the Knowledge image. Each worker pool consumes a workload queue in RabbitMQ's `knowledge` vhost, validates `{version, type, job_id}`, and claims the job in Knowledge's SurrealDB before acknowledging the message. Compose runs OCR (`ocr_pdf`), correction (`correct_ocr`, `correct_chunks`), and indexing (`index_document`, `reembed_chunk`) pools with prefetch one.
 
-The Knowledge OCR handler claims the job through job service, then ACKs the trigger. It fetches the PDF from an authenticated Knowledge endpoint, renders each page, calls LM Studio with a 60-second elapsed deadline per page request, and reports progress to job service. It sends ordered OCR text back to Knowledge. Knowledge stores the draft and moves the document to review before the worker completes the central job.
+The OCR handler reads the PDF from Knowledge's MinIO bucket, renders pages, and calls LM Studio with a 60-second elapsed deadline per page. It reports progress in the local job row. OCR then queues optional LLM correction, which falls back to raw text on failure. Confirmation queues indexing; indexing embeds 768-dimensional vectors in batches and atomically replaces chunks. Post-index correction writes suggestions only; acceptance changes the chunk and queues re-embedding. A failed re-embed leaves the chunk marked `stale` while the document remains indexed.
 
-Duplicate triggers cannot claim a running or terminal job and are acknowledged. Invalid or unsupported envelopes are dead-lettered. A caught OCR error marks the Knowledge document and central job failed without retry. If the worker dies after claim and ACK, the job can remain running because this design has no lease or automatic worker-death recovery.
-
-The worker has no SurrealDB or MinIO access. A second owner can add a handler and its own authenticated input/result callbacks without modifying the generic delivery loop.
+Duplicate triggers are acknowledged without processing. Invalid messages are dead-lettered. A worker death after claim and ACK can leave a job running; there is no lease recovery yet.
