@@ -8,25 +8,15 @@ services:
       - "3301:3306"
     volumes:
       - ./academic_activity.sql:/docker-entrypoint-initdb.d/academic_activity.sql
-      - mysql_data:/var/lib/mysql
     networks:
       - sis_network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   academic-service:
     build:
       context: ./services/academic-service
     container_name: academic_service_app
-    image: phuctran21/academic-service:latest
     ports:
       - "8080:8080"
-    depends_on:
-      mysqldb:
-        condition: service_healthy
     environment:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysqldb:3306/academic_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
@@ -37,17 +27,14 @@ services:
       - JWT_EXPIRATION=${JWT_EXPIRATION:-14400000}
     networks:
       - sis_network
+    restart: on-failure
 
   activity-service:
     build:
-      context: ./services/activity-service 
+      context: ./services/activity-service
     container_name: activity_service_app
-    image: phuctran21/activity-service:latest
     ports:
       - "8081:8080"
-    depends_on:
-      mysqldb:
-        condition: service_healthy
     environment:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysqldb:3306/activity_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
@@ -58,11 +45,8 @@ services:
       - JWT_EXPIRATION=${JWT_EXPIRATION:-14400000}
     networks:
       - sis_network
-
-volumes:
-  mysql_data:
+    restart: on-failure
 
 networks:
   sis_network:
-    driver: bridge 
-
+    driver: bridge
