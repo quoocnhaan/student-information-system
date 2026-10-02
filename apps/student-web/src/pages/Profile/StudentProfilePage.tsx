@@ -3,7 +3,6 @@ import {
   ChevronRight,
   GraduationCap,
   Layers,
-  PieChart,
   BookOpen,
   User,
   Book,
@@ -11,8 +10,9 @@ import {
   FileText,
   TrendingUp,
   Search,
-  Edit3,
   ExternalLink,
+  CalendarCheck,
+  Star,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -124,9 +124,6 @@ export default function StudentProfilePage() {
               <div>
                 <p className="text-slate-500 font-medium mb-1">GPA hiện tại</p>
                 <h3 className="text-3xl font-bold text-slate-800 mb-1">3.26</h3>
-                <span className="text-emerald-500 text-sm font-medium">
-                  ↑ 0.12 so với kỳ trước
-                </span>
               </div>
             </div>
           </div>
@@ -145,7 +142,7 @@ export default function StudentProfilePage() {
                   65 / 120
                 </h3>
                 <div className="w-full">
-                  <div className="w-full bg-slate-100 rounded-full h-2.5">
+                  {/* <div className="w-full bg-slate-100 rounded-full h-2.5">
                     <div
                       className="bg-blue-600 h-2.5 rounded-full"
                       style={{ width: "54%" }}
@@ -153,7 +150,7 @@ export default function StudentProfilePage() {
                   </div>
                   <div className="text-right text-xs font-bold text-slate-600 mt-1">
                     54%
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>
@@ -161,28 +158,15 @@ export default function StudentProfilePage() {
 
           {/* Progress */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center">
-            <div className="flex items-start gap-4 mb-2">
+            {/* <div className="flex items-start gap-4 mb-2">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-50 text-emerald-500 shrink-0">
                 <PieChart className="w-6 h-6" />
               </div>
               <div className="w-full">
-                <p className="text-slate-500 font-medium mb-1">
-                  Tiến độ chương trình
-                </p>
-                <h3 className="text-3xl font-bold text-slate-800 mb-3">54%</h3>
-                <div className="w-full">
-                  <div className="w-full bg-slate-100 rounded-full h-2.5">
-                    <div
-                      className="bg-emerald-500 h-2.5 rounded-full"
-                      style={{ width: "54%" }}
-                    ></div>
-                  </div>
-                </div>
+                <p className="text-slate-500 font-medium mb-1">Từ từ tính</p>
               </div>
             </div>
-            <p className="text-slate-500 text-xs text-right mt-2">
-              Còn lại 55 tín chỉ
-            </p>
+            <p className="text-slate-500 text-xs text-right mt-2">Khê lắm</p> */}
           </div>
 
           {/* Current Courses */}
@@ -260,8 +244,6 @@ export default function StudentProfilePage() {
               <span className="font-medium text-slate-800 flex-1">Nghệ An</span>
             </div>
           </div>
-
-
         </div>
 
         {/* Thông tin học tập */}
@@ -336,7 +318,7 @@ export default function StudentProfilePage() {
         <div className="flex flex-col gap-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-blue-600 text-xl font-bold">⚡</span>
+              <Star className="w-5 h-5 text-blue-600" />
               <h3 className="font-bold text-slate-800 text-lg">
                 Tiện ích nhanh
               </h3>
@@ -348,7 +330,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <i className="fa-regular fa-calendar-check text-blue-500 text-lg w-5 text-center"></i>
+                  <CalendarCheck className="w-5 h-5 text-blue-500 shrink-0" />
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Lịch học hôm nay
                   </span>
@@ -360,7 +342,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <i className="fa-solid fa-book-open text-blue-500 text-lg w-5 text-center"></i>
+                  <BookOpen className="w-5 h-5 text-blue-500 shrink-0" />
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Đăng ký môn học
                   </span>
@@ -372,7 +354,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <i className="fa-solid fa-magnifying-glass text-blue-500 text-lg w-5 text-center"></i>
+                  <Search className="w-5 h-5 text-blue-500 shrink-0" />
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Tra cứu điểm
                   </span>
@@ -384,7 +366,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <i className="fa-regular fa-calendar-days text-blue-500 text-lg w-5 text-center"></i>
+                  <Calendar className="w-5 h-5 text-blue-500 shrink-0" />
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Xem thời khóa biểu
                   </span>
@@ -396,7 +378,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <i className="fa-regular fa-file-lines text-blue-500 text-lg w-5 text-center"></i>
+                  <FileText className="w-5 h-5 text-blue-500 shrink-0" />
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Xem lịch thi
                   </span>
@@ -408,7 +390,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <i className="fa-solid fa-chart-line text-blue-500 text-lg w-5 text-center"></i>
+                  <TrendingUp className="w-5 h-5 text-blue-500 shrink-0" />
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Xem tiến độ học tập
                   </span>

@@ -3,8 +3,6 @@ import StatCards from "./components/StatCards";
 import TodayClasses from "./components/TodayClasses";
 import NotificationsList from "./components/NotificationsList";
 import UpcomingExams from "./components/UpcomingExams";
-import StudyProgress from "./components/StudyProgress";
-import CurrentSemesterCourses from "./components/CurrentSemesterCourses";
 
 export default function DashboardPage() {
   return (
@@ -26,12 +24,6 @@ export default function DashboardPage() {
 
         {/* Column 3 */}
         <UpcomingExams />
-
-        {/* Column 4 */}
-        <StudyProgress />
-
-        {/* Column 5 */}
-        <CurrentSemesterCourses />
 
       </div>
     </div>

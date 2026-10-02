@@ -7,7 +7,6 @@ import {
   FileText,
   BarChart2,
   TrendingUp,
-  Bell,
   LogOut,
   GraduationCap,
 } from "lucide-react";
@@ -63,9 +62,9 @@ export default function Sidebar() {
                 )}
               />
               <span className="flex-1">{item.name}</span>
-              {item.badge && (
+              {(item as any).badge && (
                 <span className="bg-red-500 text-white text-[11px] font-bold rounded-full w-[22px] h-[22px] flex items-center justify-center">
-                  {item.badge}
+                  {(item as any).badge}
                 </span>
               )}
             </Link>

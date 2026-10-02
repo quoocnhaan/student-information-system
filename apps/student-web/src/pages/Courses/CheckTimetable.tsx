@@ -1,6 +1,5 @@
 import {
   ArrowLeft,
-  Check,
   CheckCircle2,
   MoreHorizontal,
   Calendar,

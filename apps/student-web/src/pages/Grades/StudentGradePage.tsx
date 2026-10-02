@@ -2,12 +2,9 @@ import {
   GraduationCap, 
   Calendar,
   ChevronDown,
-  ChevronRight,
-  BookOpen
 } from "lucide-react";
-import clsx from "clsx";
 
-const tabs = ["Tổng quan", "Chi tiết điểm", "Điểm chuyên cần", "GPA"];
+
 
 const courses = [
   { id: 1, code: "IT101", name: "Lập trình hướng đối tượng", credits: 3.5, midterm: 8.5, final: 8.0, total: 8.2, gpa: 3.5 },
@@ -57,7 +54,6 @@ export default function StudentGradePage() {
             <p className="text-slate-500 font-medium mb-1">Tổng số môn A</p>
             <div className="flex items-baseline gap-2">
               <h3 className="text-3xl font-bold text-blue-600">4</h3>
-              <span className="text-slate-400 font-medium">(57%)</span>
             </div>
           </div>
         </div>
@@ -72,7 +68,6 @@ export default function StudentGradePage() {
             <p className="text-slate-500 font-medium mb-1">Tổng số môn B</p>
             <div className="flex items-baseline gap-2">
               <h3 className="text-3xl font-bold text-emerald-600">2</h3>
-              <span className="text-slate-400 font-medium">(29%)</span>
             </div>
           </div>
         </div>
@@ -87,7 +82,6 @@ export default function StudentGradePage() {
             <p className="text-slate-500 font-medium mb-1">Tổng số môn C</p>
             <div className="flex items-baseline gap-2">
               <h3 className="text-3xl font-bold text-orange-600">1</h3>
-              <span className="text-slate-400 font-medium">(14%)</span>
             </div>
           </div>
         </div>
@@ -105,27 +99,7 @@ export default function StudentGradePage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-slate-200 mt-2">
-        <nav className="flex gap-8">
-          {tabs.map((tab, idx) => (
-            <button
-              key={idx}
-              className={clsx(
-                "pb-4 font-semibold text-[15px] relative transition-colors",
-                idx === 0 
-                  ? "text-blue-600" 
-                  : "text-slate-500 hover:text-slate-700"
-              )}
-            >
-              {tab}
-              {idx === 0 && (
-                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-600 rounded-t-full"></div>
-              )}
-            </button>
-          ))}
-        </nav>
-      </div>
+
 
       {/* Courses Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -140,14 +114,13 @@ export default function StudentGradePage() {
                 <th className="font-semibold py-4 px-6 w-24">Mã môn</th>
                 <th className="font-semibold py-4 px-6">Tên môn học</th>
                 <th className="font-semibold py-4 px-6 text-center">Tín chỉ</th>
-                <th className="font-semibold py-4 px-6 text-center">
-                  Điểm quá trình<br/><span className="text-xs font-normal">(40%)</span>
+                <th className="font-semibold py-4 px-6 text-center whitespace-nowrap">
+                  Điểm quá trình (40%)
                 </th>
-                <th className="font-semibold py-4 px-6 text-center">
-                  Điểm thi<br/><span className="text-xs font-normal">(60%)</span>
+                <th className="font-semibold py-4 px-6 text-center whitespace-nowrap">
+                  Điểm thi (60%)
                 </th>
                 <th className="font-semibold py-4 px-6 text-center">Điểm tổng kết</th>
-                <th className="font-semibold py-4 px-6 text-center">GPA</th>
               </tr>
             </thead>
             <tbody className="text-[14px]">
@@ -160,9 +133,6 @@ export default function StudentGradePage() {
                   <td className="py-4 px-6 text-center text-slate-600 font-medium">{course.midterm.toFixed(1)}</td>
                   <td className="py-4 px-6 text-center text-slate-600 font-medium">{course.final.toFixed(1)}</td>
                   <td className="py-4 px-6 text-center font-bold text-slate-800">{course.total.toFixed(1)}</td>
-                  <td className="py-4 px-6 text-center font-bold text-purple-600">
-                    {course.gpa.toFixed(1)}
-                  </td>
                 </tr>
               ))}
             </tbody>

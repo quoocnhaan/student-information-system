@@ -4,7 +4,6 @@ import {
   Clock,
   ArrowRight,
   Info,
-  ClipboardList,
   ChevronDown,
 } from "lucide-react";
 import { Link } from "react-router-dom";
