@@ -261,12 +261,7 @@ export default function StudentProfilePage() {
             </div>
           </div>
 
-          <div className="mt-8 flex justify-end">
-            <button className="flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-100 transition-colors">
-              <Edit3 className="w-4 h-4" />
-              Chỉnh sửa
-            </button>
-          </div>
+
         </div>
 
         {/* Thông tin học tập */}
@@ -353,7 +348,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-blue-500" />
+                  <i className="fa-regular fa-calendar-check text-blue-500 text-lg w-5 text-center"></i>
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Lịch học hôm nay
                   </span>
@@ -365,7 +360,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <BookOpen className="w-5 h-5 text-blue-500" />
+                  <i className="fa-solid fa-book-open text-blue-500 text-lg w-5 text-center"></i>
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Đăng ký môn học
                   </span>
@@ -377,7 +372,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <Search className="w-5 h-5 text-blue-500" />
+                  <i className="fa-solid fa-magnifying-glass text-blue-500 text-lg w-5 text-center"></i>
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Tra cứu điểm
                   </span>
@@ -389,7 +384,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-blue-500" />
+                  <i className="fa-regular fa-calendar-days text-blue-500 text-lg w-5 text-center"></i>
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Xem thời khóa biểu
                   </span>
@@ -401,7 +396,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-blue-500" />
+                  <i className="fa-regular fa-file-lines text-blue-500 text-lg w-5 text-center"></i>
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Xem lịch thi
                   </span>
@@ -413,7 +408,7 @@ export default function StudentProfilePage() {
                 className="flex items-center justify-between p-3 hover:bg-blue-50 rounded-xl transition-colors group border border-transparent hover:border-blue-100"
               >
                 <div className="flex items-center gap-3">
-                  <TrendingUp className="w-5 h-5 text-blue-500" />
+                  <i className="fa-solid fa-chart-line text-blue-500 text-lg w-5 text-center"></i>
                   <span className="font-medium text-slate-700 group-hover:text-blue-700">
                     Xem tiến độ học tập
                   </span>

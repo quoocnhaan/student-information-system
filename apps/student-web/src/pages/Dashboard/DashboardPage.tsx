@@ -5,7 +5,6 @@ import NotificationsList from "./components/NotificationsList";
 import UpcomingExams from "./components/UpcomingExams";
 import StudyProgress from "./components/StudyProgress";
 import CurrentSemesterCourses from "./components/CurrentSemesterCourses";
-import TodoList from "./components/TodoList";
 
 export default function DashboardPage() {
   return (
@@ -34,9 +33,6 @@ export default function DashboardPage() {
         {/* Column 5 */}
         <CurrentSemesterCourses />
 
-        {/* Column 6 */}
-        <TodoList />
-        
       </div>
     </div>
   );

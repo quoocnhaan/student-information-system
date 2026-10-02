@@ -21,7 +21,6 @@ const navItems = [
   { name: "Lịch thi", path: "/exam-schedule", icon: FileText },
   { name: "Kết quả học tập", path: "/results", icon: BarChart2 },
   { name: "Tiến độ học tập", path: "/progress", icon: TrendingUp },
-  { name: "Thông báo", path: "/notifications", icon: Bell, badge: 3 },
 ];
 
 export default function Sidebar() {
@@ -40,9 +39,10 @@ export default function Sidebar() {
 
       <nav className="flex-1 px-4 flex flex-col gap-1.5">
         {navItems.map((item) => {
-          const isActive = item.path === '/' 
-            ? location.pathname === '/' 
-            : location.pathname.startsWith(item.path);
+          const isActive =
+            item.path === "/"
+              ? location.pathname === "/"
+              : location.pathname.startsWith(item.path);
           return (
             <Link
               key={item.path}

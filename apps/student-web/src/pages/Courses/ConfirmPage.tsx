@@ -25,41 +25,6 @@ export default function ConfirmPage() {
         </p>
       </div>
 
-      {/* Stepper */}
-      <div className="flex items-center justify-center mb-10 w-full">
-        <div className="flex items-center w-full max-w-4xl justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center">
-              <Check className="w-5 h-5" />
-            </div>
-            <span className="font-medium text-slate-700 text-sm hidden md:block">Chọn học kỳ</span>
-          </div>
-          <div className="flex-1 h-[2px] bg-slate-200 mx-4 max-w-[100px]"></div>
-          
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center">
-              <Check className="w-5 h-5" />
-            </div>
-            <span className="font-medium text-slate-700 text-sm hidden md:block">Chọn môn học</span>
-          </div>
-          <div className="flex-1 h-[2px] bg-slate-200 mx-4 max-w-[100px]"></div>
-
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center">
-              <Check className="w-5 h-5" />
-            </div>
-            <span className="font-medium text-slate-700 text-sm hidden md:block">Kiểm tra lịch</span>
-          </div>
-          <div className="flex-1 h-[2px] bg-slate-200 mx-4 max-w-[100px]"></div>
-
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold shadow-md shadow-blue-500/30">
-              4
-            </div>
-            <span className="font-bold text-slate-900 text-sm hidden md:block">Xác nhận đăng ký</span>
-          </div>
-        </div>
-      </div>
 
       {/* Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

@@ -7,24 +7,16 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 
-const tabs = ["Tổng quan", "Chi tiết điểm", "Điểm chuyên cần", "Xếp loại"];
+const tabs = ["Tổng quan", "Chi tiết điểm", "Điểm chuyên cần", "GPA"];
 
 const courses = [
-  { id: 1, code: "IT101", name: "Lập trình hướng đối tượng", credits: 3.5, midterm: 8.5, final: 8.0, total: 8.2, rank: "Giỏi", rankColor: "bg-emerald-100 text-emerald-700" },
-  { id: 2, code: "IT102", name: "Cấu trúc dữ liệu và giải thuật", credits: 3.5, midterm: 8.8, final: 8.5, total: 8.7, rank: "Giỏi", rankColor: "bg-emerald-100 text-emerald-700" },
-  { id: 3, code: "IT103", name: "Cơ sở dữ liệu", credits: 3.0, midterm: 8.0, final: 7.5, total: 7.8, rank: "Khá", rankColor: "bg-blue-100 text-blue-700" },
-  { id: 4, code: "IT104", name: "Mạng máy tính", credits: 3.0, midterm: 7.5, final: 7.0, total: 7.2, rank: "Khá", rankColor: "bg-blue-100 text-blue-700" },
-  { id: 5, code: "IT105", name: "Hệ điều hành", credits: 3.0, midterm: 8.7, final: 8.8, total: 8.8, rank: "Giỏi", rankColor: "bg-emerald-100 text-emerald-700" },
-  { id: 6, code: "IT106", name: "Phát triển web", credits: 3.0, midterm: 9.0, final: 8.5, total: 8.8, rank: "Giỏi", rankColor: "bg-emerald-100 text-emerald-700" },
-  { id: 7, code: "IT107", name: "Trí tuệ nhân tạo", credits: 3.0, midterm: 6.5, final: 5.5, total: 6.0, rank: "Trung bình", rankColor: "bg-orange-100 text-orange-700" },
-];
-
-const quizzes = [
-  { id: 1, subject: "Lập trình hướng đối tượng", name: "Quiz 1 - Chương 1", time: "10/08/2025 10:30", score: 9.0, scoreColor: "bg-emerald-100 text-emerald-700" },
-  { id: 2, subject: "Cấu trúc dữ liệu và giải thuật", name: "Quiz 1 - Bài tập 1", time: "22/08/2025 23:59", score: 8.5, scoreColor: "bg-emerald-100 text-emerald-700" },
-  { id: 3, subject: "Cơ sở dữ liệu", name: "Quiz 2 - Cây nhị phân", time: "05/09/2025 09:15", score: 7.5, scoreColor: "bg-blue-100 text-blue-700" },
-  { id: 4, subject: "Mạng máy tính", name: "Quiz 2 - Định tuyến", time: "19/09/2025 23:59", score: 9.5, scoreColor: "bg-emerald-100 text-emerald-700" },
-  { id: 5, subject: "Trí tuệ nhân tạo", name: "Quiz 1 - Logic", time: "28/09/2025 08:00", score: 8.5, scoreColor: "bg-emerald-100 text-emerald-700" },
+  { id: 1, code: "IT101", name: "Lập trình hướng đối tượng", credits: 3.5, midterm: 8.5, final: 8.0, total: 8.2, gpa: 3.5 },
+  { id: 2, code: "IT102", name: "Cấu trúc dữ liệu và giải thuật", credits: 3.5, midterm: 8.8, final: 8.5, total: 8.7, gpa: 4.0 },
+  { id: 3, code: "IT103", name: "Cơ sở dữ liệu", credits: 3.0, midterm: 8.0, final: 7.5, total: 7.8, gpa: 3.0 },
+  { id: 4, code: "IT104", name: "Mạng máy tính", credits: 3.0, midterm: 7.5, final: 7.0, total: 7.2, gpa: 3.0 },
+  { id: 5, code: "IT105", name: "Hệ điều hành", credits: 3.0, midterm: 8.7, final: 8.8, total: 8.8, gpa: 4.0 },
+  { id: 6, code: "IT106", name: "Phát triển web", credits: 3.0, midterm: 9.0, final: 8.5, total: 8.8, gpa: 4.0 },
+  { id: 7, code: "IT107", name: "Trí tuệ nhân tạo", credits: 3.0, midterm: 6.5, final: 5.5, total: 6.0, gpa: 2.0 },
 ];
 
 export default function StudentGradePage() {
@@ -155,7 +147,7 @@ export default function StudentGradePage() {
                   Điểm thi<br/><span className="text-xs font-normal">(60%)</span>
                 </th>
                 <th className="font-semibold py-4 px-6 text-center">Điểm tổng kết</th>
-                <th className="font-semibold py-4 px-6 text-center">Xếp loại</th>
+                <th className="font-semibold py-4 px-6 text-center">GPA</th>
               </tr>
             </thead>
             <tbody className="text-[14px]">
@@ -168,10 +160,8 @@ export default function StudentGradePage() {
                   <td className="py-4 px-6 text-center text-slate-600 font-medium">{course.midterm.toFixed(1)}</td>
                   <td className="py-4 px-6 text-center text-slate-600 font-medium">{course.final.toFixed(1)}</td>
                   <td className="py-4 px-6 text-center font-bold text-slate-800">{course.total.toFixed(1)}</td>
-                  <td className="py-4 px-6 text-center">
-                    <span className={clsx("px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap", course.rankColor)}>
-                      {course.rank}
-                    </span>
+                  <td className="py-4 px-6 text-center font-bold text-purple-600">
+                    {course.gpa.toFixed(1)}
                   </td>
                 </tr>
               ))}
@@ -180,44 +170,7 @@ export default function StudentGradePage() {
         </div>
       </div>
 
-      {/* Quizzes Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-2">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="font-bold text-slate-800 text-lg">Kết quả kiểm tra thường xuyên (Quiz)</h3>
-          <a href="#" className="text-blue-600 text-sm font-medium hover:underline flex items-center gap-1.5 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">
-            <BookOpen className="w-4 h-4" />
-            Tất cả môn học <ChevronRight className="w-4 h-4" />
-          </a>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 text-sm">
-                <th className="font-semibold py-4 px-6 w-16 text-center">STT</th>
-                <th className="font-semibold py-4 px-6 w-1/4">Môn học</th>
-                <th className="font-semibold py-4 px-6">Bài kiểm tra</th>
-                <th className="font-semibold py-4 px-6">Thời gian nộp</th>
-                <th className="font-semibold py-4 px-6 text-center w-32">Điểm</th>
-              </tr>
-            </thead>
-            <tbody className="text-[14px]">
-              {quizzes.map((quiz) => (
-                <tr key={quiz.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                  <td className="py-4 px-6 text-center text-slate-500">{quiz.id}</td>
-                  <td className="py-4 px-6 font-medium text-slate-700">{quiz.subject}</td>
-                  <td className="py-4 px-6 text-slate-600">{quiz.name}</td>
-                  <td className="py-4 px-6 text-slate-500">{quiz.time}</td>
-                  <td className="py-4 px-6 text-center">
-                    <span className={clsx("px-3 py-1 rounded-full text-xs font-bold", quiz.scoreColor)}>
-                      {quiz.score.toFixed(1)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+
 
     </div>
   );

@@ -1,14 +1,13 @@
 import { BookOpen, ChevronRight } from "lucide-react";
-import clsx from "clsx";
 import { Link } from "react-router-dom";
 
 const subjects = [
-  { code: "IT101", name: "Lập trình hướng đối tượng", grade: 8.2 },
-  { code: "IT102", name: "Cấu trúc dữ liệu và giải thuật", grade: 8.7 },
-  { code: "DB101", name: "Cơ sở dữ liệu", grade: 7.8 },
-  { code: "NET102", name: "Mạng máy tính", grade: 7.2 },
-  { code: "OS101", name: "Hệ điều hành", grade: 8.8 },
-  { code: "AI101", name: "Trí tuệ nhân tạo", grade: 6.0 },
+  { code: "IT101", name: "Lập trình hướng đối tượng", credits: 3.5 },
+  { code: "IT102", name: "Cấu trúc dữ liệu và giải thuật", credits: 3.5 },
+  { code: "DB101", name: "Cơ sở dữ liệu", credits: 3.0 },
+  { code: "NET102", name: "Mạng máy tính", credits: 3.0 },
+  { code: "OS101", name: "Hệ điều hành", credits: 3.0 },
+  { code: "AI101", name: "Trí tuệ nhân tạo", credits: 3.0 },
 ];
 
 export default function CurrentSemesterCourses() {
@@ -41,17 +40,8 @@ export default function CurrentSemesterCourses() {
                 {sub.name}
               </span>
             </div>
-            <span
-              className={clsx(
-                "font-bold text-sm px-2 py-1 rounded",
-                sub.grade >= 8.0
-                  ? "text-emerald-600 bg-emerald-50"
-                  : sub.grade >= 7.0
-                    ? "text-blue-600 bg-blue-50"
-                    : "text-orange-600 bg-orange-50",
-              )}
-            >
-              {sub.grade.toFixed(1)}
+            <span className="font-semibold text-xs px-2 py-1 rounded bg-slate-100 text-slate-600 whitespace-nowrap">
+              {sub.credits} TC
             </span>
           </div>
         ))}
