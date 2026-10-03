@@ -201,6 +201,10 @@ if (-not $v170Pass) { Write-Host "   Response Body: $($res.Body)" -ForegroundCol
 $res = Request-Api "PATCH" "$ActivityUrl/attempts/9aeb71e5-52bc-4734-9077-a7f76f638539/grade?grade=9.5" "" $studentToken
 Assert-Result "STUDENT goi PATCH /api/attempts/{id}/grade -> 403 Forbidden" $res "403"
 
+# V-188: LECTURER goi PATCH /api/attempts/{id}/grade khong truyen diem -> 400 Bad Request
+$res = Request-Api "PATCH" "$ActivityUrl/attempts/9aeb71e5-52bc-4734-9077-a7f76f638539/grade" "" $lecturerToken
+Assert-Result "PATCH /grade khong truyen diem (V-188) -> 400 Bad Request" $res "400"
+
 # 7. TEST STUDENT ENROLLMENT GRADING SECURITY (F-04)
 Write-Host "`n--- 7. KIEM THU TU GIE DIEM KHI DANG KY HOC PHAN (F-04) ---" -ForegroundColor Blue
 # A-152: STUDENT tu dang ky kem finalScore=10, letterGrade=A, isPassed=true -> cac truong diem phai la null
@@ -221,6 +225,19 @@ if (-not $a152Pass) { Write-Host "   Response Body: $($res.Body)" -ForegroundCol
 # Sinh vien cap nhat luot dang ky qua PUT -> 403 Forbidden
 $res = Request-Api "PUT" "$AcademicUrl/student-enrollments/TEN_TEST_F04" $a152Payload $studentToken
 Assert-Result "STUDENT sua student-enrollments qua PUT -> 403 Forbidden" $res "403"
+
+# A-054: STUDENT dang ky hoc phan khong truyen enrollmentStatus -> server gan ENROLLED
+$a054Payload = '{"enrollmentId":"TEN_TEST_A054","studentId":"student_01","idClasses":"TCL2201511"}'
+$res = Request-Api "POST" "$AcademicUrl/student-enrollments" $a054Payload $studentToken
+$a054Pass = $false
+if ($res.Status -eq "201") {
+    $resObj = $res.Body | ConvertFrom-Json
+    $a054Pass = ($resObj.enrollmentStatus -eq "ENROLLED")
+}
+$badge = if ($a054Pass) { "[PASS]" } else { "[FAIL]" }
+$color = if ($a054Pass) { "Green" } else { "Red" }
+Write-Host "$badge STUDENT dang ky hoc phan co enrollmentStatus=ENROLLED (A-054) -> Status: $($res.Status) (Status: $(if($a054Pass){'ENROLLED'}else{'null/khac'}))" -ForegroundColor $color
+if (-not $a054Pass) { Write-Host "   Response Body: $($res.Body)" -ForegroundColor DarkGray }
 
 # 8. TEST STUDENT ANSWER CONSISTENCY (F-07)
 Write-Host "`n--- 8. KIEM THU TINH NHAT QUAN CUA CAU TRA LOI (F-07) ---" -ForegroundColor Blue

@@ -71,12 +71,14 @@ public class StudentEnrollmentService {
         StudentEnrollment entity = studentEnrollmentMapper.toEntity(request);
         entity.setClasses(classes);
 
-        // Security (F-04): Students cannot self-assign final score, letter grade, pass status, or enrollment status
+        // Security (F-04 / A-054): Students cannot self-assign final score, letter grade, pass status
         if (SecurityUtils.isCurrentUserStudent() || !SecurityUtils.isCurrentUserAdmin()) {
             entity.setFinalScore(null);
             entity.setLetterGrade(null);
             entity.setIsPassed(null);
-            entity.setEnrollmentStatus(null);
+            entity.setEnrollmentStatus("ENROLLED");
+        } else if (entity.getEnrollmentStatus() == null || entity.getEnrollmentStatus().isBlank()) {
+            entity.setEnrollmentStatus("ENROLLED");
         }
 
         return studentEnrollmentMapper.toResponse(studentEnrollmentRepository.save(entity));

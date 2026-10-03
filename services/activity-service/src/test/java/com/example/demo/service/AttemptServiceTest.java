@@ -336,4 +336,14 @@ class AttemptServiceTest {
 
         assertTrue(ex.getMessage().contains("grade phai trong khoang tu 0.0 den 10.0"));
     }
+
+    @Test
+    @DisplayName("V-188: Null grade throws IllegalArgumentException")
+    void testUpdateGrade_NullGrade() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+            attemptService.updateGrade("att-001", null);
+        });
+
+        assertTrue(ex.getMessage().contains("grade khong duoc de trong"));
+    }
 }

@@ -51,11 +51,14 @@ public class AttemptController {
     @PatchMapping("/{id}/grade")
     public ResponseEntity<AttemptResponse> updateGrade(
             @PathVariable String id,
-            @RequestBody(required = false) AttemptRequest request,
+            @Valid @RequestBody(required = false) AttemptRequest request,
             @RequestParam(required = false) Float grade) {
         Float finalGrade = grade;
         if (finalGrade == null && request != null) {
             finalGrade = request.getGrade();
+        }
+        if (finalGrade == null) {
+            throw new IllegalArgumentException("grade khong duoc de trong");
         }
         return ResponseEntity.ok(attemptService.updateGrade(id, finalGrade));
     }

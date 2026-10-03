@@ -154,6 +154,9 @@ public class AttemptService {
     }
 
     public AttemptResponse updateGrade(String id, Float grade) {
+        if (grade == null) {
+            throw new IllegalArgumentException("grade khong duoc de trong");
+        }
         validateGrade(grade);
         Attempt entity = attemptRepository.findById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Attempt", id));

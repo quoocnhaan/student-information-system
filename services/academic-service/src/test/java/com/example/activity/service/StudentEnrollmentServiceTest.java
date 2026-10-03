@@ -112,13 +112,13 @@ class StudentEnrollmentServiceTest {
         assertNull(response.getFinalScore(), "finalScore must be null for student");
         assertNull(response.getLetterGrade(), "letterGrade must be null for student");
         assertNull(response.getIsPassed(), "isPassed must be null for student");
-        assertNull(response.getEnrollmentStatus(), "enrollmentStatus must be null for student");
+        assertEquals("ENROLLED", response.getEnrollmentStatus(), "enrollmentStatus must default to ENROLLED for student");
 
         verify(studentEnrollmentRepository).save(argThat(entity ->
                 entity.getFinalScore() == null &&
                 entity.getLetterGrade() == null &&
                 entity.getIsPassed() == null &&
-                entity.getEnrollmentStatus() == null
+                "ENROLLED".equals(entity.getEnrollmentStatus())
         ));
     }
 
