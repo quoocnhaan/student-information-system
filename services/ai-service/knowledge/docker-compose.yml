@@ -15,7 +15,9 @@ services:
       retries: 12
 
   minio:
-    image: quay.io/minio/minio:latest
+    # The former quay.io/minio images are no longer anonymously pullable.
+    # This pinned, MinIO-compatible image includes the server and mc client.
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
@@ -27,7 +29,7 @@ services:
       - minio_data:/data
 
   minio-init:
-    image: quay.io/minio/mc:latest
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     depends_on:
       minio:
         condition: service_started
@@ -89,7 +91,7 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
       MINIO_SECURE: "false"
       # Docker reaches the LM Studio server running on the Windows host here.
-      LMSTUDIO_BASE_URL: http://host.docker.internal:1234/v1
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
       LMSTUDIO_CHAT_MODEL: ${LMSTUDIO_CHAT_MODEL:-qwen2.5-14b-instruct}
       LMSTUDIO_EMBEDDING_MODEL: ${LMSTUDIO_EMBEDDING_MODEL:-text-embedding-nomic-embed-text-v1.5}
       KNOWLEDGE_OCR_MAX_PAGES: ${KNOWLEDGE_OCR_MAX_PAGES:-100}
@@ -131,7 +133,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
       MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
-      LMSTUDIO_BASE_URL: http://host.docker.internal:1234/v1
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
       LMSTUDIO_OCR_MODEL: ${LMSTUDIO_OCR_MODEL:-lightonocr-2-1b}
       KNOWLEDGE_OCR_MAX_PAGES: ${KNOWLEDGE_OCR_MAX_PAGES:-100}
       KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS: ${KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS:-4096}
@@ -165,7 +167,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
       MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
-      LMSTUDIO_BASE_URL: http://host.docker.internal:1234/v1
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
       LMSTUDIO_CHAT_MODEL: ${LMSTUDIO_CHAT_MODEL:-qwen2.5-14b-instruct}
       KNOWLEDGE_CORRECTION_TIMEOUT_SECONDS: ${KNOWLEDGE_CORRECTION_TIMEOUT_SECONDS:-120}
       KNOWLEDGE_WORKER_QUEUES: correct
@@ -223,7 +225,7 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
-      LMSTUDIO_BASE_URL: http://host.docker.internal:1234/v1
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
       LMSTUDIO_EMBEDDING_MODEL: ${LMSTUDIO_EMBEDDING_MODEL:-text-embedding-nomic-embed-text-v1.5}
       KNOWLEDGE_WORKER_QUEUES: index
       KNOWLEDGE_RABBITMQ_URL: amqp://${KNOWLEDGE_RABBITMQ_USER:-knowledge}:${KNOWLEDGE_RABBITMQ_PASSWORD:-knowledge-local}@rabbitmq:5672/knowledge
