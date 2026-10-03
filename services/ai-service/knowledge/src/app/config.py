@@ -86,7 +86,6 @@ class Settings(BaseSettings):
     ocr_max_output_tokens: int = Field(default=4096, ge=1)
     ocr_timeout_seconds: float = Field(default=60, gt=0)
     correction_timeout_seconds: float = Field(default=120, gt=0)
-    chunk_max_tokens: int = Field(default=512, ge=1)
     embedding_batch_size: int = Field(default=16, ge=1)
     worker_queues: str = "ocr"
     orphan_cleanup_enabled: bool = False

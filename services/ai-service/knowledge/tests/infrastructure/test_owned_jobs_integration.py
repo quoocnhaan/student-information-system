@@ -118,6 +118,7 @@ def test_confirm_index_and_post_index_correction() -> None:
             rows = await database.indexed_chunks(document_id)
             assert rows and len(rows) == len(chunks)
             assert all(len(row["embedding"]) == 768 for row in rows)
+            assert rows[-1]["hierarchy"]["article_heading"] == "Điều 1. Nội dung"
             nearest = await database.client.query(
                 "SELECT id FROM chunk WHERE embedding <|5,COSINE|> $vector;",
                 {"vector": [0.001] * 768},
@@ -141,6 +142,8 @@ def test_confirm_index_and_post_index_correction() -> None:
             reembed_claim = uuid4().hex
             assert await database.claim_job(reembed_id, reembed_claim, "reembed_chunk")
             updated = (await database.indexed_chunks(document_id))[-1]
+            assert updated["embedding_text"] == "Điều 1. Nội dung\n\nCorrected text"
+            assert updated["token_count"] == 2
             await database.complete_reembed_job(reembed_id, reembed_claim, updated["embedding_text"], [0.002] * 768)
             assert (await database.indexed_chunks(document_id))[-1]["embedding_status"] == "ok"
             second = await database.request_chunk_correction(document_id, [chunk_id])

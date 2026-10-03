@@ -33,35 +33,25 @@ describe("knowledgeClient", () => {
     expect(event.type).toBeUndefined();
   });
 
-  it("saves review metadata and only the changed OCR pages", async () => {
+  it("posts the complete confirmation payload", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
-      document_id: "document:doc_abc",
-      process_status: "review",
-      source: { original_filename: "source.pdf", mime_type: "application/pdf" },
-      page_count: 1,
-      metadata: {
-        title: "Corrected title", document_type: "regulation", document_number: null,
-        description: null, cohort: null, program_scope: null, language: "en",
-      },
-      ocr_draft: {
-        id: "ocr_draft:ocr_job_abc", status: "draft", revision: 2,
-        pages: [{ page: 1, raw_text: "Original", reviewed_text: "# Corrected" }],
-      },
-    }), { status: 200 })));
+      document_id: "document:doc_abc", job_id: "job:job_index",
+    }), { status: 202 })));
 
-    const result = await knowledgeClient.saveDocumentReviewDraft("document:doc_abc", {
+    const jobId = await knowledgeClient.confirmDocument("document:doc_abc", {
       expected_revision: 1,
       metadata: {
         title: "Corrected title", document_type: "regulation", document_number: null,
         description: null, cohort: null, program_scope: null, language: "en",
       },
-      pages: [{ page: 1, reviewed_text: "# Corrected" }],
+      page_edits: [{ page: 1, reviewed_text: "# Corrected" }],
+      selected_pages: [1],
     });
 
-    expect(result.ocr_draft.revision).toBe(2);
+    expect(jobId).toBe("job:job_index");
     expect(fetch).toHaveBeenCalledWith(
-      "/v1/documents/document%3Adoc_abc/review-draft",
-      expect.objectContaining({ method: "PATCH" }),
+      "/v1/documents/document%3Adoc_abc/confirm",
+      expect.objectContaining({ method: "POST" }),
     );
   });
 });

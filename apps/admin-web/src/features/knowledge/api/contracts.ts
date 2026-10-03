@@ -65,13 +65,14 @@ export const documentResultSchema = z.object({
   }),
 });
 
-export const reviewDraftUpdateSchema = z.object({
+export const confirmRequestSchema = z.object({
   expected_revision: z.number().int().positive(),
   metadata: documentMetadataSchema,
-  pages: z.array(z.object({
+  page_edits: z.array(z.object({
     page: z.number().int().positive(),
     reviewed_text: z.string(),
   })),
+  selected_pages: z.array(z.number().int().positive()).min(1),
 });
 
 export const jobAcceptedSchema = z.object({ job_id: recordId });
@@ -92,7 +93,7 @@ export type UploadAccepted = z.infer<typeof uploadAcceptedSchema>;
 export type JobStatus = z.infer<typeof jobStatusSchema>;
 export type DocumentResult = z.infer<typeof documentResultSchema>;
 export type DocumentMetadata = z.infer<typeof documentMetadataSchema>;
-export type ReviewDraftUpdate = z.infer<typeof reviewDraftUpdateSchema>;
+export type ConfirmRequest = z.infer<typeof confirmRequestSchema>;
 export type IndexedChunks = z.infer<typeof indexedChunksSchema>;
 
 export class KnowledgeError extends Error {

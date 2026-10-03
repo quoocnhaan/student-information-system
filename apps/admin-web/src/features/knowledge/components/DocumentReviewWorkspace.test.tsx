@@ -34,42 +34,31 @@ afterEach(() => {
 });
 
 describe("DocumentReviewWorkspace", () => {
-  it("saves edited metadata and reviewed Markdown together", async () => {
-    const save = vi.spyOn(knowledgeClient, "saveDocumentReviewDraft").mockResolvedValue({
-      ...result,
-      metadata: { ...result.metadata, title: "Corrected title" },
-      ocr_draft: {
-        ...result.ocr_draft,
-        revision: 2,
-        pages: [{ page: 1, raw_text: "Original OCR", reviewed_text: "# Corrected OCR" }],
-      },
-    });
-    render(<DocumentReviewWorkspace initialResult={result} />);
+  it("holds edits locally and sends one complete confirmation", async () => {
+    const confirm = vi.spyOn(knowledgeClient, "confirmDocument").mockResolvedValue("job:job_index");
+    render(<DocumentReviewWorkspace initialResult={result} onConfirmed={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Corrected title" } });
     fireEvent.change(screen.getByRole("textbox", { name: "OCR Markdown for page 1" }), {
       target: { value: "# Corrected OCR" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save review draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and index (1 selected)" }));
 
-    await waitFor(() => expect(save).toHaveBeenCalledWith("document:doc_abc", {
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith("document:doc_abc", {
       expected_revision: 1,
       metadata: expect.objectContaining({ title: "Corrected title" }),
-      pages: [{ page: 1, reviewed_text: "# Corrected OCR" }],
+      page_edits: [{ page: 1, reviewed_text: "# Corrected OCR" }],
+      selected_pages: [1],
     }));
-    expect(await screen.findByText("Review draft saved.")).toBeInTheDocument();
   });
 
-  it("saves pending edits before confirming the revised draft", async () => {
-    const saved = { ...result, ocr_draft: { ...result.ocr_draft, revision: 2 } };
-    const save = vi.spyOn(knowledgeClient, "saveDocumentReviewDraft").mockResolvedValue(saved);
+  it("sends the displayed revision when confirming", async () => {
     const confirm = vi.spyOn(knowledgeClient, "confirmDocument").mockResolvedValue("job:job_index");
     const onConfirmed = vi.fn();
     render(<DocumentReviewWorkspace initialResult={result} onConfirmed={onConfirmed} />);
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Updated title" } });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm and index" }));
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith(result.document_id, 2));
-    expect(save).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and index (1 selected)" }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(result.document_id, expect.objectContaining({ expected_revision: 1 })));
     expect(onConfirmed).toHaveBeenCalledWith("job:job_index");
   });
 
@@ -95,5 +84,13 @@ describe("DocumentReviewWorkspace", () => {
     expect(screen.getByLabelText("Cohort start year")).toHaveValue(2023);
     expect(screen.getByLabelText("Cohort end year")).toHaveValue(null);
     expect(screen.getByLabelText("Programme scope")).toHaveValue("all");
+  });
+
+  it("can exclude a page from the confirmation", async () => {
+    const confirm = vi.spyOn(knowledgeClient, "confirmDocument").mockResolvedValue("job:job_index");
+    render(<DocumentReviewWorkspace initialResult={result} onConfirmed={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText("Include in index"));
+    expect(screen.getByRole("button", { name: "Confirm and index (0 selected)" })).toBeDisabled();
+    expect(confirm).not.toHaveBeenCalled();
   });
 });

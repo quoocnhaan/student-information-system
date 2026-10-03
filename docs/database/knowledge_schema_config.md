@@ -68,7 +68,7 @@
 }
 ```
 
-`status`: `draft | confirmed`. Draft pages retain `raw_text`, optional `corrected_text`, and optional `reviewed_text`; indexing selects `reviewed_text ?? corrected_text ?? raw_text` per page.
+`status`: `draft | confirmed`. Draft pages retain OCR and automatic-correction output. Reviewer edits are not saved into the draft: confirmation creates a temporary `index_input` containing only selected original page numbers and their final text. Indexing reads that input, so omitted pages cannot become chunks; successful indexing deletes both temporary records atomically.
 
 ---
 

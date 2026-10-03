@@ -7,7 +7,7 @@ import {
   type DocumentResult,
   type JobStatus,
   type IndexedChunks,
-  type ReviewDraftUpdate,
+  type ConfirmRequest,
   type UploadAccepted,
   uploadAcceptedSchema,
 } from "./contracts";
@@ -55,27 +55,10 @@ export const knowledgeClient = {
     return documentResultSchema.parse(body);
   },
 
-  async saveDocumentReviewDraft(
-    documentId: string,
-    update: ReviewDraftUpdate,
-    signal?: AbortSignal,
-  ): Promise<DocumentResult> {
-    const body = await responseJson(await fetch(
-      `/v1/documents/${encodeURIComponent(documentId)}/review-draft`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(update),
-        signal,
-      },
-    ));
-    return documentResultSchema.parse(body);
-  },
-
-  async confirmDocument(documentId: string, expectedRevision: number): Promise<string> {
+  async confirmDocument(documentId: string, confirmation: ConfirmRequest): Promise<string> {
     const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/confirm`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expected_revision: expectedRevision }),
+      body: JSON.stringify(confirmation),
     }));
     return jobAcceptedSchema.parse(body).job_id;
   },

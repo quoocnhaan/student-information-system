@@ -53,6 +53,15 @@ DEFINE FIELD IF NOT EXISTS updated_at ON TABLE ocr_draft TYPE datetime VALUE tim
 UPDATE ocr_draft SET revision = 1 WHERE revision IS NONE;
 DEFINE INDEX IF NOT EXISTS ocr_draft_document ON TABLE ocr_draft FIELDS document_id;
 
+-- Immutable, temporary input assembled at the one-shot review confirmation.
+DEFINE TABLE IF NOT EXISTS index_input SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS document_id ON TABLE index_input TYPE record<document>;
+DEFINE FIELD IF NOT EXISTS pages ON TABLE index_input TYPE array<object>;
+DEFINE FIELD IF NOT EXISTS pages.*.page ON TABLE index_input TYPE int;
+DEFINE FIELD IF NOT EXISTS pages.*.text ON TABLE index_input TYPE string;
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE index_input TYPE datetime DEFAULT time::now() READONLY;
+DEFINE INDEX IF NOT EXISTS index_input_document ON TABLE index_input FIELDS document_id UNIQUE;
+
 DEFINE TABLE IF NOT EXISTS job SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS type ON TABLE job TYPE string;
 DEFINE FIELD IF NOT EXISTS dedupe_key ON TABLE job TYPE string;
@@ -64,6 +73,9 @@ DEFINE FIELD IF NOT EXISTS total_pages ON TABLE job TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS processed_pages ON TABLE job TYPE int DEFAULT 0;
 DEFINE FIELD IF NOT EXISTS sequence ON TABLE job TYPE int DEFAULT 1;
 DEFINE FIELD IF NOT EXISTS claim_id ON TABLE job TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS index_input_id ON TABLE job TYPE option<record<index_input>>;
+DEFINE FIELD IF NOT EXISTS confirmation_fingerprint ON TABLE job TYPE option<string>;
+-- Legacy OCR jobs retain this only until their worker completion clears it.
 DEFINE FIELD IF NOT EXISTS ocr_draft_id ON TABLE job TYPE option<record<ocr_draft>>;
 DEFINE FIELD IF NOT EXISTS next_job_id ON TABLE job TYPE option<record<job>>;
 DEFINE FIELD IF NOT EXISTS chunk_id ON TABLE job TYPE option<record<chunk>>;
@@ -75,7 +87,6 @@ DEFINE INDEX IF NOT EXISTS job_status_created ON TABLE job FIELDS status, create
 
 DEFINE TABLE IF NOT EXISTS chunk SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS document_id ON TABLE chunk TYPE record<document>;
-DEFINE FIELD IF NOT EXISTS ocr_draft_id ON TABLE chunk TYPE record<ocr_draft>;
 DEFINE FIELD IF NOT EXISTS text ON TABLE chunk TYPE string;
 DEFINE FIELD IF NOT EXISTS embedding_text ON TABLE chunk TYPE string;
 DEFINE FIELD IF NOT EXISTS embedding ON TABLE chunk TYPE array<float, 768>;
@@ -86,10 +97,13 @@ DEFINE FIELD IF NOT EXISTS position.page_end ON TABLE chunk TYPE int;
 DEFINE FIELD IF NOT EXISTS hierarchy ON TABLE chunk TYPE object;
 DEFINE FIELD IF NOT EXISTS hierarchy.chapter_no ON TABLE chunk TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS hierarchy.chapter_title ON TABLE chunk TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS hierarchy.chapter_heading ON TABLE chunk TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS hierarchy.article_no ON TABLE chunk TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS hierarchy.article_title ON TABLE chunk TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS hierarchy.article_heading ON TABLE chunk TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS hierarchy.clause_no ON TABLE chunk TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS hierarchy.clause_title ON TABLE chunk TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS hierarchy.clause_heading ON TABLE chunk TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS token_count ON TABLE chunk TYPE int;
 DEFINE FIELD IF NOT EXISTS embedding_status ON TABLE chunk TYPE string DEFAULT 'ok'
   ASSERT $value INSIDE ['ok', 'stale'];

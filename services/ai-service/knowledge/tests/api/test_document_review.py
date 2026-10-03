@@ -46,23 +46,15 @@ class ReviewDatabase:
         assert record_id == _DOCUMENT_ID
         return self.document
 
-    async def update_document_review(
-        self,
-        record_id: str,
-        expected_revision: int,
-        metadata: dict[str, object],
-        pages: list[dict[str, object]],
-    ) -> bool:
+    async def confirm_review(self, record_id: str, expected_revision: int, metadata: dict[str, object], page_edits: list[dict[str, object]], selected_pages: list[int]):
         assert record_id == _DOCUMENT_ID
         if expected_revision != self.draft["revision"]:
-            return False
+            return None
         self.document.update(metadata)
-        by_page = {int(change["page"]): str(change["reviewed_text"]) for change in pages}
-        for page in self.draft["pages"]:
-            if page["page"] in by_page:
-                page["reviewed_text"] = by_page[page["page"]]
-        self.draft["revision"] += 1
-        return True
+        self.confirmation = {"page_edits": page_edits, "selected_pages": selected_pages}
+        self.draft["status"] = "confirmed"
+        self.document["process_status"] = "indexing"
+        return {"id": "job:job_" + "b" * 32, "status": "queued"}
 
 
 class ReviewObjectStore:
@@ -99,10 +91,10 @@ def test_completed_document_result_hides_object_key() -> None:
     assert "object_key" not in response.text
 
 
-def test_reviewer_can_save_metadata_and_page_markdown() -> None:
+def test_reviewer_confirms_metadata_edits_and_selected_pages_together() -> None:
     with review_client() as client:
-        response = client.patch(
-            f"/v1/documents/document:{_DOCUMENT_ID}/review-draft",
+        response = client.post(
+            f"/v1/documents/document:{_DOCUMENT_ID}/confirm",
             json={
                 "expected_revision": 1,
                 "metadata": {
@@ -114,41 +106,21 @@ def test_reviewer_can_save_metadata_and_page_markdown() -> None:
                     "program_scope": {"type": "all", "programs": []},
                     "language": "en",
                 },
-                "pages": [{"page": 1, "reviewed_text": "# Corrected"}],
+                "page_edits": [{"page": 1, "reviewed_text": "# Corrected"}],
+                "selected_pages": [1],
             },
         )
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["metadata"]["title"] == "Corrected regulations"
-    assert body["ocr_draft"]["revision"] == 2
-    assert body["ocr_draft"]["pages"] == [
-        {"page": 1, "raw_text": "Hello", "reviewed_text": "# Corrected", "corrected_text": None}
-    ]
+    assert response.status_code == 202
+    assert response.json()["job_id"] == "job:job_" + "b" * 32
 
 
-def test_reviewer_cannot_overwrite_a_stale_draft() -> None:
+def test_confirmation_rejects_a_stale_draft() -> None:
     with review_client() as client:
-        first_response = client.patch(
-            f"/v1/documents/document:{_DOCUMENT_ID}/review-draft",
+        response = client.post(
+            f"/v1/documents/document:{_DOCUMENT_ID}/confirm",
             json={
-                "expected_revision": 1,
-                "metadata": {
-                    "title": "Corrected regulations",
-                    "document_type": "regulation",
-                    "document_number": None,
-                    "description": None,
-                    "cohort": None,
-                    "program_scope": {"type": "all", "programs": []},
-                    "language": "en",
-                },
-                "pages": [],
-            },
-        )
-        response = client.patch(
-            f"/v1/documents/document:{_DOCUMENT_ID}/review-draft",
-            json={
-                "expected_revision": 1,
+                "expected_revision": 2,
                 "metadata": {
                     "title": "Stale correction",
                     "document_type": "regulation",
@@ -158,18 +130,17 @@ def test_reviewer_cannot_overwrite_a_stale_draft() -> None:
                     "program_scope": {"type": "all", "programs": []},
                     "language": "en",
                 },
-                "pages": [],
+                "page_edits": [], "selected_pages": [1],
             },
         )
 
-    assert first_response.status_code == 200
     assert response.status_code == 409
 
 
-def test_review_draft_rejects_duplicate_page_updates() -> None:
+def test_confirmation_rejects_duplicate_page_edits_and_unknown_pages() -> None:
     with review_client() as client:
-        response = client.patch(
-            f"/v1/documents/document:{_DOCUMENT_ID}/review-draft",
+        response = client.post(
+            f"/v1/documents/document:{_DOCUMENT_ID}/confirm",
             json={
                 "expected_revision": 1,
                 "metadata": {
@@ -181,10 +152,11 @@ def test_review_draft_rejects_duplicate_page_updates() -> None:
                     "program_scope": {"type": "all", "programs": []},
                     "language": "en",
                 },
-                "pages": [
+                "page_edits": [
                     {"page": 1, "reviewed_text": "one"},
                     {"page": 1, "reviewed_text": "two"},
                 ],
+                "selected_pages": [1],
             },
         )
 

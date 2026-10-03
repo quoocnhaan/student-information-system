@@ -43,11 +43,10 @@ class IndexDocumentHandler:
         self.database = database
 
     async def process(self, job_id: str, claim_id: str, claimed: Mapping) -> None:
-        record_id = str(claimed["document_id"]).split(":", 1)[1]
-        result = await self.database.get_document_result(record_id)
-        if result is None or result[1] is None or result[1].get("status") != "confirmed":
-            raise ValueError("Confirmed review is missing")
-        chunks = chunk_pages(result[1]["pages"], self.settings.chunk_max_tokens)
+        index_input = await self.database.get_index_input_for_job(job_id)
+        if index_input is None or not isinstance(index_input.get("pages"), list):
+            raise ValueError("Confirmed index input is missing")
+        chunks = chunk_pages(index_input["pages"])
         if not chunks:
             raise ValueError("Confirmed review contains no indexable text")
         batch_size = self.settings.embedding_batch_size

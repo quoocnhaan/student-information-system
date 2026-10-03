@@ -16,7 +16,7 @@ class _ResultClient:
         self.calls.append((query, variables))
         if query.startswith("SELECT * FROM document:"):
             return [{"id": "document:doc_a", "process_status": "review"}]
-        if "type::record('document', $record_id)" in query:
+        if query.startswith("SELECT * FROM ocr_draft"):
             return [{"id": "ocr_draft:ocr_job_a", "status": "draft"}]
         return []
 
@@ -37,7 +37,7 @@ def test_document_result_compares_the_typed_document_record() -> None:
     assert variables == {"record_id": "doc_a"}
 
 
-class _ReviewUpdateClient:
+class _ConfirmationClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any] | None]] = []
 
@@ -47,35 +47,31 @@ class _ReviewUpdateClient:
         self.calls.append((query, variables))
         if query.startswith("SELECT * FROM document:"):
             return [{"id": "document:doc_a", "process_status": "review"}]
-        if "type::record('document', $record_id)" in query:
+        if query.startswith("SELECT * FROM ocr_draft"):
             return [{
                 "id": "ocr_draft:ocr_job_a",
                 "status": "draft",
                 "revision": 1,
                 "pages": [{"page": 1, "raw_text": "Original", "reviewed_text": None}],
             }]
+        if query.startswith("SELECT * FROM job:"):
+            return [{"id": "job:job_" + "a" * 32, "status": "queued"}]
         return []
 
 
-def test_review_save_preserves_raw_ocr_and_uses_a_revision_transaction() -> None:
-    client = _ReviewUpdateClient()
+def test_confirmation_creates_an_immutable_index_input_in_a_transaction() -> None:
+    client = _ConfirmationClient()
     database = object.__new__(SurrealDatabase)
     database._client = client
 
-    saved = asyncio.run(database.update_document_review(
-        "doc_a",
-        expected_revision=1,
-        metadata={"title": "Corrected"},
-        page_updates=[{"page": 1, "reviewed_text": "# Reviewed"}],
+    confirmed = asyncio.run(database.confirm_review(
+        "doc_" + "a" * 32,
+        1, {"title": "Corrected"}, [{"page": 1, "reviewed_text": "# Reviewed"}], [1],
     ))
 
-    assert saved is True
-    query, variables = client.calls[-1]
+    assert confirmed is not None
+    query, variables = client.calls[-2]
     assert query.startswith("BEGIN TRANSACTION;")
-    assert "WHERE revision = $expected_revision" in query
-    assert "revision += 1" in query
-    assert variables == {
-        "pages": [{"page": 1, "raw_text": "Original", "reviewed_text": "# Reviewed"}],
-        "metadata": {"title": "Corrected"},
-        "expected_revision": 1,
-    }
+    assert "CREATE index_input:" in query
+    assert "confirmation_fingerprint" in query
+    assert variables["pages"] == [{"page": 1, "text": "# Reviewed"}]

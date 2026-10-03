@@ -6,7 +6,7 @@ import secrets
 from collections.abc import Mapping
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 
 from app.api.v1.schemas.jobs import JobStatusResponse
 from app.config import get_settings
@@ -49,6 +49,27 @@ async def get_job_status(job_id: str, request: Request) -> JobStatusResponse:
     if row is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return _as_response(row)
+
+
+@router.post("/{job_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+async def retry_failed_index_job(job_id: str, background_tasks: BackgroundTasks, request: Request) -> dict[str, str]:
+    """Operator retry for a failed index job whose confirmed input is retained."""
+
+    if not _valid(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    database = getattr(request.app.state, "database", None)
+    if database is None:
+        raise HTTPException(status_code=503, detail="Job status is unavailable")
+    try:
+        job = await database.requeue_failed_index_job(job_id)
+    except SurrealDatabaseError as error:
+        raise HTTPException(status_code=503, detail="Job could not be retried") from error
+    if job is None:
+        raise HTTPException(status_code=409, detail="Only a failed index job with retained input can be retried")
+    publisher = getattr(request.app.state, "publisher", None)
+    if publisher is not None:
+        background_tasks.add_task(publisher.publish, job)
+    return {"job_id": str(job["id"])}
 
 
 @websocket_router.websocket("/{job_id}")

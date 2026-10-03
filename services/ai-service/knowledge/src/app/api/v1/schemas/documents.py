@@ -22,6 +22,18 @@ class ConfirmAcceptedResponse(BaseModel):
 
 class ConfirmRequest(BaseModel):
     expected_revision: int = Field(ge=1)
+    metadata: "ReviewMetadataRequest"
+    page_edits: list["ReviewPageUpdateRequest"] = Field(default_factory=list, max_length=500)
+    selected_pages: list[int] = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def page_numbers_are_unique(self) -> "ConfirmRequest":
+        edits = [entry.page for entry in self.page_edits]
+        if len(edits) != len(set(edits)):
+            raise ValueError("page edits must contain unique page numbers")
+        if len(self.selected_pages) != len(set(self.selected_pages)):
+            raise ValueError("selected pages must contain unique page numbers")
+        return self
 
 
 class SourceSummary(BaseModel):
@@ -84,19 +96,6 @@ class ReviewMetadataRequest(BaseModel):
 class ReviewPageUpdateRequest(BaseModel):
     page: int = Field(ge=1)
     reviewed_text: str = Field(max_length=500_000)
-
-
-class ReviewDraftUpdateRequest(BaseModel):
-    expected_revision: int = Field(ge=1)
-    metadata: ReviewMetadataRequest
-    pages: list[ReviewPageUpdateRequest] = Field(default_factory=list, max_length=500)
-
-    @model_validator(mode="after")
-    def page_numbers_are_unique(self) -> "ReviewDraftUpdateRequest":
-        page_numbers = [entry.page for entry in self.pages]
-        if len(page_numbers) != len(set(page_numbers)):
-            raise ValueError("page updates must contain unique page numbers")
-        return self
 
 
 class ChunkCorrectionRequest(BaseModel):

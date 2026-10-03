@@ -19,7 +19,6 @@ from app.api.v1.schemas.documents import (
     ChunkCorrectionRequest,
     OcrDraftResponse,
     OcrPageResponse,
-    ReviewDraftUpdateRequest,
     SourceSummary,
 )
 from app.config import Settings, get_settings
@@ -126,7 +125,32 @@ async def confirm_document(
     if record_id is None:
         raise HTTPException(status_code=404, detail="Document not found")
     try:
-        job = await database.confirm_review(record_id, body.expected_revision)
+        result = await database.get_document_result(record_id)
+    except SurrealDatabaseError as error:
+        raise HTTPException(status_code=503, detail="Review could not be confirmed") from error
+    if result is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    document, draft = result
+    requested_pages = set(body.selected_pages)
+    if document.get("process_status") == "review" and draft is not None and draft.get("status") == "draft":
+        pages = draft.get("pages") if isinstance(draft.get("pages"), list) else []
+        known_pages = {entry.get("page") for entry in pages if isinstance(entry, Mapping)}
+        edit_pages = {entry.page for entry in body.page_edits}
+        if not requested_pages.issubset(known_pages) or not edit_pages.issubset(known_pages):
+            raise HTTPException(status_code=422, detail="Confirmation contains an unknown page")
+        edits = {entry.page: entry.reviewed_text for entry in body.page_edits}
+        selected_text = [
+            edits.get(int(entry["page"]), entry.get("reviewed_text") if entry.get("reviewed_text") is not None else entry.get("corrected_text") if entry.get("corrected_text") is not None else entry.get("raw_text", ""))
+            for entry in pages
+            if isinstance(entry, Mapping) and entry.get("page") in requested_pages
+        ]
+        if not any(isinstance(text, str) and text.strip() for text in selected_text):
+            raise HTTPException(status_code=422, detail="At least one selected page must contain indexable text")
+    try:
+        job = await database.confirm_review(
+            record_id, body.expected_revision, body.metadata.model_dump(mode="json"),
+            [entry.model_dump() for entry in body.page_edits], sorted(requested_pages),
+        )
     except SurrealDatabaseError as error:
         raise HTTPException(status_code=503, detail="Review could not be confirmed") from error
     if job is None:
@@ -236,83 +260,6 @@ async def get_document_result(
             detail="OCR result is not ready",
         )
     return _as_document_result(document, draft)
-
-
-@router.patch("/{document_id}/review-draft", response_model=DocumentResultResponse)
-async def update_review_draft(
-    document_id: str,
-    update: ReviewDraftUpdateRequest,
-    database: Annotated[SurrealDatabase, Depends(get_database)],
-) -> DocumentResultResponse:
-    """Persist reviewer metadata and page corrections as one guarded draft save."""
-
-    record_id = _document_record_id_or_none(document_id)
-    if record_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    try:
-        current = await database.get_document_result(record_id)
-    except SurrealDatabaseError as error:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Document review is unavailable",
-        ) from error
-    if current is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-
-    document, draft = current
-    if (
-        document.get("process_status") != "review"
-        or draft is None
-        or draft.get("status") != "draft"
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Document review is not editable",
-        )
-    existing_page_numbers = {
-        page.get("page") for page in draft.get("pages", []) if isinstance(page, Mapping)
-    }
-    requested_page_numbers = {entry.page for entry in update.pages}
-    if not requested_page_numbers.issubset(existing_page_numbers):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Review update contains an unknown page",
-        )
-
-    try:
-        saved = await database.update_document_review(
-            record_id,
-            update.expected_revision,
-            update.metadata.model_dump(mode="json"),
-            [entry.model_dump() for entry in update.pages],
-        )
-    except SurrealDatabaseError as error:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Document review could not be saved",
-        ) from error
-    if not saved:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This review draft has changed. Reload the latest version.",
-        )
-
-    try:
-        refreshed = await database.get_document_result(record_id)
-    except SurrealDatabaseError as error:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Document review was saved but could not be reloaded",
-        ) from error
-    if refreshed is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    refreshed_document, refreshed_draft = refreshed
-    if refreshed_draft is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Document review is not editable",
-        )
-    return _as_document_result(refreshed_document, refreshed_draft)
 
 
 @router.get("/{document_id}/source")

@@ -115,16 +115,18 @@ class ChunkPosition(BaseModel):
 class ChunkHierarchy(BaseModel):
     chapter_no: int | None = Field(default=None, ge=1)
     chapter_title: str | None = None
+    chapter_heading: str | None = None
     article_no: int | None = Field(default=None, ge=1)
     article_title: str | None = None
+    article_heading: str | None = None
     clause_no: int | None = Field(default=None, ge=1)
     clause_title: str | None = None
+    clause_heading: str | None = None
 
 
 class ChunkRecord(BaseModel):
     id: str
     document_id: str
-    ocr_draft_id: str
     text: str = Field(min_length=1)
     embedding_text: str = Field(min_length=1)
     embedding: list[float] = Field(min_length=768, max_length=768)

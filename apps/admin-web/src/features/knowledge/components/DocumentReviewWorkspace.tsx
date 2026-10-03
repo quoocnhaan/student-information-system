@@ -4,7 +4,7 @@ import { knowledgeClient } from "../api/knowledgeClient";
 import { MetadataEditor } from "./MetadataEditor";
 import { PdfComparisonWorkspace } from "./PdfComparisonWorkspace";
 
-type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
+type SaveState = "idle" | "error" | "conflict";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -43,12 +43,13 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
   const [metadata, setMetadata] = useState<DocumentMetadata>(initialResult.metadata);
   const [page, setPage] = useState(1);
   const [edits, setEdits] = useState<Record<number, string>>({});
+  const [selectedPages, setSelectedPages] = useState<Set<number>>(() => new Set(initialResult.ocr_draft.pages.map((entry) => entry.page)));
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
-    setResult(initialResult); setMetadata(initialResult.metadata); setEdits({}); setSaveState("idle"); setMessage(null);
+    setResult(initialResult); setMetadata(initialResult.metadata); setEdits({}); setSelectedPages(new Set(initialResult.ocr_draft.pages.map((entry) => entry.page))); setSaveState("idle"); setMessage(null);
   }, [initialResult]);
 
   const currentPage = result.ocr_draft.pages.find((entry) => entry.page === page) ?? result.ocr_draft.pages[0];
@@ -58,7 +59,9 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
     const next = edits[entry.page];
     return next !== undefined && next !== (entry.reviewed_text ?? entry.corrected_text ?? entry.raw_text) ? [{ page: entry.page, reviewed_text: next }] : [];
   }), [edits, result.ocr_draft.pages]);
-  const dirty = metadataDirty || changedPages.length > 0;
+  const selectionDirty = result.ocr_draft.pages.some((entry) => !selectedPages.has(entry.page));
+  const dirty = metadataDirty || changedPages.length > 0 || selectionDirty;
+  const hasIndexableSelection = result.ocr_draft.pages.some((entry) => selectedPages.has(entry.page) && (edits[entry.page] ?? entry.reviewed_text ?? entry.corrected_text ?? entry.raw_text).trim() !== "");
 
   useEffect(() => {
     if (!dirty) return undefined;
@@ -81,32 +84,13 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
     setSaveState("idle"); setMessage(null);
   }
 
-  async function save(): Promise<DocumentResult | null> {
-    if (!dirty) return result;
-    if (saveState === "saving") return null;
-    setSaveState("saving"); setMessage(null);
-    try {
-      const next = await knowledgeClient.saveDocumentReviewDraft(result.document_id, {
-        expected_revision: result.ocr_draft.revision, metadata: normalizeMetadata(metadata), pages: changedPages,
-      });
-      setResult(next); setMetadata(next.metadata); setEdits({}); setSaveState("saved"); setMessage("Review draft saved.");
-      return next;
-    } catch (error) {
-      if (error instanceof KnowledgeError && error.status === 409) {
-        setSaveState("conflict"); setMessage("This review draft has changed. Reload the latest version before saving.");
-      } else {
-        setSaveState("error"); setMessage(error instanceof Error ? error.message : "Unable to save the review draft.");
-      }
-      return null;
-    }
-  }
-
   async function confirm() {
     setConfirming(true); setMessage(null);
     try {
-      const latest = await save();
-      if (latest === null) return;
-      const jobId = await knowledgeClient.confirmDocument(latest.document_id, latest.ocr_draft.revision);
+      const jobId = await knowledgeClient.confirmDocument(result.document_id, {
+        expected_revision: result.ocr_draft.revision, metadata: normalizeMetadata(metadata),
+        page_edits: changedPages, selected_pages: [...selectedPages].sort((a, b) => a - b),
+      });
       if (onConfirmed) onConfirmed(jobId);
       else window.location.assign(`/knowledge/ingestions/${encodeURIComponent(jobId)}`);
     } catch (error) {
@@ -131,8 +115,8 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
     {result.ocr_draft.correction_status === "failed" && <p className="notice warning">LLM correction failed — showing raw OCR</p>}
     {result.ocr_draft.correction_status === "skipped" && <span className="notice warning">LLM correction skipped</span>}
     <MetadataEditor value={metadata} onChange={(next) => { setMetadata(next); setSaveState("idle"); setMessage(null); }} />
-    <div className="review-save-bar"><span className={dirty ? "dirty-state" : "muted"}>{dirty ? "Unsaved changes" : "All changes saved"}</span><button className="secondary-button" type="button" disabled={!dirty || saveState === "saving" || confirming} onClick={() => void save()}>{saveState === "saving" ? "Saving..." : "Save review draft"}</button><button className="primary-button" type="button" disabled={confirming || saveState === "saving"} onClick={() => void confirm()}>{confirming ? "Confirming..." : "Confirm and index"}</button></div>
+    <div className="review-save-bar"><span className={dirty ? "dirty-state" : "muted"}>{dirty ? "Unsaved changes" : "Ready to confirm"}</span><button className="primary-button" type="button" disabled={confirming || !hasIndexableSelection} onClick={() => void confirm()}>{confirming ? "Confirming..." : `Confirm and index (${selectedPages.size} selected)`}</button></div>
     {message && <div className={saveState === "error" || saveState === "conflict" ? "notice danger split-row" : "notice warning"} role="status"><span>{message}</span>{saveState === "conflict" && <button className="secondary-button" type="button" onClick={() => void reloadLatest()}>Reload latest version</button>}</div>}
-    <PdfComparisonWorkspace result={result} page={page} onPageChange={setPage} markdown={pageText} onMarkdownChange={editPage} />
+    <PdfComparisonWorkspace result={result} page={page} onPageChange={setPage} markdown={pageText} onMarkdownChange={editPage} included={currentPage !== undefined && selectedPages.has(currentPage.page)} onIncludedChange={(included) => { if (currentPage === undefined) return; setSelectedPages((current) => { const next = new Set(current); if (included) next.add(currentPage.page); else next.delete(currentPage.page); return next; }); setSaveState("idle"); setMessage(null); }} />
   </section>;
 }

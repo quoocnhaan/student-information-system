@@ -1,6 +1,8 @@
 """Async SurrealDB adapter and schema bootstrap support."""
 
 import asyncio
+import hashlib
+import json
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -244,90 +246,27 @@ class SurrealDatabase:
         return query_id, await self.client.subscribe_live(query_id)
 
 
-    async def update_document_review(
-        self,
-        record_id: str,
-        expected_revision: int,
-        metadata: Mapping[str, Any],
-        page_updates: list[Mapping[str, Any]],
-    ) -> bool:
-        """Atomically save reviewer corrections without changing original OCR text."""
-
-        result = await self.get_document_result(record_id)
-        if result is None:
-            return False
-        document, draft = result
-        if (
-            document.get("process_status") != "review"
-            or draft is None
-            or draft.get("status") != "draft"
-            or int(draft.get("revision", 1)) != expected_revision
-        ):
-            return False
-
-        original_pages = draft.get("pages")
-        if not isinstance(original_pages, list):
-            return False
-        changes_by_page = {int(change["page"]): str(change["reviewed_text"]) for change in page_updates}
-        known_pages = {
-            int(page["page"])
-            for page in original_pages
-            if isinstance(page, Mapping) and isinstance(page.get("page"), int)
-        }
-        if not set(changes_by_page).issubset(known_pages):
-            return False
-        pages = [
-            {
-                **dict(page),
-                **(
-                    {"reviewed_text": changes_by_page[int(page["page"])]}
-                    if int(page["page"]) in changes_by_page
-                    else {}
-                ),
-            }
-            for page in original_pages
-            if isinstance(page, Mapping)
-        ]
-        draft_record_id = _record_id(draft["id"])
-        query = (
-            "BEGIN TRANSACTION; "
-            f"LET $updated_draft = (UPDATE ocr_draft:{draft_record_id} "
-            "SET pages = $pages, revision += 1 "
-            "WHERE revision = $expected_revision RETURN AFTER); "
-            "IF array::len($updated_draft) = 0 THEN "
-            "THROW 'review_revision_conflict'; END; "
-            f"UPDATE document:{record_id} MERGE $metadata; "
-            "COMMIT TRANSACTION;"
-        )
-        try:
-            await self.client.query(
-                query,
-                {
-                    "pages": pages,
-                    "metadata": dict(metadata),
-                    "expected_revision": expected_revision,
-                },
-            )
-            return True
-        except Exception as error:
-            if "review_revision_conflict" in str(error):
-                return False
-            raise SurrealDatabaseError("Unable to save document review") from error
-
     async def confirm_review(
-        self, document_record_id: str, expected_revision: int
+        self, document_record_id: str, expected_revision: int, metadata: Mapping[str, Any],
+        page_edits: list[Mapping[str, Any]], selected_pages: list[int],
     ) -> Mapping[str, Any] | None:
-        """Confirm one draft and enqueue indexing in the same transaction."""
+        """Commit reviewer choices and a durable worker input in one transaction."""
 
         if not _DOCUMENT_ID.fullmatch(document_record_id):
             return None
+        normalized = {
+            "metadata": dict(metadata),
+            "page_edits": sorted(({"page": int(item["page"]), "reviewed_text": str(item["reviewed_text"])} for item in page_edits), key=lambda item: item["page"]),
+            "selected_pages": sorted(int(page) for page in selected_pages),
+        }
+        fingerprint = hashlib.sha256(json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         rows = await self.client.query(
             "SELECT * FROM job WHERE document_id = type::record('document', $record_id) "
             "AND dedupe_key = 'index_document' LIMIT 1;",
             {"record_id": document_record_id},
         )
         if rows:
-            return rows[0]
+            return rows[0] if rows[0].get("confirmation_fingerprint") == fingerprint else None
         result = await self.get_document_result(document_record_id)
         if result is None or result[1] is None:
             return None
@@ -338,24 +277,43 @@ class SurrealDatabase:
             or int(draft.get("revision", 1)) != expected_revision
         ):
             return None
+        original_pages = draft.get("pages")
+        if not isinstance(original_pages, list):
+            return None
+        edits = {item["page"]: item["reviewed_text"] for item in normalized["page_edits"]}
+        known_pages = {page.get("page") for page in original_pages if isinstance(page, Mapping)}
+        if not set(normalized["selected_pages"]).issubset(known_pages):
+            return None
+        index_pages = []
+        for page in original_pages:
+            if not isinstance(page, Mapping) or page.get("page") not in normalized["selected_pages"]:
+                continue
+            page_no = int(page["page"])
+            text = edits[page_no] if page_no in edits else (page.get("reviewed_text") if page.get("reviewed_text") is not None else page.get("corrected_text") if page.get("corrected_text") is not None else page.get("raw_text", ""))
+            index_pages.append({"page": page_no, "text": str(text)})
+        if not any(page["text"].strip() for page in index_pages):
+            return None
         draft_record_id = _record_id(draft["id"])
         job_record_id = f"job_{uuid4().hex}"
+        input_record_id = f"index_input_{uuid4().hex}"
         query = (
             "BEGIN TRANSACTION; "
             f"LET $draft = (UPDATE ocr_draft:{draft_record_id} SET status = 'confirmed' "
             "WHERE status = 'draft' AND revision = $revision RETURN AFTER); "
             "IF array::len($draft) = 0 THEN THROW 'review_revision_conflict'; END; "
-            f"LET $document = (UPDATE document:{document_record_id} "
-            "SET process_status = 'indexing' WHERE process_status = 'review' RETURN AFTER); "
+            f"LET $document = (UPDATE document:{document_record_id} MERGE $metadata "
+            "WHERE process_status = 'review' RETURN AFTER); "
             "IF array::len($document) = 0 THEN THROW 'document_not_review'; END; "
+            f"UPDATE document:{document_record_id} SET process_status = 'indexing' WHERE process_status = 'review'; "
+            f"CREATE index_input:{input_record_id} CONTENT {{document_id: document:{document_record_id}, pages: $pages}}; "
             f"CREATE job:{job_record_id} CONTENT {{"
-            f"document_id: document:{document_record_id}, ocr_draft_id: ocr_draft:{draft_record_id}, "
+            f"document_id: document:{document_record_id}, index_input_id: index_input:{input_record_id}, confirmation_fingerprint: $fingerprint, "
             "type: 'index_document', dedupe_key: 'index_document', "
             "status: 'queued', step: 'queued', progress: 0, processed_pages: 0, sequence: 1}; "
             "COMMIT TRANSACTION;"
         )
         try:
-            await self.client.query(query, {"revision": expected_revision})
+            await self.client.query(query, {"revision": expected_revision, "metadata": dict(metadata), "pages": index_pages, "fingerprint": fingerprint})
         except Exception as error:
             rows = await self.client.query(
                 "SELECT * FROM job WHERE document_id = type::record('document', $record_id) "
@@ -363,7 +321,7 @@ class SurrealDatabase:
                 {"record_id": document_record_id},
             )
             if rows:
-                return rows[0]
+                return rows[0] if rows[0].get("confirmation_fingerprint") == fingerprint else None
             if "review_revision_conflict" in str(error) or "document_not_review" in str(error):
                 return None
             raise SurrealDatabaseError("Unable to confirm review") from error
@@ -380,8 +338,8 @@ class SurrealDatabase:
         if job.get("status") != "running" or job.get("claim_id") != claim_id:
             return None
         document_id = str(job["document_id"])
-        draft_id = str(job["ocr_draft_id"])
-        if not re.fullmatch(r"document:doc_[0-9a-f]{32}", document_id) or not re.fullmatch(r"ocr_draft:ocr_job_[0-9a-f]{32}", draft_id):
+        index_input_id = str(job.get("index_input_id", ""))
+        if not re.fullmatch(r"document:doc_[0-9a-f]{32}", document_id) or not re.fullmatch(r"index_input:index_input_[0-9a-f]{32}", index_input_id):
             return None
         record_id = _record_id(job_id)
         statements = [
@@ -396,7 +354,7 @@ class SurrealDatabase:
             variables[key] = dict(chunk)
             statements.append(
                 f"CREATE chunk:chunk_{uuid4().hex} CONTENT {{document_id: {document_id}, "
-                f"ocr_draft_id: {draft_id}, text: ${key}.text, embedding_text: ${key}.embedding_text, "
+                f"text: ${key}.text, embedding_text: ${key}.embedding_text, "
                 f"embedding: ${key}.embedding, position: ${key}.position, hierarchy: ${key}.hierarchy, "
                 f"token_count: ${key}.token_count}};"
             )
@@ -407,6 +365,9 @@ class SurrealDatabase:
             f"LET $job = (UPDATE job:{record_id} SET status = 'completed', step = 'completed', "
             "progress = 100, sequence += 1 WHERE status = 'running' AND claim_id = $claim_id RETURN AFTER);",
             "IF array::len($job) = 0 THEN THROW 'job_claim_conflict'; END;",
+            f"UPDATE job SET ocr_draft_id = NONE WHERE document_id = {document_id} AND ocr_draft_id IS NOT NONE;",
+            f"DELETE {index_input_id};",
+            f"DELETE ocr_draft WHERE document_id = {document_id};",
             "COMMIT TRANSACTION;",
         ])
         try:
@@ -417,6 +378,18 @@ class SurrealDatabase:
                 return current
             raise SurrealDatabaseError("Unable to commit document index") from error
         return await self.get_job(job_id)
+
+    async def get_index_input_for_job(self, job_id: str) -> Mapping[str, Any] | None:
+        """Load the immutable review-confirmed input for an index worker."""
+
+        job = await self.get_job(job_id)
+        if job is None or job.get("type") != "index_document" or not job.get("index_input_id"):
+            return None
+        try:
+            rows = await self.client.query(f"SELECT * FROM {job['index_input_id']};")
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to read index input") from error
+        return rows[0] if rows else None
 
     async def fail_index_job(self, job_id: str, claim_id: str, error: str) -> None:
         job = await self.get_job(job_id)
@@ -436,6 +409,33 @@ class SurrealDatabase:
             "COMMIT TRANSACTION;",
             {"claim_id": claim_id, "error": error[:500]},
         )
+
+    async def requeue_failed_index_job(self, job_id: str) -> Mapping[str, Any] | None:
+        """Guardedly retry a failed index job against its retained input."""
+
+        job = await self.get_job(job_id)
+        if job is None or job.get("type") != "index_document" or job.get("status") != "failed":
+            return None
+        input_id = str(job.get("index_input_id", ""))
+        document_id = str(job.get("document_id", ""))
+        if not re.fullmatch(r"index_input:index_input_[0-9a-f]{32}", input_id) or not re.fullmatch(r"document:doc_[0-9a-f]{32}", document_id):
+            return None
+        try:
+            if not await self.client.query(f"SELECT id FROM {input_id};"):
+                return None
+            rows = await self.client.query(
+                f"UPDATE job:{_record_id(job_id)} "
+                "SET status = 'queued', step = 'queued', progress = 0, processed_pages = 0, "
+                "claim_id = NONE, error = NONE, sequence += 1 "
+                "WHERE status = 'failed' AND index_input_id = type::record('index_input', $input_id) RETURN AFTER;",
+                {"input_id": _record_id(input_id)},
+            )
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to requeue failed index job") from error
+        if not rows:
+            return None
+        await self.client.query(f"UPDATE {document_id} SET process_status = 'indexing' WHERE process_status = 'failed';")
+        return rows[0]
 
     async def indexed_chunks(self, document_record_id: str) -> list[Mapping[str, Any]] | None:
         document = await self.get_document(document_record_id)
@@ -551,12 +551,13 @@ class SurrealDatabase:
         from app.application.chunking import build_embedding_text
         text = str(suggestion["suggested_text"])
         embedding_text = build_embedding_text(chunk["hierarchy"], text)
+        token_count = len(text.split())
         job_record_id = f"job_{uuid4().hex}"
         try:
             await self.client.query(
                 "BEGIN TRANSACTION; "
                 f"LET $chunk = (UPDATE {chunk_id} SET text = $text, embedding_text = $embedding_text, "
-                "embedding_status = 'stale' WHERE text = $base_text RETURN AFTER); "
+                "token_count = $token_count, embedding_status = 'stale' WHERE text = $base_text RETURN AFTER); "
                 "IF array::len($chunk) = 0 THEN THROW 'outdated'; END; "
                 f"LET $suggestion = (UPDATE correction_suggestion:{record_id} SET status = 'accepted' "
                 "WHERE status = 'ready' RETURN AFTER); "
@@ -565,7 +566,8 @@ class SurrealDatabase:
                 f"chunk_id: {chunk_id}, type: 'reembed_chunk', dedupe_key: 'reembed_chunk:{uuid4().hex}', "
                 "status: 'queued', step: 'queued', progress: 0, processed_pages: 0, sequence: 1}; "
                 "COMMIT TRANSACTION;",
-                {"text": text, "embedding_text": embedding_text, "base_text": suggestion["base_text"]},
+                {"text": text, "embedding_text": embedding_text, "token_count": token_count,
+                 "base_text": suggestion["base_text"]},
             )
         except Exception as error:
             if "outdated" in str(error):
