@@ -1,0 +1,262 @@
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+/* =========================
+   HEADER
+   ========================= */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.navBtn {
+  width: 28px;
+  height: 28px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+
+  background: #fff;
+  color: #6b7280;
+
+  font-size: 16px;
+  line-height: 1;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.15s ease;
+}
+
+.navBtn:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.navBtn:active {
+  transform: scale(0.9);
+}
+
+/* =========================
+   WEEK HEADER
+   ========================= */
+
+.weekRow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 2px;
+}
+
+.weekday {
+  text-align: center;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  color: #9ca3af;
+
+  padding: 3px 0;
+}
+
+/* =========================
+   DAYS GRID
+   ========================= */
+
+.daysGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+/* =========================
+   DAY
+   ========================= */
+
+.day {
+  width: 28px;
+  height: 28px;
+
+  margin: 2px auto;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 2px solid transparent;
+  border-radius: 50%;
+
+  background: transparent;
+
+  color: #374151;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+
+/* =========================
+   HOVER
+   ========================= */
+
+.day:hover:not(:disabled) {
+  background: #f3f4f6;
+  transform: scale(1.08);
+}
+
+/* =========================
+   CLICK
+   ========================= */
+
+.day:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+/* =========================
+   KEYBOARD FOCUS
+   ========================= */
+
+.day:focus-visible {
+  outline: none;
+
+  border-color: #3b5fe3;
+
+  box-shadow:
+    0 0 0 3px rgba(59, 95, 227, 0.15);
+}
+
+/* =========================
+   NGÀY NGOÀI THÁNG
+   ========================= */
+
+.muted {
+  color: #c4c8d0;
+}
+
+.muted:hover:not(:disabled) {
+  color: #9ca3af;
+}
+
+/* =========================
+   TODAY
+   ========================= */
+
+.today {
+  background: #3b5fe3;
+  color: #fff;
+
+  font-weight: 700;
+
+  border-color: #3b5fe3;
+}
+
+.today:hover:not(:disabled) {
+  background: #3154d6;
+  border-color: #3154d6;
+}
+
+/* =========================
+   SELECTED
+   ========================= */
+
+.selected {
+  border-color: #3b5fe3;
+
+  box-shadow:
+    0 0 0 3px rgba(59, 95, 227, 0.12);
+
+  font-weight: 700;
+
+  animation: selectedDay 0.2s ease-out;
+}
+
+/* =========================
+   TODAY + SELECTED
+   ========================= */
+
+.today.selected {
+  background: #3b5fe3;
+  color: #fff;
+
+  border-color: #fff;
+
+  box-shadow:
+    0 0 0 2px #3b5fe3,
+    0 0 0 5px rgba(59, 95, 227, 0.15);
+}
+
+/* =========================
+   SELECTION ANIMATION
+   ========================= */
+
+@keyframes selectedDay {
+  0% {
+    transform: scale(0.82);
+  }
+
+  60% {
+    transform: scale(1.08);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* =========================
+   DISABLED / EMPTY
+   ========================= */
+
+.day:disabled {
+  cursor: default;
+  color: transparent;
+  background: transparent;
+  border-color: transparent;
+  pointer-events: none;
+}
+
+/* =========================
+   REDUCE MOTION
+   ========================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .day,
+  .navBtn {
+    transition: none;
+  }
+
+  .selected {
+    animation: none;
+  }
+}

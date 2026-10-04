@@ -1,0 +1,415 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+
+  min-height: 100vh;
+  width: 100%;
+
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--space-lg);
+  background-color: hwb(0 100% 0% / 0.775);
+  border-radius: 15px;
+  margin: 0;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(12, 1fr);
+  }
+}
+
+.mainColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+@media (min-width: 1024px) {
+  .mainColumn {
+    grid-column: span 8;
+  }
+}
+
+.sideColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+@media (min-width: 1024px) {
+  .sideColumn {
+    grid-column: span 4;
+  }
+}
+
+.sectionHeader {
+  display: flex;
+  margin-bottom: var(--space-md);
+  background-color: var(--surface-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--outline-variant);
+  padding: 20px;
+  flex-direction: column;
+}
+
+.sectionHeaderContent {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--space-md);
+}
+
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.sectionSubtitle {
+  font-size: 14px;
+  color: var(--on-surface-variant);
+  margin-top: 4px;
+}
+
+/* Course Grid */
+.courseGrid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: var(--space-md);
+}
+
+@media (min-width: 768px) {
+  .courseGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.courseCard {
+  background-color: var(--surface-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--outline-variant);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+  /* Container query cho các phần tử trong card */
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.courseCard:hover {
+  border-color: var(--outline);
+  box-shadow: var(--shadow-ambient);
+}
+
+.courseMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.courseTitle {
+  font-size: clamp(13px, 5cqi, 18px);
+  font-weight: 700;
+  color: var(--on-surface);
+  transition: color 0.2s;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+}
+
+.courseCard:hover .courseTitle {
+  color: var(--primary);
+}
+
+.courseDesc {
+  font-size: clamp(11px, 3.5cqi, 14px);
+  color: var(--on-surface-variant);
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.courseInstructor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.instructorAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--surface-container);
+  overflow: hidden;
+}
+
+.instructorName {
+  font-size: clamp(10px, 2.8cqi, 13px);
+  font-weight: 500;
+  color: var(--on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.courseFooter {
+  border-top: 1px solid rgba(195, 198, 215, 0.5);
+  padding-top: 16px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: clamp(10px, 2.8cqi, 13px);
+  margin-bottom: 8px;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 6px;
+  background-color: var(--surface-inset);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progressFill {
+  height: 100%;
+  background-color: var(--primary-container);
+  border-radius: 999px;
+}
+
+.nextTask {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: clamp(9px, 2.5cqi, 12px);
+  color: var(--on-surface-variant);
+}
+
+.nextTaskName {
+  font-weight: 500;
+  color: var(--on-surface);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.noticeItem {
+  padding: 14px;
+  border-radius: var(--radius-base);
+  background-color: white;
+  border: 1px solid rgba(195, 198, 215, 0.4);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  transition: border-color 0.2s;
+  margin-bottom: 12px;
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.noticeItem:last-child {
+  margin-bottom: 0;
+}
+
+.noticeItem:hover {
+  border-color: rgba(195, 198, 215, 0.7);
+}
+
+.deadlineItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  background: #f8f9fb;
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.deadlineItem:last-child {
+  margin-bottom: 0;
+}
+
+.deadlineHigh {
+  background-color: rgba(254, 243, 199, 0.6);
+  border-color: #fcd34d;
+}
+
+.cardPanel {
+  background-color: var(--surface-card);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--outline-variant);
+  padding: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.noticesSection {
+  margin-top: 24px;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panelTitle {
+  font-size: clamp(14px, 4cqi, 18px);
+  font-weight: 700;
+  color: var(--on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.filterBtn {
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--outline-variant);
+  background-color: var(--surface-card);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.allCoursesLink {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.noticeboardLink {
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.bulletDivider {
+  color: var(--outline-variant);
+}
+
+.noticeContent {
+  flex: 1;
+}
+
+.noticeMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.noticeDate {
+  font-size: clamp(10px, 2.8cqi, 13px);
+  color: var(--on-surface-variant);
+}
+
+.noticeTitle {
+  font-size: clamp(11px, 3.5cqi, 14px);
+  font-weight: 600;
+  color: var(--on-surface);
+  margin-bottom: 4px;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.noticeDesc {
+  font-size: clamp(10px, 2.8cqi, 13px);
+  color: var(--on-surface-variant);
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.deadlineHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.deadlineBadge {
+  font-size: clamp(10px, 3cqi, 14px);
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--surface-container-high);
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+.deadlineTitle {
+  font-size: clamp(11px, 3.5cqi, 14px);
+  font-weight: 700;
+  color: var(--on-surface);
+  margin-top: 4px;
+  margin-bottom: 2px;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.deadlineCourse {
+  font-size: clamp(10px, 2.8cqi, 13px);
+  color: var(--on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deadlineFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid rgba(195, 198, 215, 0.4);
+}
+
+.deadlineButton {
+  border: none;
+  background: #3b5fe3;
+  color: #fff;
+  border-radius: 7px;
+  padding: 5px 9px;
+  font-size: clamp(9px, 2.5cqi, 12px);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}

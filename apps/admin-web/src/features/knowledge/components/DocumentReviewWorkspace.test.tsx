@@ -1,0 +1,96 @@
+// @vitest-environment jsdom
+
+import "@testing-library/jest-dom/vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DocumentResult } from "../api/contracts";
+import { knowledgeClient } from "../api/knowledgeClient";
+import { DocumentReviewWorkspace } from "./DocumentReviewWorkspace";
+
+vi.mock("react-pdf", () => ({
+  Document: ({ children }: { children: unknown }) => <div>{children as React.ReactNode}</div>,
+  Page: () => <canvas aria-label="Source PDF page" />,
+  pdfjs: { GlobalWorkerOptions: {} },
+}));
+
+const result: DocumentResult = {
+  document_id: "document:doc_abc",
+  process_status: "review",
+  source: { original_filename: "source.pdf", mime_type: "application/pdf" },
+  page_count: 1,
+  metadata: {
+    title: "Detected title", document_type: "regulation", document_number: null,
+    description: null, cohort: null, program_scope: { type: "all", programs: [] }, language: "en",
+  },
+  ocr_draft: {
+    id: "ocr_draft:ocr_job_abc", status: "draft", revision: 1,
+    pages: [{ page: 1, raw_text: "Original OCR" }],
+  },
+};
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+describe("DocumentReviewWorkspace", () => {
+  it("holds edits locally and sends one complete confirmation", async () => {
+    const confirm = vi.spyOn(knowledgeClient, "confirmDocument").mockResolvedValue("job:job_index");
+    render(<DocumentReviewWorkspace initialResult={result} onConfirmed={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Corrected title" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "OCR Markdown for page 1" }), {
+      target: { value: "# Corrected OCR" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and index (1 selected)" }));
+
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith("document:doc_abc", {
+      expected_revision: 1,
+      metadata: expect.objectContaining({ title: "Corrected title" }),
+      page_edits: [{ page: 1, reviewed_text: "# Corrected OCR" }],
+      selected_pages: [1],
+    }));
+  });
+
+  it("sends the displayed revision when confirming", async () => {
+    const confirm = vi.spyOn(knowledgeClient, "confirmDocument").mockResolvedValue("job:job_index");
+    const onConfirmed = vi.fn();
+    render(<DocumentReviewWorkspace initialResult={result} onConfirmed={onConfirmed} />);
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Updated title" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and index (1 selected)" }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(result.document_id, expect.objectContaining({ expected_revision: 1 })));
+    expect(onConfirmed).toHaveBeenCalledWith("job:job_index");
+  });
+
+  it("shows an undetected programme scope without converting it to all programmes", () => {
+    render(<DocumentReviewWorkspace initialResult={{
+      ...result,
+      metadata: { ...result.metadata, program_scope: null },
+    }} />);
+
+    expect(screen.getByLabelText("Programme scope")).toHaveValue("");
+  });
+
+  it("renders detected numeric cohort years in the review form", () => {
+    render(<DocumentReviewWorkspace initialResult={{
+      ...result,
+      metadata: {
+        ...result.metadata,
+        cohort: { from_year: 2023, to_year: null },
+        program_scope: { type: "all", programs: [] },
+      },
+    }} />);
+
+    expect(screen.getByLabelText("Cohort start year")).toHaveValue(2023);
+    expect(screen.getByLabelText("Cohort end year")).toHaveValue(null);
+    expect(screen.getByLabelText("Programme scope")).toHaveValue("all");
+  });
+
+  it("can exclude a page from the confirmation", async () => {
+    const confirm = vi.spyOn(knowledgeClient, "confirmDocument").mockResolvedValue("job:job_index");
+    render(<DocumentReviewWorkspace initialResult={result} onConfirmed={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText("Include in index"));
+    expect(screen.getByRole("button", { name: "Confirm and index (0 selected)" })).toBeDisabled();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+});
