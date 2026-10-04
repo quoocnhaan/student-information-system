@@ -4,17 +4,25 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import java.security.Key;
 import java.util.Date;
 
 @Component
 public class JwtTokenProvider {
-    
-    // Key cố định cho môi trường test (cần ít nhất 256 bit)
-    private static final String SECRET = "DayLaMotSecretKeyRatDaiVaDuBaoMatChoViecTestRole123!";
-    private final Key key = Keys.hmacShaKeyFor(SECRET.getBytes());
+
+    @Value("${jwt.secret:DayLaMotSecretKeyRatDaiVaDuBaoMatChoViecTestRole123!}")
+    private String jwtSecret;
+
+    private Key key;
+
+    @PostConstruct
+    public void init() {
+        this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+    }
 
     public String generateToken(String username, String role) {
         return Jwts.builder()

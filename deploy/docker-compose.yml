@@ -18,7 +18,8 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/enrollment_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-root}
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-ptandat66}
+      JWT_SECRET: ${JWT_SECRET:-DayLaMotSecretKeyRatDaiVaDuBaoMatChoViecTestRole123!}
     depends_on:
       - mysql
     restart: always
@@ -32,10 +33,12 @@ services:
   mysql:
     image: mysql:8.0
     ports:
-      - "3307:3306"
+      - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-ptandat66}
       MYSQL_DATABASE: enrollment_db
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ptandat66}
     volumes:
       - mysql-data:/var/lib/mysql
     restart: always

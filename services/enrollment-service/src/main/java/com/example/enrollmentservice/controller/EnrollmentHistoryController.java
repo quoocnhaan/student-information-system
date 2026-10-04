@@ -6,9 +6,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 @RestController
@@ -20,34 +22,38 @@ public class EnrollmentHistoryController {
 
     @Operation(summary = "Lấy tất cả lịch sử đăng ký")
     @GetMapping
-    public ResponseEntity<List<EnrollmentHistory>> getAllHistories() { return ResponseEntity.ok(historyService.getAllHistories()); }
-    
+    public ResponseEntity<List<EnrollmentHistory>> getAllHistories() {
+        return ResponseEntity.ok(historyService.getAllHistories());
+    }
+
     @Operation(summary = "Lấy lịch sử theo ID")
     @GetMapping("/{id}")
     public ResponseEntity<EnrollmentHistory> getHistoryById(
-            @Parameter(description = "Mã lịch sử") @PathVariable String id) { 
-        EnrollmentHistory history = historyService.getHistoryById(id);
-        return history != null ? ResponseEntity.ok(history) : ResponseEntity.notFound().build();
+            @Parameter(description = "Mã lịch sử") @PathVariable String id) {
+        return ResponseEntity.ok(historyService.getHistoryById(id));
     }
-    
+
     @Operation(summary = "Tạo lịch sử đăng ký mới", description = "Yêu cầu quyền ADMIN")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @PostMapping
-    public ResponseEntity<EnrollmentHistory> createHistory(@RequestBody EnrollmentHistory history) { return ResponseEntity.ok(historyService.saveHistory(history)); }
-    
-    @Operation(summary = "Cập nhật lịch sử đăng ký")
+    public ResponseEntity<EnrollmentHistory> createHistory(@RequestBody EnrollmentHistory history) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(historyService.createHistory(history));
+    }
+
+    @Operation(summary = "Cập nhật lịch sử đăng ký", description = "Yêu cầu quyền ADMIN")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<EnrollmentHistory> updateHistory(
             @Parameter(description = "Mã lịch sử") @PathVariable String id,
-            @RequestBody EnrollmentHistory history) { 
-        history.setHistoryId(id);
-        return ResponseEntity.ok(historyService.saveHistory(history)); 
+            @RequestBody EnrollmentHistory history) {
+        return ResponseEntity.ok(historyService.updateHistory(id, history));
     }
-    
-    @Operation(summary = "Xóa lịch sử đăng ký")
+
+    @Operation(summary = "Xóa lịch sử đăng ký", description = "Yêu cầu quyền ADMIN")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteHistory(
-            @Parameter(description = "Mã lịch sử") @PathVariable String id) { 
+            @Parameter(description = "Mã lịch sử") @PathVariable String id) {
         historyService.deleteHistory(id);
         return ResponseEntity.noContent().build();
     }

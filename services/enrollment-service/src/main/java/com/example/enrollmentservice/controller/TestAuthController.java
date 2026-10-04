@@ -4,6 +4,7 @@ import com.example.enrollmentservice.security.JwtTokenProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,15 +12,16 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.Map;
 
+@Profile("dev")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-@Tag(name = "Xác thực (Test)", description = "API lấy token test cho các role khác nhau")
+@Tag(name = "Xác thực (Test - Dev Profile)", description = "API lấy token test cho các role khác nhau trong môi trường Dev")
 public class TestAuthController {
 
     private final JwtTokenProvider tokenProvider;
 
-    @Operation(summary = "Lấy token test", description = "Trả về JWT token cho ADMIN, LECTURER, STUDENT. Dùng để test các API cần xác thực.")
+    @Operation(summary = "Lấy token test", description = "Chỉ bật ở profile dev. Trả về JWT token cho ADMIN, LECTURER, STUDENT.")
     @GetMapping("/test-tokens")
     public Map<String, String> getTestTokens() {
         Map<String, String> tokens = new HashMap<>();

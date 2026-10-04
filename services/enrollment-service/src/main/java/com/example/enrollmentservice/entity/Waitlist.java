@@ -1,5 +1,6 @@
 package com.example.enrollmentservice.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Waitlist {
     @Id
     @Column(name = "waitlist_id", length = 50)
@@ -18,6 +20,7 @@ public class Waitlist {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private ClassEntity courseClass;
 
     @Column(name = "student_id", nullable = false, length = 50)

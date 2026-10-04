@@ -1,5 +1,6 @@
 package com.example.enrollmentservice.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Enrollment {
     @Id
     @Column(name = "enrollment_id", length = 50)
@@ -18,6 +20,7 @@ public class Enrollment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "period_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private RegistrationPeriod period;
 
     @Column(name = "student_id", nullable = false, length = 50)
@@ -25,10 +28,12 @@ public class Enrollment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private ClassEntity courseClass;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "semester_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Semester semester;
 
     @Column(length = 50)

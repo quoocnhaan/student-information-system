@@ -6,9 +6,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 @RestController
@@ -20,34 +22,38 @@ public class RegistrationPeriodController {
 
     @Operation(summary = "Lấy tất cả đợt đăng ký")
     @GetMapping
-    public ResponseEntity<List<RegistrationPeriod>> getAllPeriods() { return ResponseEntity.ok(periodService.getAllPeriods()); }
-    
+    public ResponseEntity<List<RegistrationPeriod>> getAllPeriods() {
+        return ResponseEntity.ok(periodService.getAllPeriods());
+    }
+
     @Operation(summary = "Lấy đợt đăng ký theo ID")
     @GetMapping("/{id}")
     public ResponseEntity<RegistrationPeriod> getPeriodById(
-            @Parameter(description = "Mã đợt đăng ký") @PathVariable String id) { 
-        RegistrationPeriod period = periodService.getPeriodById(id);
-        return period != null ? ResponseEntity.ok(period) : ResponseEntity.notFound().build();
+            @Parameter(description = "Mã đợt đăng ký") @PathVariable String id) {
+        return ResponseEntity.ok(periodService.getPeriodById(id));
     }
-    
+
     @Operation(summary = "Tạo đợt đăng ký mới", description = "Yêu cầu quyền ADMIN")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @PostMapping
-    public ResponseEntity<RegistrationPeriod> createPeriod(@RequestBody RegistrationPeriod period) { return ResponseEntity.ok(periodService.savePeriod(period)); }
-    
-    @Operation(summary = "Cập nhật đợt đăng ký")
+    public ResponseEntity<RegistrationPeriod> createPeriod(@RequestBody RegistrationPeriod period) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(periodService.createPeriod(period));
+    }
+
+    @Operation(summary = "Cập nhật đợt đăng ký", description = "Yêu cầu quyền ADMIN")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<RegistrationPeriod> updatePeriod(
             @Parameter(description = "Mã đợt đăng ký") @PathVariable String id,
-            @RequestBody RegistrationPeriod period) { 
-        period.setPeriodId(id);
-        return ResponseEntity.ok(periodService.savePeriod(period)); 
+            @RequestBody RegistrationPeriod period) {
+        return ResponseEntity.ok(periodService.updatePeriod(id, period));
     }
-    
-    @Operation(summary = "Xóa đợt đăng ký")
+
+    @Operation(summary = "Xóa đợt đăng ký", description = "Yêu cầu quyền ADMIN")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePeriod(
-            @Parameter(description = "Mã đợt đăng ký") @PathVariable String id) { 
+            @Parameter(description = "Mã đợt đăng ký") @PathVariable String id) {
         periodService.deletePeriod(id);
         return ResponseEntity.noContent().build();
     }
