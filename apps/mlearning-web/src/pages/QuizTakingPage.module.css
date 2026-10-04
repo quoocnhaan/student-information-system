@@ -1,0 +1,79 @@
+.page {
+  min-height: 100vh;
+  background: #f4f5f7;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  padding-top: 10px;
+  width: 100%;
+}
+
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (min-width: 1024px) {
+  .content {
+    grid-template-columns: 1fr 300px;
+  }
+}
+
+/* ============================================================
+   Question transition animations
+   Applied to the wrapper div around <QuestionCard> + <CitationNote>
+   in QuizTakingPage.tsx. The wrapper is keyed by question number,
+   so React remounts it on every navigation and the animation below
+   replays automatically.
+   ============================================================ */
+
+.questionEnterNext {
+  animation: quizSlideInRight 0.32s ease;
+}
+
+.questionEnterPrev {
+  animation: quizSlideInLeft 0.32s ease;
+}
+
+@keyframes quizSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes quizSlideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .questionEnterNext,
+  .questionEnterPrev {
+    animation: none;
+  }
+}
