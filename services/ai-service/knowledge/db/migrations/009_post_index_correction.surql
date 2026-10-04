@@ -1,0 +1,15 @@
+DEFINE FIELD IF NOT EXISTS embedding_status ON TABLE chunk TYPE string DEFAULT 'ok' ASSERT $value INSIDE ['ok', 'stale'];
+DEFINE FIELD IF NOT EXISTS chunk_id ON TABLE job TYPE option<record<chunk>>;
+UPDATE chunk SET embedding_status = 'ok' WHERE embedding_status = NONE;
+DEFINE FIELD IF NOT EXISTS updated_at ON TABLE chunk TYPE datetime VALUE time::now();
+DEFINE TABLE IF NOT EXISTS correction_suggestion SCHEMAFULL;
+DEFINE FIELD IF NOT EXISTS document_id ON TABLE correction_suggestion TYPE record<document>;
+DEFINE FIELD IF NOT EXISTS chunk_id ON TABLE correction_suggestion TYPE record<chunk>;
+DEFINE FIELD IF NOT EXISTS job_id ON TABLE correction_suggestion TYPE record<job>;
+DEFINE FIELD IF NOT EXISTS position ON TABLE correction_suggestion TYPE int;
+DEFINE FIELD IF NOT EXISTS base_text ON TABLE correction_suggestion TYPE string;
+DEFINE FIELD IF NOT EXISTS suggested_text ON TABLE correction_suggestion TYPE option<string>;
+DEFINE FIELD IF NOT EXISTS status ON TABLE correction_suggestion TYPE string ASSERT $value INSIDE ['pending', 'ready', 'accepted', 'rejected', 'outdated', 'failed'];
+DEFINE FIELD IF NOT EXISTS created_at ON TABLE correction_suggestion TYPE datetime DEFAULT time::now() READONLY;
+DEFINE INDEX IF NOT EXISTS suggestion_job ON TABLE correction_suggestion FIELDS job_id;
+DEFINE INDEX IF NOT EXISTS suggestion_chunk_status ON TABLE correction_suggestion FIELDS chunk_id, status;
