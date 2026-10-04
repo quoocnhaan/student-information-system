@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 
-JOB_QUEUES = {"ocr_pdf": "ocr", "correct_ocr": "correct", "index_document": "index", "correct_chunks": "correct", "reembed_chunk": "index"}
+JOB_QUEUES = {"ocr_pdf": "ocr", "index_document": "index", "correct_chunks": "correct", "reembed_chunk": "index"}
 _JOB_ID = re.compile(r"job:job_[0-9a-f]{32}\Z")
 
 

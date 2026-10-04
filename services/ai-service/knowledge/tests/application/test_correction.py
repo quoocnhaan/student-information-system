@@ -1,4 +1,4 @@
-"""LM Studio correction output is bounded and transport errors retry once."""
+"""LM Studio correction output is bounded and transport faults require explicit retry."""
 
 import asyncio
 
@@ -40,10 +40,11 @@ def test_correction_accepts_plausible_output_and_rejects_empty_or_long() -> None
     assert asyncio.run(correct_text("Original text", settings, Client(["very long output " * 20]))) is None
 
 
-def test_correction_retries_one_transport_error() -> None:
+def test_correction_does_not_retry_transport_errors() -> None:
     client = Client([httpx.ConnectError("temporary"), "Corrected text"])
-    assert asyncio.run(correct_text("Original text", Settings(_env_file=None), client)) == "Corrected text"
-    assert client.calls == 2
+    with pytest.raises(httpx.ConnectError):
+        asyncio.run(correct_text("Original text", Settings(_env_file=None), client))
+    assert client.calls == 1
 
 
 def test_correction_has_elapsed_deadline() -> None:

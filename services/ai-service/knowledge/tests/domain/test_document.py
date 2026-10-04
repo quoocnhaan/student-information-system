@@ -67,7 +67,6 @@ def test_chunk_requires_a_768_dimension_embedding() -> None:
             {
                 "id": "chunk:01JDEF",
                 "document_id": "document:01JXYZ",
-                "ocr_draft_id": "ocr_draft:01JABC",
                 "text": "text",
                 "embedding_text": "text",
                 "embedding": [0.1],

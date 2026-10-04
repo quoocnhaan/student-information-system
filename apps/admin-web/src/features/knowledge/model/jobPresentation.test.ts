@@ -9,8 +9,7 @@ const job: JobStatus = {
   status: "running",
   step: "ocr",
   progress: 50,
-  processed_pages: 1,
-  sequence: 2,
+  followup_job_ids: [], sequence: 2,
 };
 
 describe("job presentation", () => {

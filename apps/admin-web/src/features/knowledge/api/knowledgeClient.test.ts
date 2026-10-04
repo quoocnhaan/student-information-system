@@ -5,6 +5,14 @@ import { knowledgeClient } from "./knowledgeClient";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("knowledgeClient", () => {
+  it("posts one chunk ID for correction", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ job_id: "job:correction" }), { status: 202 })));
+    await knowledgeClient.requestCorrections("document:doc_test", "chunk:chunk_test");
+    expect(fetch).toHaveBeenCalledWith("/v1/documents/document%3Adoc_test/corrections", expect.objectContaining({
+      method: "POST", body: JSON.stringify({ chunk_id: "chunk:chunk_test" }),
+    }));
+  });
+
   it("turns a proxy-generated 413 response into an actionable upload message", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("payload too large", { status: 413 })));
 
@@ -22,9 +30,7 @@ describe("knowledgeClient", () => {
       status: "completed",
       step: "completed",
       progress: 100,
-      processed_pages: 4,
-      total_pages: 4,
-      error: null,
+      followup_job_ids: [], error: null,
       updated_at: "2026-09-23T16:11:31Z",
     });
 

@@ -14,4 +14,4 @@ DEFINE FIELD IF NOT EXISTS confirmation_fingerprint ON TABLE job TYPE option<str
 -- Completed work no longer needs temporary OCR references. Retain failed and
 -- queued legacy jobs until their index input has been safely backfilled.
 UPDATE job SET ocr_draft_id = NONE WHERE status = 'completed' AND ocr_draft_id IS NOT NONE;
-REMOVE FIELD ocr_draft_id ON TABLE chunk;
+REMOVE FIELD IF EXISTS ocr_draft_id ON TABLE chunk;

@@ -1,10 +1,11 @@
 """HTTP contracts for the documents resource."""
 
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.document import Cohort, ProgramScope
+from app.api.v1.schemas.jobs import JobStatusResponse
 
 
 class DocumentUploadAcceptedResponse(BaseModel):
@@ -58,15 +59,12 @@ class DocumentMetadataResponse(BaseModel):
 class OcrPageResponse(BaseModel):
     page: int
     raw_text: str
-    reviewed_text: str | None = None
-    corrected_text: str | None = None
 
 
 class OcrDraftResponse(BaseModel):
     id: str
     status: str
     revision: int = Field(default=1, ge=1)
-    correction_status: str | None = None
     pages: list[OcrPageResponse]
 
 
@@ -99,4 +97,37 @@ class ReviewPageUpdateRequest(BaseModel):
 
 
 class ChunkCorrectionRequest(BaseModel):
-    chunk_ids: list[str] = Field(min_length=1, max_length=100)
+    model_config = ConfigDict(extra="forbid", strict=True)
+    chunk_id: str = Field(pattern=r"^chunk:chunk_[0-9a-f]{32}$")
+
+
+class ChunkCorrectionOperation(BaseModel):
+    input_id: str
+    outcome: Literal["pending", "applied", "unchanged", "failed"]
+    job: JobStatusResponse
+    children: list[JobStatusResponse]
+    chunk_child_ids: list[str]
+
+
+class IndexedChunkResponse(BaseModel):
+    id: str
+    text: str
+    hierarchy: dict[str, Any]
+    chunk_index: int
+    page_start: int
+    page_end: int
+    embedding_status: Literal["ok", "stale"]
+    updated_at: str
+    active_job_id: str | None
+    last_embedding_job_id: str | None
+    correction: ChunkCorrectionOperation | None
+
+
+class IndexedPageResponse(BaseModel):
+    page: int
+    chunks: list[IndexedChunkResponse]
+
+
+class IndexedChunksResponse(BaseModel):
+    document_id: str
+    pages: list[IndexedPageResponse]

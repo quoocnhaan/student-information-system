@@ -17,5 +17,24 @@ question first.
   `writing-for-agents` skill before writing the plan.
 - Create Knowledge-service plans in `services/ai-service/knowledge/plans/`.
 
+## Local workflow and schema resets
+
+- For a local Docker development workflow change that alters persisted behavior
+  or schema, prefer a clean Knowledge Docker-volume reset over carrying legacy
+  records or compatibility code forward. This includes documents, chunks,
+  vectors, OCR drafts, and jobs stored in the local stack.
+- Treat a volume reset as destructive: do it only when the user explicitly
+  asks to reset/remove Docker volumes for the current task. Never apply this
+  local-development rule to production or another shared environment.
+- New workflows should use schemas and endpoints designed for the new behavior;
+  do not retain legacy workflow compatibility unless the user explicitly asks.
+
+## Applying verified code changes
+
+- After a code change passes its relevant tests, rebuild the Knowledge Docker
+  Compose services before reporting the change complete, so local containers run
+  the verified behavior. Use `docker compose -p knowledge -f docker-compose.yml
+  up -d --build` from `services/ai-service/knowledge`, then verify service status.
+
 
 

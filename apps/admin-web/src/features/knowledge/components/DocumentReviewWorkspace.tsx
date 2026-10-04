@@ -53,15 +53,15 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
   }, [initialResult]);
 
   const currentPage = result.ocr_draft.pages.find((entry) => entry.page === page) ?? result.ocr_draft.pages[0];
-  const pageText = currentPage === undefined ? "" : edits[currentPage.page] ?? currentPage.reviewed_text ?? currentPage.corrected_text ?? currentPage.raw_text;
+  const pageText = currentPage === undefined ? "" : edits[currentPage.page] ?? currentPage.raw_text;
   const metadataDirty = !same(normalizeMetadata(metadata), normalizeMetadata(result.metadata));
   const changedPages = useMemo(() => result.ocr_draft.pages.flatMap((entry) => {
     const next = edits[entry.page];
-    return next !== undefined && next !== (entry.reviewed_text ?? entry.corrected_text ?? entry.raw_text) ? [{ page: entry.page, reviewed_text: next }] : [];
+    return next !== undefined && next !== (entry.raw_text) ? [{ page: entry.page, reviewed_text: next }] : [];
   }), [edits, result.ocr_draft.pages]);
   const selectionDirty = result.ocr_draft.pages.some((entry) => !selectedPages.has(entry.page));
   const dirty = metadataDirty || changedPages.length > 0 || selectionDirty;
-  const hasIndexableSelection = result.ocr_draft.pages.some((entry) => selectedPages.has(entry.page) && (edits[entry.page] ?? entry.reviewed_text ?? entry.corrected_text ?? entry.raw_text).trim() !== "");
+  const hasIndexableSelection = result.ocr_draft.pages.some((entry) => selectedPages.has(entry.page) && (edits[entry.page] ?? entry.raw_text).trim() !== "");
 
   useEffect(() => {
     if (!dirty) return undefined;
@@ -72,7 +72,7 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
 
   function editPage(next: string) {
     if (currentPage === undefined) return;
-    const baseline = currentPage.reviewed_text ?? currentPage.corrected_text ?? currentPage.raw_text;
+    const baseline = currentPage.raw_text;
     setEdits((current) => {
       if (next === baseline) {
         const rest = { ...current };
@@ -112,8 +112,6 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
   }
 
   return <section className="stack review-workspace">
-    {result.ocr_draft.correction_status === "failed" && <p className="notice warning">LLM correction failed — showing raw OCR</p>}
-    {result.ocr_draft.correction_status === "skipped" && <span className="notice warning">LLM correction skipped</span>}
     <MetadataEditor value={metadata} onChange={(next) => { setMetadata(next); setSaveState("idle"); setMessage(null); }} />
     <div className="review-save-bar"><span className={dirty ? "dirty-state" : "muted"}>{dirty ? "Unsaved changes" : "Ready to confirm"}</span><button className="primary-button" type="button" disabled={confirming || !hasIndexableSelection} onClick={() => void confirm()}>{confirming ? "Confirming..." : `Confirm and index (${selectedPages.size} selected)`}</button></div>
     {message && <div className={saveState === "error" || saveState === "conflict" ? "notice danger split-row" : "notice warning"} role="status"><span>{message}</span>{saveState === "conflict" && <button className="secondary-button" type="button" onClick={() => void reloadLatest()}>Reload latest version</button>}</div>}

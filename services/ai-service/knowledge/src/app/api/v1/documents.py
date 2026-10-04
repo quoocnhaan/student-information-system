@@ -17,6 +17,7 @@ from app.api.v1.schemas.documents import (
     ConfirmAcceptedResponse,
     ConfirmRequest,
     ChunkCorrectionRequest,
+    IndexedChunksResponse,
     OcrDraftResponse,
     OcrPageResponse,
     SourceSummary,
@@ -27,7 +28,6 @@ from app.infrastructure.minio import MinioObjectStore, ObjectStoreError
 from app.infrastructure.surreal import SurrealDatabase, SurrealDatabaseError
 
 router = APIRouter(prefix="/documents", tags=["documents"])
-correction_router = APIRouter(prefix="/corrections", tags=["corrections"])
 _DOCUMENT_RECORD_ID = re.compile(r"doc_[0-9a-f]{32}")
 
 
@@ -43,7 +43,6 @@ async def upload_pdf(
     database: Annotated[SurrealDatabase, Depends(get_database)],
     object_store: Annotated[MinioObjectStore, Depends(get_object_store)],
     settings: Annotated[Settings, Depends(get_settings)],
-    skip_llm_correction: Annotated[bool, Form()] = False,
 ) -> DocumentUploadAcceptedResponse:
     """Persist a PDF, document, and service-owned OCR job."""
 
@@ -85,7 +84,6 @@ async def upload_pdf(
             "mime_type": "application/pdf",
         },
         "process_status": "processing",
-        "llm_correction": "skipped" if skip_llm_correction else "enabled",
         "status": "active",
     }
 
@@ -140,7 +138,7 @@ async def confirm_document(
             raise HTTPException(status_code=422, detail="Confirmation contains an unknown page")
         edits = {entry.page: entry.reviewed_text for entry in body.page_edits}
         selected_text = [
-            edits.get(int(entry["page"]), entry.get("reviewed_text") if entry.get("reviewed_text") is not None else entry.get("corrected_text") if entry.get("corrected_text") is not None else entry.get("raw_text", ""))
+            edits.get(int(entry["page"]), entry.get("raw_text", ""))
             for entry in pages
             if isinstance(entry, Mapping) and entry.get("page") in requested_pages
         ]
@@ -161,7 +159,7 @@ async def confirm_document(
     return ConfirmAcceptedResponse(document_id=f"document:{record_id}", job_id=str(job["id"]))
 
 
-@router.get("/{document_id}/chunks")
+@router.get("/{document_id}/chunks", response_model=IndexedChunksResponse)
 async def get_indexed_chunks(
     document_id: str, database: Annotated[SurrealDatabase, Depends(get_database)],
 ) -> dict:
@@ -176,15 +174,14 @@ async def get_indexed_chunks(
     pages: dict[int, list[dict]] = {}
     for chunk in chunks:
         position = chunk["position"]
-        suggestion = chunk.get("suggestion")
         pages.setdefault(int(position["page_start"]), []).append({
             "id": str(chunk["id"]), "text": chunk["text"], "hierarchy": chunk["hierarchy"],
             "chunk_index": position["chunk_index"], "page_start": position["page_start"],
             "page_end": position["page_end"], "embedding_status": chunk.get("embedding_status", "ok"),
             "updated_at": str(chunk.get("updated_at", "")),
-            "suggestion": ({"id": str(suggestion["id"]), "status": suggestion["status"],
-                            "base_text": suggestion["base_text"],
-                            "suggested_text": suggestion.get("suggested_text")}) if suggestion else None,
+            "active_job_id": str(chunk["active_job_id"]) if chunk.get("active_job_id") else None,
+            "last_embedding_job_id": str(chunk["last_embedding_job_id"]) if chunk.get("last_embedding_job_id") else None,
+            "correction": chunk.get("correction"),
         })
     return {"document_id": f"document:{record_id}", "pages": [
         {"page": page, "chunks": items} for page, items in sorted(pages.items())
@@ -199,38 +196,13 @@ async def request_corrections(
     record_id = _document_record_id_or_none(document_id)
     if record_id is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    job = await database.request_chunk_correction(record_id, body.chunk_ids)
+    job = await database.request_chunk_correction(record_id, body.chunk_id)
     if job is None:
         raise HTTPException(status_code=409, detail="Chunks are unavailable for correction")
     publisher = getattr(request.app.state, "publisher", None)
     if publisher is not None:
         background_tasks.add_task(publisher.publish, job)
     return {"job_id": str(job["id"])}
-
-
-@correction_router.post("/{suggestion_id}/accept", status_code=202)
-async def accept_correction(
-    suggestion_id: str, background_tasks: BackgroundTasks, request: Request,
-    database: Annotated[SurrealDatabase, Depends(get_database)],
-) -> dict:
-    outcome, job = await database.accept_suggestion(suggestion_id)
-    if outcome == "missing":
-        raise HTTPException(status_code=404, detail="Suggestion not found")
-    if job is None:
-        raise HTTPException(status_code=409, detail="Suggestion is no longer applicable")
-    publisher = getattr(request.app.state, "publisher", None)
-    if publisher is not None:
-        background_tasks.add_task(publisher.publish, job)
-    return {"job_id": str(job["id"])}
-
-
-@correction_router.post("/{suggestion_id}/reject")
-async def reject_correction(
-    suggestion_id: str, database: Annotated[SurrealDatabase, Depends(get_database)],
-) -> dict:
-    if not await database.reject_suggestion(suggestion_id):
-        raise HTTPException(status_code=409, detail="Suggestion is no longer ready")
-    return {"status": "rejected"}
 
 
 @router.get("/{document_id}/result", response_model=DocumentResultResponse)
@@ -353,7 +325,6 @@ def _as_document_result(
             id=str(draft["id"]),
             status=str(draft["status"]),
             revision=int(draft.get("revision", 1)),
-            correction_status=draft.get("correction_status"),
             pages=[OcrPageResponse.model_validate(page) for page in pages],
         ),
     )

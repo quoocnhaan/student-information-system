@@ -75,8 +75,8 @@ def test_outside_clause_content_is_retained_once() -> None:
 def test_text_precedence_page_spans_and_legacy_embedding_context() -> None:
     chunks = chunk_pages([
         {"page": 3, "raw_text": "ignored"},
-        {"page": 1, "raw_text": "raw", "corrected_text": "corrected", "reviewed_text": "reviewed"},
-        {"page": 2, "raw_text": "raw two", "corrected_text": "corrected two", "reviewed_text": ""},
+        {"page": 1, "raw_text": "raw", "text": "reviewed"},
+        {"page": 2, "raw_text": "raw two", "text": ""},
     ])
     assert [chunk["text"] for chunk in chunks] == ["reviewed\nignored"]
     assert chunks[0]["position"] == {"chunk_index": 0, "page_start": 1, "page_end": 3}

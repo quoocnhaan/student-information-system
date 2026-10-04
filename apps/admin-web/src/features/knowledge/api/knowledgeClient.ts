@@ -37,10 +37,9 @@ async function responseJson(response: Response): Promise<unknown> {
 }
 
 export const knowledgeClient = {
-  async uploadPdf(file: File, signal?: AbortSignal, skipLlmCorrection = false): Promise<UploadAccepted> {
+  async uploadPdf(file: File, signal?: AbortSignal): Promise<UploadAccepted> {
     const form = new FormData();
     form.append("file", file);
-    form.append("skip_llm_correction", String(skipLlmCorrection));
     const body = await responseJson(await fetch("/v1/documents", { method: "POST", body: form, signal }));
     return uploadAcceptedSchema.parse(body);
   },
@@ -48,6 +47,11 @@ export const knowledgeClient = {
   async getJob(jobId: string, signal?: AbortSignal): Promise<JobStatus> {
     const body = await responseJson(await fetch(`/v1/jobs/${encodeURIComponent(jobId)}`, { signal }));
     return jobStatusSchema.parse(body);
+  },
+
+  async retryJob(jobId: string): Promise<string> {
+    const body = await responseJson(await fetch(`/v1/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" }));
+    return jobAcceptedSchema.parse(body).job_id;
   },
 
   async getDocumentResult(documentId: string, signal?: AbortSignal): Promise<DocumentResult> {
@@ -68,20 +72,11 @@ export const knowledgeClient = {
     return indexedChunksSchema.parse(body);
   },
 
-  async requestCorrections(documentId: string, chunkIds: string[]): Promise<string> {
+  async requestCorrections(documentId: string, chunkId: string): Promise<string> {
     const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/corrections`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chunk_ids: chunkIds }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chunk_id: chunkId }),
     }));
     return jobAcceptedSchema.parse(body).job_id;
-  },
-
-  async acceptSuggestion(suggestionId: string): Promise<string> {
-    const body = await responseJson(await fetch(`/v1/corrections/${encodeURIComponent(suggestionId)}/accept`, { method: "POST" }));
-    return jobAcceptedSchema.parse(body).job_id;
-  },
-
-  async rejectSuggestion(suggestionId: string): Promise<void> {
-    await responseJson(await fetch(`/v1/corrections/${encodeURIComponent(suggestionId)}/reject`, { method: "POST" }));
   },
 
   getDocumentSourceUrl(documentId: string): string {

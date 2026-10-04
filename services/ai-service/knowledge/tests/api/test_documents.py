@@ -34,7 +34,7 @@ class FakeDatabase:
         job = {
             "id": f"job:{job_record_id}", "type": "ocr_pdf",
             "document_id": f"document:{record_id}", "status": "queued",
-            "step": "queued", "progress": 0, "processed_pages": 0,
+            "step": "queued", "progress": 0,
         }
         self.jobs[job["id"]] = job
         return job

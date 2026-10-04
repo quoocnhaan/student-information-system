@@ -1,3 +1,6 @@
+> Historical plan: workflow/schema compatibility and manual acceptance requirements
+> are superseded by [the current workflow](../../README.md) and the obsolete workflow cleanup.
+
 # Phase 5: confirm review, then index (chunk + embed + write)
 
 **Read first:** `README.md` (architecture rules, `JOB_QUEUES`, text of record and states), and `docs/database/knowledge_schema_config.md` (chunk format).

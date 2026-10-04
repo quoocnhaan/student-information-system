@@ -4,7 +4,6 @@ import type { ConnectionState } from "../hooks/useIngestionJob";
 
 export function JobProgress({ job, connection }: { job: JobStatus; connection: ConnectionState }) {
   const tone = jobTone(job);
-  const pageProgress = job.total_pages ? `${job.processed_pages} / ${job.total_pages} pages` : "Page count pending";
   return (
     <section className="card stack" aria-labelledby="job-progress-title">
       <div className="split-row">
@@ -14,10 +13,10 @@ export function JobProgress({ job, connection }: { job: JobStatus; connection: C
         </div>
         <span className={`status-pill ${tone}`}>{job.status}</span>
       </div>
-      <div className="progress-track" role="progressbar" aria-label="OCR progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={job.progress}>
+      <div className="progress-track" role="progressbar" aria-label="Job progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={job.progress}>
         <span className={`progress-fill ${tone}`} style={{ width: `${job.progress}%` }} />
       </div>
-      <div className="split-row muted"><span>{job.progress}% complete · {pageProgress}</span><span className={`connection ${connection}`}>{connection === "live" ? "Live updates" : connection === "polling" ? "Checking for updates" : connection === "connecting" ? "Connecting" : "Offline"}</span></div>
+      <div className="split-row muted"><span>{job.progress}% complete</span><span className={`connection ${connection}`}>{connection === "live" ? "Live updates" : connection === "polling" ? "Checking for updates" : connection === "connecting" ? "Connecting" : "Offline"}</span></div>
       <div className="job-details"><span>Job ID: <code>{job.id}</code></span></div>
     </section>
   );

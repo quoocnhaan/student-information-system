@@ -52,4 +52,4 @@ def test_schema_versions_review_drafts() -> None:
     )
 
     assert "DEFINE FIELD IF NOT EXISTS revision ON TABLE ocr_draft TYPE int DEFAULT 1" in schema
-    assert "UPDATE ocr_draft SET revision = 1 WHERE revision IS NONE;" in schema
+    assert "UPDATE ocr_draft SET revision" not in schema

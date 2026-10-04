@@ -34,19 +34,12 @@ async def correct_text(
         ],
     }
     try:
-        for attempt in range(2):
-            try:
-                async with asyncio.timeout(settings.correction_timeout_seconds):
-                    response = await client.post(
-                        settings.lmstudio_base_url.rstrip("/") + "/chat/completions",
-                        json=payload,
-                    )
-                    response.raise_for_status()
-                    output = response.json()["choices"][0]["message"]["content"]
-                break
-            except httpx.TransportError:
-                if attempt:
-                    raise
+        async with asyncio.timeout(settings.correction_timeout_seconds):
+            response = await client.post(
+                settings.lmstudio_base_url.rstrip("/") + "/chat/completions", json=payload,
+            )
+            response.raise_for_status()
+            output = response.json()["choices"][0]["message"]["content"]
         if not isinstance(output, str):
             return None
         output = output.strip()

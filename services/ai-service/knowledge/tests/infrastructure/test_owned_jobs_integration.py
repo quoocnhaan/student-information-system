@@ -3,6 +3,7 @@
 import asyncio
 import os
 from uuid import uuid4
+from pathlib import Path
 
 import pytest
 
@@ -23,6 +24,7 @@ def test_atomic_ocr_job_lifecycle() -> None:
     async def run() -> None:
         database = SurrealDatabase(settings)
         await database.connect()
+        await database.execute_script((Path(__file__).parents[2] / "db/schema.surql").read_text(encoding="utf-8"))
         try:
             suffix = uuid4().hex
             document_record_id = f"doc_{suffix}"
@@ -31,7 +33,7 @@ def test_atomic_ocr_job_lifecycle() -> None:
             document = {
                 "source": {"object_key": f"documents/{document_record_id}/original.pdf",
                            "original_filename": "test.pdf", "mime_type": "application/pdf"},
-                "process_status": "processing", "status": "active", "llm_correction": "skipped",
+                "process_status": "processing", "status": "active",
             }
             row = await database.create_document_with_job(document_record_id, document, job_record_id)
             assert str(row["id"]) == job_id
@@ -40,10 +42,10 @@ def test_atomic_ocr_job_lifecycle() -> None:
             assert await database.claim_job(job_id, claim_id, "ocr_pdf")
             assert await database.claim_job(job_id, uuid4().hex, "ocr_pdf") is None
             assert await database.job_progress(job_id, claim_id, {
-                "step": "ocr", "progress": 30, "processed_pages": 1, "total_pages": 1,
+                "step": "ocr", "progress": 30,
             })
             assert await database.job_progress(job_id, claim_id, {
-                "step": "ocr", "progress": 20, "processed_pages": 0,
+                "step": "ocr", "progress": 20,
             }) is None
             draft_id = f"ocr_job_{suffix}"
             result = await database.apply_ocr_result(
@@ -88,6 +90,7 @@ def test_confirm_index_and_post_index_correction() -> None:
     async def run() -> None:
         database = SurrealDatabase(settings)
         await database.connect()
+        await database.execute_script((Path(__file__).parents[2] / "db/schema.surql").read_text(encoding="utf-8"))
         try:
             suffix = uuid4().hex
             document_id = f"doc_{suffix}"
@@ -95,23 +98,23 @@ def test_confirm_index_and_post_index_correction() -> None:
             await database.create_document_with_job(document_id, {
                 "source": {"object_key": f"documents/{document_id}/original.pdf",
                            "original_filename": "test.pdf", "mime_type": "application/pdf"},
-                "process_status": "processing", "status": "active", "llm_correction": "skipped",
+                "process_status": "processing", "status": "active",
             }, f"job_{suffix}")
             ocr_claim = uuid4().hex
             assert await database.claim_job(ocr_job_id, ocr_claim, "ocr_pdf")
             await database.apply_ocr_result(document_id, f"ocr_job_{suffix}", [
                 {"page": 1, "raw_text": "Điều 1. Nội dung\nOriginal text"},
             ], {"title": "Test"}, ocr_job_id, ocr_claim)
-            assert await database.confirm_review(document_id, 2) is None
-            index_job = await database.confirm_review(document_id, 1)
+            assert await database.confirm_review(document_id, 2, {}, [], [1]) is None
+            index_job = await database.confirm_review(document_id, 1, {}, [], [1])
             assert index_job and index_job["status"] == "queued"
-            assert (await database.confirm_review(document_id, 1))["id"] == index_job["id"]
-            assert not await database.update_document_review(document_id, 1, {"title": "Changed"}, [])
+            assert (await database.confirm_review(document_id, 1, {}, [], [1]))["id"] == index_job["id"]
+            assert await database.confirm_review(document_id, 1, {"title": "Changed"}, [], [1]) is None
             index_id = str(index_job["id"])
             index_claim = uuid4().hex
             assert await database.claim_job(index_id, index_claim, "index_document")
-            draft = (await database.get_document_result(document_id))[1]
-            chunks = chunk_pages(draft["pages"])
+            confirmed = await database.get_index_input_for_job(index_id)
+            chunks = chunk_pages(confirmed["pages"])
             for chunk in chunks:
                 chunk["embedding"] = [0.001] * 768
             assert (await database.complete_index_job(index_id, index_claim, chunks, "test-model"))["status"] == "completed"
@@ -125,18 +128,17 @@ def test_confirm_index_and_post_index_correction() -> None:
             )
             assert nearest
             chunk_id = str(rows[-1]["id"])
-            correction = await database.request_chunk_correction(document_id, [chunk_id])
+            correction = await database.request_chunk_correction(document_id, chunk_id)
             assert correction
-            assert await database.request_chunk_correction(document_id, [chunk_id]) is None
+            assert await database.request_chunk_correction(document_id, chunk_id) is None
             correction_id = str(correction["id"])
             correction_claim = uuid4().hex
             assert await database.claim_job(correction_id, correction_claim, "correct_chunks")
-            suggestion = (await database.job_suggestions(correction_id))[0]
+            suggestion = (await database.correction_inputs(correction_id))[0]
             assert rows[-1]["text"] == suggestion["base_text"]
-            await database.save_suggestion(str(suggestion["id"]), "Corrected text")
-            await database.finish_chunk_correction(correction_id, correction_claim)
-            outcome, reembed = await database.accept_suggestion(str(suggestion["id"]))
-            assert outcome == "accepted" and reembed
+            children = await database.apply_chunk_corrections(correction_id, correction_claim, {str(suggestion["id"]): "Corrected text"})
+            assert children and len(children) == 1
+            reembed = children[0]
             assert (await database.indexed_chunks(document_id))[-1]["embedding_status"] == "stale"
             reembed_id = str(reembed["id"])
             reembed_claim = uuid4().hex
@@ -146,41 +148,14 @@ def test_confirm_index_and_post_index_correction() -> None:
             assert updated["token_count"] == 2
             await database.complete_reembed_job(reembed_id, reembed_claim, updated["embedding_text"], [0.002] * 768)
             assert (await database.indexed_chunks(document_id))[-1]["embedding_status"] == "ok"
-            second = await database.request_chunk_correction(document_id, [chunk_id])
+            second = await database.request_chunk_correction(document_id, chunk_id)
             assert second
             second_claim = uuid4().hex
             assert await database.claim_job(str(second["id"]), second_claim, "correct_chunks")
-            second_suggestion = (await database.job_suggestions(str(second["id"])))[0]
-            await database.save_suggestion(str(second_suggestion["id"]), "Another correction")
-            await database.finish_chunk_correction(str(second["id"]), second_claim)
-            assert await database.reject_suggestion(str(second_suggestion["id"]))
-            assert (await database.indexed_chunks(document_id))[-1]["text"] == "Corrected text"
-            third = await database.request_chunk_correction(document_id, [chunk_id])
-            assert third
-            third_claim = uuid4().hex
-            assert await database.claim_job(str(third["id"]), third_claim, "correct_chunks")
-            third_suggestion = (await database.job_suggestions(str(third["id"])))[0]
-            await database.save_suggestion(str(third_suggestion["id"]), "Latest text")
-            await database.finish_chunk_correction(str(third["id"]), third_claim)
-            _, failed_reembed = await database.accept_suggestion(str(third_suggestion["id"]))
-            assert failed_reembed
-            failed_claim = uuid4().hex
-            assert await database.claim_job(str(failed_reembed["id"]), failed_claim, "reembed_chunk")
-            await database.fail_reembed_job(str(failed_reembed["id"]), failed_claim, "embedding unavailable")
-            assert (await database.get_job(str(failed_reembed["id"])))["status"] == "failed"
-            assert (await database.get_document(document_id))["process_status"] == "indexed"
-            assert (await database.indexed_chunks(document_id))[-1]["embedding_status"] == "stale"
-            fourth = await database.request_chunk_correction(document_id, [chunk_id])
-            assert fourth
-            fourth_claim = uuid4().hex
-            assert await database.claim_job(str(fourth["id"]), fourth_claim, "correct_chunks")
-            fourth_suggestion = (await database.job_suggestions(str(fourth["id"])))[0]
-            await database.save_suggestion(str(fourth_suggestion["id"]), "Obsolete suggestion")
-            await database.finish_chunk_correction(str(fourth["id"]), fourth_claim)
-            await database.client.query(f"UPDATE {chunk_id} SET text = 'Newer text';")
-            outcome, no_job = await database.accept_suggestion(str(fourth_suggestion["id"]))
-            assert outcome == "outdated" and no_job is None
-            assert (await database.indexed_chunks(document_id))[-1]["suggestion"]["status"] == "outdated"
+            second_suggestion = (await database.correction_inputs(str(second["id"])))[0]
+            assert await database.apply_chunk_corrections(str(second["id"]), second_claim,
+                {str(second_suggestion["id"]): "Corrected text"}) == []
+            assert (await database.indexed_chunks(document_id))[-1]["correction"]["outcome"] == "unchanged"
         finally:
             await database.close()
 
@@ -188,7 +163,7 @@ def test_confirm_index_and_post_index_correction() -> None:
 
 
 @pytest.mark.skipif(not os.getenv("KNOWLEDGE_TEST_SURREAL_URL"), reason="No test SurrealDB configured")
-def test_ocr_enqueues_correction_and_correction_opens_review() -> None:
+def test_ocr_opens_raw_review_without_followup() -> None:
     settings = Settings(
         SURREAL_URL=os.environ["KNOWLEDGE_TEST_SURREAL_URL"],
         SURREAL_USER="root", SURREAL_PASSWORD="root",
@@ -199,6 +174,7 @@ def test_ocr_enqueues_correction_and_correction_opens_review() -> None:
     async def run() -> None:
         database = SurrealDatabase(settings)
         await database.connect()
+        await database.execute_script((Path(__file__).parents[2] / "db/schema.surql").read_text(encoding="utf-8"))
         try:
             suffix = uuid4().hex
             document_id = f"doc_{suffix}"
@@ -206,7 +182,7 @@ def test_ocr_enqueues_correction_and_correction_opens_review() -> None:
             document = {
                 "source": {"object_key": f"documents/{document_id}/original.pdf",
                            "original_filename": "test.pdf", "mime_type": "application/pdf"},
-                "process_status": "processing", "status": "active", "llm_correction": "enabled",
+                "process_status": "processing", "status": "active",
             }
             await database.create_document_with_job(document_id, document, f"job_{suffix}")
             claim = uuid4().hex
@@ -218,21 +194,12 @@ def test_ocr_enqueues_correction_and_correction_opens_review() -> None:
             )
             finished = await database.get_job(job_id)
             assert finished["status"] == "completed"
-            assert finished["next_job_id"] is not None
-            correction_id = str(finished["next_job_id"])
-            assert (await database.get_job(correction_id))["status"] == "queued"
-            assert (await database.get_document(document_id))["process_status"] == "processing"
-            assert (await database.get_document_result(document_id))[1]["correction_status"] == "pending"
-            correction_claim = uuid4().hex
-            assert await database.claim_job(correction_id, correction_claim, "correct_ocr")
-            corrected = await database.complete_correction_job(
-                correction_id, correction_claim, draft_id,
-                [{"page": 1, "raw_text": "Original text", "corrected_text": "Corrected text"}],
-                {"title": "Corrected text"}, "chat-model", "v1",
-            )
-            assert corrected["status"] == "completed"
+            assert not finished.get("next_job_id")
+            assert finished["payload"] == {}
             assert (await database.get_document(document_id))["process_status"] == "review"
-            assert (await database.get_document_result(document_id))[1]["pages"][0]["corrected_text"] == "Corrected text"
+            draft = (await database.get_document_result(document_id))[1]
+            assert draft["pages"] == [{"page": 1, "raw_text": "Original text"}]
+            assert "correction_status" not in draft
         finally:
             await database.close()
 

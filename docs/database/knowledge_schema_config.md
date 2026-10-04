@@ -41,7 +41,7 @@
 
 `process_status`: `processing | review | indexing | indexed | failed`
 
-`llm_correction`: `enabled | skipped`; `embedding_model` records the model used for indexed chunks.
+`embedding_model` records the model used for indexed chunks.
 
 `status`: `active | inactive`
 
@@ -58,8 +58,7 @@
   "pages": [
     {
       "page": 1,
-      "raw_text": "QUY CHẾ SINH VIÊN...",
-      "reviewed_text": "QUY CHẾ SINH VIÊN..."
+      "raw_text": "QUY CHẾ SINH VIÊN..."
     }
   ],
 
@@ -68,7 +67,7 @@
 }
 ```
 
-`status`: `draft | confirmed`. Draft pages retain OCR and automatic-correction output. Reviewer edits are not saved into the draft: confirmation creates a temporary `index_input` containing only selected original page numbers and their final text. Indexing reads that input, so omitted pages cannot become chunks; successful indexing deletes both temporary records atomically.
+`status`: `draft | confirmed`. Draft pages retain raw OCR output, with no automatic correction before review. Reviewer edits are not saved into the draft: confirmation creates a temporary `index_input` containing only selected original page numbers and their final text. Indexing reads that input, so omitted pages cannot become chunks; successful indexing deletes both temporary records atomically.
 
 ---
 
@@ -78,7 +77,6 @@
 {
   "id": "chunk:01JDEF",
   "document_id": "document:01JXYZ",
-  "ocr_draft_id": "ocr_draft:01JABC",
 
   "text": "Sinh viên phải hoàn thành tối thiểu 120 tín chỉ...",
 
@@ -112,7 +110,22 @@
 
 `embedding_text` = relevant hierarchy header lines (`Chương`, `Điều`, `Khoản`) followed by a blank line and chunk text. Every vector has 768 dimensions. `embedding_status` is `ok | stale`; `updated_at` changes when a chunk is edited. A stale chunk remains searchable with its previous vector until `reembed_chunk` succeeds.
 
-`correction_suggestion` stores `document_id`, `chunk_id`, `job_id`, `base_text`, optional `suggested_text`, and `status` (`pending | ready | accepted | rejected | outdated | failed`). Accepting a ready suggestion updates only the chunk, not the OCR draft, and queues re-embedding. Requests and accept/reject actions are available only for indexed documents.
+`chunk_correction_input` captures `document_id`, `chunk_id`, `job_id`, `base_text`, optional `proposed_text`, embedding text/version/status, and hierarchy. Its audit status is `pending | applied | unchanged | failed`. Each correction job captures exactly one snapshot. It applies automatically in one guarded transaction and creates zero or one embedding child. Public chunk responses expose operation outcomes and job relationships, without captured text. See [the authoritative workflow and reset guide](../../services/ai-service/knowledge/README.md).
+
+## 4. Persisted jobs
+
+Jobs keep identity (`id`, `type`, `document_id`, `dedupe_key`), lifecycle (`status`, `step`, `progress`, `sequence`, `error`, timestamps), private ownership (`claim_id`, `worker_id`, `worker_run_id`), and orchestration (`next_job_id`, `followup_job_ids`) in the envelope. `payload` is required, validated by type, and read-only:
+
+| Type | Payload |
+| --- | --- |
+| `ocr_pdf` | `{}`; source resolves through the document |
+| `index_document` | typed `index_input_id`, `confirmation_fingerprint` |
+| `correct_chunks` | typed `chunk_id`, typed `correction_input_id` |
+| `reembed_chunk` | typed `chunk_id`, `embedding_text`, `embedding_version` |
+
+`payload` is `TYPE object FLEXIBLE READONLY`, preserving nested values in a SCHEMAFULL table. The adapter writes references as records. `chunk_correction_input.job_id` is unique; snapshot ordering is unnecessary. Public job status exposes percentage and step, keeps captured inputs and ownership private, and offers index retry only against the retained input. Failure retains progress; retry resets it to zero. OCR opens review directly and leaves its generic next-job link empty.
+
+Raw OCR can affect metadata and chunk boundaries. Manual review is the structural repair stage; indexed correction does not re-chunk. Fresh local volumes are required for this schema change; historical migrations do not convert old jobs.
 
 ---
 
@@ -123,7 +136,7 @@
 ```yaml
 services:
   surrealdb:
-    image: surrealdb/surrealdb:latest
+    image: surrealdb/surrealdb:v3.2.4
     # Local-only: root can initialise the Docker named volume at /data.
     user: "0:0"
     command: start --user root --pass root rocksdb:///data/database.db

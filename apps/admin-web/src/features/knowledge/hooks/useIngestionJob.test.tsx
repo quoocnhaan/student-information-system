@@ -13,8 +13,7 @@ const failedJob = (id: string, sequence: number): JobStatus => ({
   status: "failed",
   step: "failed",
   progress: 100,
-  processed_pages: 0,
-  sequence,
+  followup_job_ids: [], sequence,
 });
 
 afterEach(() => {
@@ -35,6 +34,19 @@ it("accepts a new job with a lower sequence after the job ID changes", async () 
   rerender({ jobId: "job:second" });
   await waitFor(() => expect(result.current.job?.id).toBe("job:second"));
   expect(result.current.job?.sequence).toBe(1);
+});
+
+it("loads raw review immediately when OCR completes", async () => {
+  vi.spyOn(knowledgeClient, "getJob").mockResolvedValue({ ...failedJob("job:ocr", 2), status: "completed", error: null, progress: 100 });
+  const rawReview = {
+    document_id: "document:doc_a", process_status: "review", source: { original_filename: "test.pdf", mime_type: "application/pdf" },
+    metadata: { title: "Raw title" }, ocr_draft: { id: "ocr_draft:test", status: "draft", revision: 1, pages: [{ page: 1, raw_text: "Raw text" }] },
+  };
+  const read = vi.spyOn(knowledgeClient, "getDocumentResult").mockResolvedValue(rawReview);
+  const { result } = renderHook(() => useIngestionJob("job:ocr"));
+  await waitFor(() => expect(result.current.result).toEqual(rawReview));
+  expect(read).toHaveBeenCalledWith("document:doc_a", expect.any(AbortSignal));
+  expect(knowledgeClient.getJob).toHaveBeenCalledTimes(1);
 });
 
 it("can recover through a WebSocket snapshot after the first REST read fails", async () => {

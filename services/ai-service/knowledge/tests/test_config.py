@@ -1,6 +1,21 @@
 from pytest import MonkeyPatch
 
 from app.config import Settings
+import pytest
+from pydantic import ValidationError
+
+
+@pytest.mark.parametrize("name", [
+    "database_timeout_seconds", "index_commit_timeout_seconds", "failure_timeout_seconds",
+    "startup_recovery_timeout_seconds", "embedding_timeout_seconds", "ocr_processing_timeout_seconds",
+    "correction_processing_timeout_seconds", "index_processing_timeout_seconds",
+])
+def test_worker_deadlines_are_positive_environment_settings(monkeypatch, name):
+    monkeypatch.setenv("KNOWLEDGE_" + name.upper(), "0.5")
+    assert getattr(Settings(_env_file=None), name) == 0.5
+    monkeypatch.setenv("KNOWLEDGE_" + name.upper(), "0")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
 
 
 def test_settings_treats_blank_optional_metrics_port_as_unset(

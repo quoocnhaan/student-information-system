@@ -9,13 +9,12 @@ class JobStatusResponse(BaseModel):
     id: str
     type: str
     document_id: str
-    ocr_draft_id: str | None = None
     next_job_id: str | None = None
+    followup_job_ids: list[str]
     status: str
     step: str
     progress: int
-    total_pages: int | None = None
-    processed_pages: int
     sequence: int = 1
     updated_at: str | None = None
     error: str | None = None
+    retry_available: bool = False

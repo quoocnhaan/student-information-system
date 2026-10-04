@@ -37,9 +37,6 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
     const type = next.type ?? jobRef.current?.type;
     const resolved = type === undefined ? next : { ...next, type };
     jobRef.current = resolved;
-    if (resolved.status === "completed" && resolved.next_job_id && resolved.next_job_id !== resolved.id) {
-      setActiveJobId(resolved.next_job_id);
-    }
     setState((current) => ({
       ...current,
       job: resolved,
@@ -142,9 +139,7 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
   }, [acceptJob, activeJobId]);
 
   useEffect(() => {
-    if (!state.job || state.job.next_job_id || state.result !== null ||
-      !["ocr", "correct"].includes(state.job.type ?? "") ||
-      !(state.job.status === "completed" || (state.job.status === "failed" && state.job.type === "correct"))) return;
+    if (!state.job || state.result !== null || state.job.type !== "ocr" || state.job.status !== "completed") return;
     const controller = new AbortController();
     void knowledgeClient.getDocumentResult(state.job.document_id, controller.signal)
       .then((result) => setState((current) => ({ ...current, result })))

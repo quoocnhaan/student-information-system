@@ -164,7 +164,7 @@ def chunk_pages(pages: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
             flush_pending_article()
             hierarchy = _empty_hierarchy()
         previous_page = page_no
-        value = page.get("text") if "text" in page else (page.get("reviewed_text") if page.get("reviewed_text") is not None else page.get("corrected_text") if page.get("corrected_text") is not None else page.get("raw_text") or "")
+        value = page.get("text") if "text" in page else (page.get("raw_text") or "")
         for line in str(value).splitlines():
             event = _heading_event(line, hierarchy)
             if event:

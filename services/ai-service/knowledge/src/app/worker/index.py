@@ -12,23 +12,17 @@ from app.infrastructure.surreal import SurrealDatabase
 
 async def embed_texts(texts: list[str], settings: Settings, client: httpx.AsyncClient | None = None) -> list[list[float]]:
     owned_client = client is None
-    client = client or httpx.AsyncClient(timeout=120)
+    client = client or httpx.AsyncClient(timeout=settings.embedding_timeout_seconds)
     try:
-        for attempt in range(3):
-            try:
-                response = await client.post(settings.lmstudio_base_url.rstrip("/") + "/embeddings", json={
-                    "model": settings.lmstudio_embedding_model, "input": texts,
-                })
-                response.raise_for_status()
-                vectors = [entry["embedding"] for entry in sorted(response.json()["data"], key=lambda item: item["index"])]
-                if len(vectors) != len(texts) or any(len(vector) != 768 for vector in vectors):
-                    raise ValueError("Embedding response must contain one 768-dimensional vector per chunk")
-                return vectors
-            except (httpx.TransportError, httpx.HTTPStatusError):
-                if attempt == 2:
-                    raise
-                await asyncio.sleep(0.5 * 2**attempt)
-        raise RuntimeError("Embedding request failed")
+        async with asyncio.timeout(settings.embedding_timeout_seconds):
+            response = await client.post(settings.lmstudio_base_url.rstrip("/") + "/embeddings", json={
+                "model": settings.lmstudio_embedding_model, "input": texts,
+            })
+            response.raise_for_status()
+            vectors = [entry["embedding"] for entry in sorted(response.json()["data"], key=lambda item: item["index"])]
+            if len(vectors) != len(texts) or any(len(vector) != 768 for vector in vectors):
+                raise ValueError("Embedding response must contain one 768-dimensional vector per chunk")
+            return vectors
     finally:
         if owned_client:
             await client.aclose()
@@ -58,7 +52,9 @@ class IndexDocumentHandler:
             await self.database.job_progress(job_id, claim_id, {
                 "step": "embedding", "progress": 10 + round(min(start + batch_size, len(chunks)) / len(chunks) * 80),
             })
-        await self.database.complete_index_job(job_id, claim_id, chunks, self.settings.lmstudio_embedding_model)
+        completed = await self.database.complete_index_job(job_id, claim_id, chunks, self.settings.lmstudio_embedding_model)
+        if completed is None:
+            raise RuntimeError("Index claim is no longer active")
 
     async def on_failure(self, job_id: str, claim_id: str, claimed: Mapping, error: str) -> None:
         await self.database.fail_index_job(job_id, claim_id, error)
@@ -73,13 +69,14 @@ class ReembedChunkHandler:
         self.database = database
 
     async def process(self, job_id: str, claim_id: str, claimed: Mapping) -> None:
-        chunk_id = str(claimed["chunk_id"])
-        rows = await self.database.client.query(f"SELECT embedding_text FROM {chunk_id};")
-        if not rows:
-            raise ValueError("Chunk no longer exists")
-        text = str(rows[0]["embedding_text"])
+        text = str(claimed["payload"].get("embedding_text") or "")
+        if not text:
+            raise ValueError("Captured embedding input is missing")
+        if claimed["payload"].get("embedding_version") is None:
+            raise ValueError("Captured embedding version is missing")
         vector = (await embed_texts([text], self.settings))[0]
-        await self.database.complete_reembed_job(job_id, claim_id, text, vector)
+        if await self.database.complete_reembed_job(job_id, claim_id, text, vector) is None:
+            raise RuntimeError("Re-embedding claim is no longer active")
 
     async def on_failure(self, job_id: str, claim_id: str, claimed: Mapping, error: str) -> None:
         await self.database.fail_reembed_job(job_id, claim_id, error)

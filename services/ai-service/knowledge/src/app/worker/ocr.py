@@ -61,7 +61,7 @@ class OcrPdfHandler:
         if count < 1 or count > self.settings.ocr_max_pages:
             raise ValueError(f"PDF page count is outside 1..{self.settings.ocr_max_pages}")
         await self.database.job_progress(job_id, claim_id, {
-            "step": "ocr", "progress": 10, "total_pages": count, "processed_pages": 0,
+            "step": "ocr", "progress": 10,
         })
         pages: list[OcrPage] = []
         async with httpx.AsyncClient(timeout=self.settings.ocr_timeout_seconds) as client:
@@ -71,23 +71,19 @@ class OcrPdfHandler:
                 pages.append(OcrPage(page=index + 1, raw_text=text))
                 await self.database.job_progress(job_id, claim_id, {
                     "step": "ocr", "progress": 10 + round(((index + 1) / count) * 75),
-                    "total_pages": count, "processed_pages": index + 1,
                 })
         await self.database.job_progress(job_id, claim_id, {
-            "step": "saving_draft", "progress": 92, "total_pages": count,
-            "processed_pages": count,
+            "step": "saving_draft", "progress": 92,
         })
         metadata = (
             DocumentMetadataDetector().detect(pages, document["source"]["original_filename"])
-            if document.get("llm_correction") == "skipped" else {}
         )
         draft_id = f"ocr_{job_id.split(':', 1)[1]}"
         await self.database.apply_ocr_result(
             record_id, draft_id, [page.model_dump() for page in pages], metadata,
             job_id, claim_id,
         )
-        completed = await self.database.get_job(job_id)
-        return await self.database.get_job(str(completed["next_job_id"])) if completed and completed.get("next_job_id") else None
+        return None
 
     async def _extract_page(self, client: httpx.AsyncClient, image: bytes) -> str:
         payload = {

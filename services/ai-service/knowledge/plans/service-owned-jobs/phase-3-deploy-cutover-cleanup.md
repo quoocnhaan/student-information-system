@@ -1,3 +1,6 @@
+> Historical plan: workflow/schema compatibility and manual acceptance requirements
+> are superseded by [the current workflow](../../README.md) and the obsolete workflow cleanup.
+
 # Phase 3: deploy, cut over existing jobs, delete the central services
 
 **Read first:** `README.md` (architecture rules, target layout).

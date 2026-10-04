@@ -31,7 +31,7 @@ class ReviewDatabase:
         "id": "ocr_draft:ocr_job_example",
         "status": "draft",
         "revision": 1,
-        "pages": [{"page": 1, "raw_text": "Hello", "reviewed_text": None}],
+        "pages": [{"page": 1, "raw_text": "Hello"}],
     }
 
     def __init__(self) -> None:
@@ -85,7 +85,7 @@ def test_completed_document_result_hides_object_key() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["ocr_draft"]["pages"] == [
-        {"page": 1, "raw_text": "Hello", "reviewed_text": None, "corrected_text": None}
+        {"page": 1, "raw_text": "Hello"}
     ]
     assert body["ocr_draft"]["revision"] == 1
     assert "object_key" not in response.text

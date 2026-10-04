@@ -87,6 +87,15 @@ class Settings(BaseSettings):
     ocr_timeout_seconds: float = Field(default=60, gt=0)
     correction_timeout_seconds: float = Field(default=120, gt=0)
     embedding_batch_size: int = Field(default=16, ge=1)
+    embedding_timeout_seconds: float = Field(default=120, gt=0)
+    database_timeout_seconds: float = Field(default=30, gt=0)
+    index_commit_timeout_seconds: float = Field(default=120, gt=0)
+    failure_timeout_seconds: float = Field(default=60, gt=0)
+    startup_recovery_timeout_seconds: float = Field(default=120, gt=0)
+    ocr_processing_timeout_seconds: float = Field(default=7200, gt=0)
+    correction_processing_timeout_seconds: float = Field(default=14400, gt=0)
+    index_processing_timeout_seconds: float = Field(default=3600, gt=0)
+    worker_id: str | None = Field(default=None, min_length=1)
     worker_queues: str = "ocr"
     orphan_cleanup_enabled: bool = False
     orphan_cleanup_grace_seconds: float = Field(default=86400.0, ge=0)

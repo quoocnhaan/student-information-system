@@ -22,16 +22,15 @@ export const jobStatusSchema = z.object({
   id: recordId,
   type: z.string().optional(),
   document_id: recordId,
-  ocr_draft_id: recordId.nullable().optional(),
   next_job_id: recordId.nullable().optional(),
+  followup_job_ids: z.array(recordId),
   status: z.string(),
   step: z.string(),
   progress: z.number().int().min(0).max(100),
-  total_pages: z.number().int().positive().nullable().optional(),
-  processed_pages: z.number().int().min(0),
   sequence: z.number().int().positive(),
   updated_at: z.string().nullable().optional(),
   error: z.string().nullable().optional(),
+  retry_available: z.boolean().optional(),
 });
 
 export const statusMessageSchema = jobStatusSchema.omit({ id: true }).extend({
@@ -55,12 +54,9 @@ export const documentResultSchema = z.object({
     id: recordId,
     status: z.string(),
     revision: z.number().int().positive().default(1),
-    correction_status: z.enum(["pending", "completed", "failed", "skipped"]).nullable().optional(),
     pages: z.array(z.object({
       page: z.number().int().positive(),
       raw_text: z.string(),
-      reviewed_text: z.string().nullable().optional(),
-      corrected_text: z.string().nullable().optional(),
     })),
   }),
 });
@@ -84,7 +80,12 @@ export const indexedChunksSchema = z.object({
       id: recordId, text: z.string(), hierarchy: z.record(z.unknown()),
       chunk_index: z.number().int(), page_start: z.number().int(), page_end: z.number().int(),
       embedding_status: z.enum(["ok", "stale"]), updated_at: z.string(),
-      suggestion: z.object({ id: recordId, status: z.string(), base_text: z.string(), suggested_text: z.string().nullable().optional() }).nullable(),
+      active_job_id: recordId.nullable().optional(),
+      last_embedding_job_id: recordId.nullable().optional(),
+      correction: z.object({
+        input_id: recordId, outcome: z.enum(["pending", "applied", "unchanged", "failed"]),
+        job: jobStatusSchema, children: z.array(jobStatusSchema), chunk_child_ids: z.array(recordId),
+      }).nullable(),
     })),
   })),
 });

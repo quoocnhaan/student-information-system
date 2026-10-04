@@ -24,7 +24,7 @@ const result: DocumentResult = {
   },
   ocr_draft: {
     id: "ocr_draft:ocr_job_abc", status: "draft", revision: 1,
-    pages: [{ page: 1, raw_text: "Original OCR", reviewed_text: null }],
+    pages: [{ page: 1, raw_text: "Original OCR" }],
   },
 };
 

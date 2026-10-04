@@ -1,3 +1,8 @@
+> Historical workflow reference. The job payload, raw OCR review, progress, and correction contracts are superseded by [JOB_PAYLOAD_AND_SINGLE_CHUNK_CORRECTION_PLAN.md](JOB_PAYLOAD_AND_SINGLE_CHUNK_CORRECTION_PLAN.md).
+
+> Historical plan: workflow/schema compatibility and manual acceptance requirements
+> are superseded by [the current workflow](../README.md) and the obsolete workflow cleanup.
+
 # Confirm OCR review once, index selected pages, and remove temporary drafts
 
 ## Outcome

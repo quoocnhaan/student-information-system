@@ -1,3 +1,6 @@
+> Historical plan: workflow/schema compatibility and manual acceptance requirements
+> are superseded by [the current workflow](../../README.md) and the obsolete workflow cleanup.
+
 # Phase 1: job store, publisher, and API inside Knowledge
 
 **Read first:** `README.md` (architecture rules, `JOB_QUEUES`, envelope).

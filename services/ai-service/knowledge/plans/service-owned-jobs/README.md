@@ -1,3 +1,6 @@
+> Historical plan: workflow/schema compatibility and manual acceptance requirements
+> are superseded by [the current workflow](../../README.md) and the obsolete workflow cleanup.
+
 # Service-owned jobs and ingestion pipeline
 
 Supersedes `INDEPENDENT_WORKER_SERVICE_PLAN.md`. This file is the shared reference for every phase; each phase file holds the steps.
