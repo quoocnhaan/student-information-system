@@ -108,17 +108,26 @@ export default function AssignmentPanel({ activity, submission, now, onSave, onR
                 </InfoTile>
             </div>
 
-            {activity.templateFile && (
-                <div className={styles.attachment}>
-                    <span className={styles.attachIcon}>
-                        <FileText size={18} />
-                    </span>
-                    <div className={styles.attachText}>
-                        <span className={styles.attachName}>{activity.templateFile.name}</span>
-                        <span className={styles.attachMeta}>
-                            Assignment file • {formatDateTime(activity.templateFile.uploadedAt)}
-                        </span>
-                    </div>
+            {activity.templateFiles && activity.templateFiles.length > 0 && (
+                <div className={styles.card}>
+                    <h4 className={styles.cardTitle}>
+                        Tài liệu đính kèm ({activity.templateFiles.length} file)
+                    </h4>
+                    <ul className={styles.fileList}>
+                        {activity.templateFiles.map((tf) => (
+                            <li key={tf.name}>
+                                <a className={styles.fileLink} href="#" download>
+                                    <span className={styles.attachIcon}>
+                                        <FileText size={16} />
+                                    </span>
+                                    <span className={styles.fileLinkName}>{tf.name}</span>
+                                    <span className={styles.attachMeta}>
+                                        {formatDateTime(tf.uploadedAt)}
+                                    </span>
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             )}
 

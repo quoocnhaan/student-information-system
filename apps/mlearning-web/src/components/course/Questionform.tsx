@@ -195,17 +195,6 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel }) => {
                 </button>
             </div>
 
-            <label className={styles.field}>
-                <span className={styles.label}>Giải thích đáp án (tuỳ chọn)</span>
-                <textarea
-                    className={styles.textarea}
-                    value={explanation}
-                    onChange={(e) => setExplanation(e.target.value)}
-                    placeholder="Giải thích ngắn gọn vì sao đáp án đúng là đáp án này"
-                    rows={2}
-                />
-            </label>
-
             {error && <p className={styles.error}>{error}</p>}
 
             <div className={styles.actions}>

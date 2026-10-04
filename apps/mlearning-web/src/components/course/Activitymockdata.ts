@@ -55,10 +55,12 @@ export const activities: Activity[] = [
 
         dueAt: iso(4 * DAY),
 
-        templateFile: {
-            name: 'PS3_Raft_Handout.pdf',
-            uploadedAt: iso(-10 * DAY),
-        },
+        templateFiles: [
+            {
+                name: 'PS3_Raft_Handout.pdf',
+                uploadedAt: iso(-10 * DAY),
+            },
+        ],
 
         submission: null,
 

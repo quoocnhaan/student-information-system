@@ -98,8 +98,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         <header className={styles.navbar}>
 
           <div className={styles.right}>
-            {/* <button className={styles.iconBtn} aria-label="Notifications">🔔</button>
-            <button className={styles.iconBtn} aria-label="Help">❓</button> */}
             <div className={styles.user} onClick={() => setShowMenu(!showMenu)}>
               <div className={styles.avatar}>AL</div>
               <div className={styles.userInfo}>

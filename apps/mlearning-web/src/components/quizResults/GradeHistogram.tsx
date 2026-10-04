@@ -20,8 +20,7 @@ export default function GradeHistogram() {
   return (
     <div className={styles.card}>
       <div className={styles.header}>
-        <span className={styles.headerTitle}>📊 Phân Bố Điểm (Grade Distribution Histogram)</span>
-        <button className={styles.alphaBtn}>Bảng kiểm soát Alpha: 0.86 ▾</button>
+        <span className={styles.headerTitle}>Phân Bố Điểm (Grade Distribution Histogram)</span>
       </div>
 
       <div className={styles.bars}>

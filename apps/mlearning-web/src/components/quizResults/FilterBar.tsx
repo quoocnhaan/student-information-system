@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import styles from './FilterBar.module.css';
-
+import { BiSearch } from "react-icons/bi";
 const groupTabs = ['Tất cả nhóm (128)', 'Đã nộp bài (118)', 'Đang chấm bài (10)'];
 
 /** Search input, group filter tabs, sort control and a small warning banner. */
@@ -11,7 +11,7 @@ export default function FilterBar() {
     <div className={styles.wrap}>
       <div className={styles.searchRow}>
         <div className={styles.searchBox}>
-          <span className={styles.searchIcon}>🔍</span>
+          <span className={styles.searchIcon}><BiSearch /></span>
           <input
             type="text"
             placeholder="Tìm sinh viên theo Tên hoặc MSSV..."
@@ -31,10 +31,6 @@ export default function FilterBar() {
             {tab}
           </button>
         ))}
-      </div>
-
-      <div className={styles.banner}>
-        ⚠ Có sinh viên nộp bài trễ / vi phạm giám sát thi
       </div>
     </div>
   );

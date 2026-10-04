@@ -12,11 +12,12 @@
 }
 
 .option:hover {
-  border-color: #c7d2fe;
+  border-color: #3b5fe3;
+
 }
 
 .optionSelected {
-  border-color: #3b5fe3;
+  border-color: #c7d2fe;
   background: #e0f4ff;
   transform: scale(1.02);
   transition: background 0.2s ease, transform 0.2s ease;

@@ -2,45 +2,74 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { roleRoutes } from "../routes/roleRoutes";
-import { BookOpen, User, Lock, Eye, EyeOff, ArrowRight, Mail, } from 'lucide-react';
+import { BookOpen, User, Lock, Eye, EyeOff, ArrowRight, Mail } from 'lucide-react';
 import styles from './Login.module.css';
 
+type Role = "teacher" | "student";
+
+interface MockAccount {
+  id: string;
+  username: string;
+  password: string;
+  role: Role;
+}
+
+// Tạm thời: 2 tài khoản giả lập. Xóa khi đã có backend.
+const MOCK_ACCOUNTS: MockAccount[] = [
+  { id: "1", username: "teacher@universitas.edu", password: "teacher123", role: "teacher" },
+  { id: "2", username: "student@universitas.edu", password: "student123", role: "student" },
+];
 
 export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
   const { login } = useAuth();
-  const handleSubmit = async (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
-    e.preventDefault();
 
-    // Tạm thời giả lập response từ backend
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+
+    // Giả lập backend: tìm tài khoản khớp username + password
+    const account = MOCK_ACCOUNTS.find(
+      (a) =>
+        a.username.toLowerCase() === username.trim().toLowerCase() &&
+        a.password === password
+    );
+
+    if (!account) {
+      setError("Email hoặc mật khẩu không đúng.");
+      return;
+    }
+
     const response = {
       user: {
-        id: "1",
-        username: username,
-        role: "student" as const,
+        id: account.id,
+        username: account.username,
+        role: account.role,
       },
       accessToken: "fake-token",
     };
-    // Dùng khi có backend
 
-    // const response = await loginApi(
-    //   username,
-    //   password
-    // );
+    // Dùng khi có backend:
+    // const response = await loginApi(username, password);
 
     login(response.user);
-
     navigate(roleRoutes[response.user.role]);
+  };
+
+  // Điền nhanh tài khoản demo
+  const fillDemo = (role: Role) => {
+    const acc = MOCK_ACCOUNTS.find((a) => a.role === role)!;
+    setUsername(acc.username);
+    setPassword(acc.password);
+    setError("");
   };
 
   return (
     <div className={styles.container}>
-      {/* Background */}
       <div className={styles.background}>
         <div className={styles.gridPattern}></div>
         <div className={styles.glowPrimary}></div>
@@ -48,7 +77,6 @@ export function Login() {
         <div className={styles.glowTertiary}></div>
       </div>
 
-      {/* Topbar */}
       <header className={styles.header}>
         <div className={styles.logo}>
           <div className={styles.logoIcon}>
@@ -61,7 +89,6 @@ export function Login() {
         </div>
       </header>
 
-      {/* Main Form Area */}
       <main className={styles.main}>
         <div className={styles.loginCard}>
           <div className={styles.cardHeader}>
@@ -77,9 +104,7 @@ export function Login() {
 
           <form className={styles.form} onSubmit={handleSubmit}>
             <div>
-              <label className={styles.inputLabel}>
-                Email
-              </label>
+              <label className={styles.inputLabel}>Email</label>
               <div className={styles.inputGroup}>
                 <User size={20} className={styles.inputIcon} />
                 <input
@@ -94,9 +119,7 @@ export function Login() {
             </div>
 
             <div>
-              <label className={styles.inputLabel}>
-                Mật khẩu
-              </label>
+              <label className={styles.inputLabel}>Mật khẩu</label>
               <div className={styles.inputGroup}>
                 <Lock size={20} className={styles.inputIcon} />
                 <input
@@ -117,6 +140,12 @@ export function Login() {
               </div>
             </div>
 
+            {error && (
+              <div role="alert" style={{ color: '#d93025', fontSize: '13px' }}>
+                {error}
+              </div>
+            )}
+
             <div className={styles.auxRow}>
               <label className={styles.checkboxLabel}>
                 <input type="checkbox" className={styles.checkbox} />
@@ -131,15 +160,27 @@ export function Login() {
               </button>
             </div>
 
+            {/* Tài khoản demo - xóa khi có backend */}
+            <div style={{ marginTop: '12px', fontSize: '12px', textAlign: 'center' }}>
+              Tài khoản demo:{" "}
+              <button type="button" onClick={() => fillDemo("teacher")}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', color: 'inherit' }}>
+                Teacher
+              </button>
+              {" • "}
+              <button type="button" onClick={() => fillDemo("student")}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', color: 'inherit' }}>
+                Student
+              </button>
+            </div>
           </form>
         </div>
       </main>
 
-      {/* Footer */}
       <footer className={styles.footer}>
         <div className={styles.footerContent}>
           <div>
-            © 2025 Đại học Universitas • Trung tâm CNTT & Đào tạo Trực tuyến
+            © 2026 Đại học Universitas • Trung tâm CNTT & Đào tạo Trực tuyến
           </div>
           <div className={styles.footerLinks}>
             <a href="#support" className={styles.footerLink}>

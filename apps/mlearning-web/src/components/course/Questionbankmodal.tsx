@@ -35,7 +35,7 @@ const QuestionBankModal: React.FC<QuestionBankModalProps> = ({
             <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
                 <div className={styles.header}>
                     <div>
-                        <h3 className={styles.title}>📚 Ngân hàng câu hỏi</h3>
+                        <h3 className={styles.title}>Ngân hàng câu hỏi</h3>
                         <span className={styles.subtitle}>{quizTitle}</span>
                     </div>
                     <button className={styles.closeBtn} onClick={onClose} aria-label="Đóng">

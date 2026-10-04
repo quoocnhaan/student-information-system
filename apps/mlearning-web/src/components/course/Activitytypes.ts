@@ -1,7 +1,3 @@
-// activityTypes.ts
-// Kiểu dữ liệu cho các activity trong trang course (assignment / quiz / resource).
-// Ngày giờ dùng chuỗi ISO 8601 (vd: '2026-10-15T09:00:00+07:00').
-
 interface BaseActivity {
     id: string;
     title: string;
@@ -18,10 +14,16 @@ export interface AssignmentActivity extends BaseActivity {
     type: 'assignment';
     opensAt: string;
     dueAt: string;
-    /** File đề bài giáo viên đính kèm (hiện trong khung INFO). */
-    templateFile?: { name: string; uploadedAt: string };
+
+    /** Danh sách file đề bài giáo viên đính kèm (hiện trong khung INFO). */
+    templateFiles?: {
+        name: string;
+        uploadedAt: string;
+    }[];
+
     /** null = chưa nộp bài. */
     submission: AssignmentSubmission | null;
+
     gradingStatus: 'Not graded' | 'Graded';
 }
 
@@ -46,4 +48,7 @@ export interface ResourceActivity extends BaseActivity {
     folderUrl?: string;
 }
 
-export type Activity = AssignmentActivity | QuizActivity | ResourceActivity;
+export type Activity =
+    | AssignmentActivity
+    | QuizActivity
+    | ResourceActivity;

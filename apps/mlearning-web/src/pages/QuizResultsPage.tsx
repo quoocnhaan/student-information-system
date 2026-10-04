@@ -1,4 +1,3 @@
-import Breadcrumb from '../components/quizResults/Breadcrumb';
 import PageHeader from '../components/quizResults/PageHeader';
 import StatsCards from '../components/quizResults/StatsCards';
 import GradeHistogram from '../components/quizResults/GradeHistogram';
@@ -14,7 +13,6 @@ import styles from './QuizResultsPage.module.css';
 export function QuizResultsPage() {
   return (
     <div className={styles.page}>
-      <Breadcrumb />
       <PageHeader />
       <StatsCards />
       <GradeHistogram />

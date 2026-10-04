@@ -125,3 +125,63 @@
     font-weight: 600;
     cursor: pointer;
 }
+
+.fileList {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: -4px;
+}
+
+.fileChip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    background: #f0f4ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.fileChipName {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #3730a3;
+    font-weight: 500;
+}
+
+.fileChipSize {
+    color: #6b7280;
+    flex-shrink: 0;
+}
+
+.fileChipRemove {
+    background: transparent;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 2px;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.fileChipRemove:hover {
+    color: #ef4444;
+}
+.fileChipExisting {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.fileChipExisting .fileChipName {
+    color: #166534;
+}
+
+.fileChipExisting .fileChipSize {
+    color: #16a34a;
+    font-weight: 500;
+}

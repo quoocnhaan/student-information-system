@@ -75,7 +75,7 @@ const QuizForm: React.FC<QuizFormProps> = ({ onSubmit, onClose }) => {
         <div className={styles.overlay} onClick={onClose}>
             <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
                 <div className={styles.header}>
-                    <h3 className={styles.title}>📝 Tạo Quiz mới</h3>
+                    <h3 className={styles.title}>Tạo Quiz mới</h3>
                     <button className={styles.closeBtn} onClick={onClose} aria-label="Đóng">
                         ✕
                     </button>
@@ -184,15 +184,6 @@ const QuizForm: React.FC<QuizFormProps> = ({ onSubmit, onClose }) => {
                                 onChange={handleCheckboxChange("shuffleQuestions")}
                             />
                             <span>Trộn ngẫu nhiên thứ tự câu hỏi</span>
-                        </label>
-
-                        <label className={styles.checkboxRow}>
-                            <input
-                                type="checkbox"
-                                checked={values.showAnswersAfterSubmit}
-                                onChange={handleCheckboxChange("showAnswersAfterSubmit")}
-                            />
-                            <span>Hiển thị đáp án đúng sau khi nộp bài</span>
                         </label>
                     </div>
 

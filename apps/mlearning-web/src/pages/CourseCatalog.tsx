@@ -2,27 +2,23 @@ import { useMemo, useState } from 'react';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import styles from './CourseCatalog.module.css';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
 import { CourseCard } from '../components/course/Coursecard';
 import { courses } from '../components/course/Coursedata';
 import PageHeader from '../components/ui/PageHeader';
+
 const PAGE_SIZE = 8; // tối đa 8 card / trang
 
 type PageToken = number | '...';
 
 export function CourseCatalog() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc');
 
   const sortedCourses = useMemo(() => {
-    return [...courses].sort((a, b) => {
-      if (sortBy === 'asc') {
-        return a.title.localeCompare(b.title);
-      }
-      return b.title.localeCompare(a.title);
-    });
+    return [...courses].sort((a, b) =>
+      sortBy === 'asc' ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title)
+    );
   }, [sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(sortedCourses.length / PAGE_SIZE));
@@ -32,29 +28,17 @@ export function CourseCatalog() {
     return sortedCourses.slice(start, start + PAGE_SIZE);
   }, [currentPage, sortedCourses]);
 
-  const handleGoToCourse = () => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    if (user.role === 'student') {
-      navigate(`/course/:id`);
-      return;
-    }
-    if (user.role === 'teacher') {
-      navigate(`/directory`);
-      return;
-    }
+  // Không phân role nữa: luôn đi tới /course/:id
+  const handleGoToCourse = (courseId: string | number) => {
+    navigate(`/course/${courseId}`);
   };
 
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages || page === currentPage) return;
     setCurrentPage(page);
-    // cuộn lên đầu danh sách khi đổi trang cho mượt
     document.getElementById('course-grid-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // Danh sách số trang hiển thị, có "..." khi nhiều trang
   const pageNumbers = useMemo<PageToken[]>(() => {
     const pages: PageToken[] = [];
     const maxVisible = 5;
@@ -76,7 +60,6 @@ export function CourseCatalog() {
     <div className={styles.page}>
       <PageHeader title="Course" />
       <div className={styles.container}>
-
         <div className={styles.toolbar}>
           <div className={styles.searchInput}>
             <Search size={20} className={styles.searchIcon} />
@@ -102,10 +85,14 @@ export function CourseCatalog() {
         </div>
 
         <div id="course-grid-top" />
-        {/* key={currentPage} khiến grid remount mỗi lần đổi trang -> animation fade/slide chạy lại */}
+        {/* key={currentPage} khiến grid remount mỗi lần đổi trang -> animation chạy lại */}
         <div className={styles.grid} key={currentPage} style={{ animation: 'catalogFadeSlide 0.35s ease' }}>
           {pagedCourses.map((course) => (
-            <CourseCard key={course.id} course={course} onGoToCourse={handleGoToCourse} />
+            <CourseCard
+              key={course.id}
+              course={course}
+              onGoToCourse={() => handleGoToCourse(course.id)}
+            />
           ))}
         </div>
 

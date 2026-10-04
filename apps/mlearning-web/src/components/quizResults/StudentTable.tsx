@@ -1,5 +1,4 @@
 import styles from './StudentTable.module.css';
-import Badge from './Badge';
 import { students } from './mockData';
 
 const columns = [
@@ -8,7 +7,6 @@ const columns = [
   'Thời gian làm',
   'Lần nộp',
   'Điểm số tự động',
-  'Điểm kết integrity',
   'Thao tác giảng viên',
 ];
 
@@ -59,17 +57,6 @@ export default function StudentTable() {
                     <span className={styles.scoreStrong}>{s.autoScore.toFixed(1)} / 10</span>
                   ) : (
                     <span className={styles.muted}>—</span>
-                  )}
-                </td>
-
-                <td>
-                  {s.integrityScore !== null ? (
-                    <div className={styles.integrityCell}>
-                      <span className={styles.muted}>{s.integrityScore} / 13</span>
-                      <Badge label={s.integrityBadge.label} tone={s.integrityBadge.tone} />
-                    </div>
-                  ) : (
-                    <Badge label={s.integrityBadge.label} tone={s.integrityBadge.tone} />
                   )}
                 </td>
 

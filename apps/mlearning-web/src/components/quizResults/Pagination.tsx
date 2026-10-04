@@ -50,11 +50,6 @@ export default function Pagination({ totalPages = 15, currentTotal = 128 }: Prop
           </button>
         </div>
       </div>
-
-      <div className={styles.lockNote}>
-        🛡 Quy chế khóa điểm tự động: Hệ thống sẽ tự động khóa điểm khi vào lúc 23:59 ngày
-        26/10/2025. Các trường hợp phúc khảo phải nộp muộn nhất trước hạn khóa.
-      </div>
     </div>
   );
 }

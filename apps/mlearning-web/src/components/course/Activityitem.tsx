@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import styles from './Activityitem.module.css';
 import type { Activity, AssignmentSubmission } from './Activitytypes';
 import { toneClass } from './activityShared';
@@ -10,22 +10,27 @@ import ResourcePanel from './ResourcePanel';
 import { useNavigate, useParams } from 'react-router-dom';
 
 interface Props {
-    activity: Activity; // bỏ dấu ? vì bên dưới truy cập activity.type trực tiếp
+    activity: Activity;
     defaultOpen?: boolean;
+    isTeacher?: boolean;
     onStartQuiz?: (quizId: string) => void;
     onSaveSubmission?: (assignmentId: string, file: File) => void;
     onRemoveSubmission?: (assignmentId: string) => void;
+    onEdit?: (activity: Activity) => void;
+    onDelete?: (activityId: string) => void;
 }
 
 export default function ActivityItem({
     activity,
     defaultOpen = false,
+    isTeacher = false,
     onStartQuiz,
     onSaveSubmission,
     onRemoveSubmission,
+    onEdit,
+    onDelete,
 }: Props) {
     const [open, setOpen] = useState(defaultOpen);
-    // "now" cập nhật mỗi 30s để nút làm quiz / nộp bài tự bật-tắt đúng giờ.
     const [now, setNow] = useState(() => Date.now());
     const [submission, setSubmission] = useState<AssignmentSubmission | null>(
         activity.type === 'assignment' ? activity.submission : null
@@ -51,13 +56,27 @@ export default function ActivityItem({
         setSubmission(null);
         onRemoveSubmission?.(activity.id);
     };
+
     const handleStartQuiz = () => {
         if (onStartQuiz) {
-            onStartQuiz(activity.id);      // cha muốn tự xử lý thì ưu tiên
+            onStartQuiz(activity.id);
         } else {
-            navigate(`/course/${courseId}/quiz-taking/${activity.id}`)// mặc định: tự chuyển trang
+            navigate(`/course/${courseId}/quiz-taking/${activity.id}`);
         }
     };
+
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (window.confirm(`Bạn có chắc muốn xóa "${activity.title}" không?`)) {
+            onDelete?.(activity.id);
+        }
+    };
+
+    const handleEdit = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onEdit?.(activity);
+    };
+
     return (
         <article className={`${styles.item} ${open ? styles.itemOpen : ''}`}>
             <div className={styles.head}>
@@ -75,16 +94,40 @@ export default function ActivityItem({
                     </div>
                 </div>
 
-                <button
-                    type="button"
-                    className={styles.toggleBtn}
-                    aria-expanded={open}
-                    aria-controls={panelId}
-                    onClick={() => setOpen((v) => !v)}
-                >
-                    {open ? 'Hide details' : header.buttonLabel}
-                    <ChevronDown size={18} className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} />
-                </button>
+                <div className={styles.headActions}>
+                    {isTeacher && (
+                        <div className={styles.teacherActions}>
+                            <button
+                                type="button"
+                                className={styles.editBtn}
+                                onClick={handleEdit}
+                                title="Sửa hoạt động"
+                                aria-label="Sửa"
+                            >
+                                <Pencil size={15} />
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.deleteBtn}
+                                onClick={handleDelete}
+                                title="Xóa hoạt động"
+                                aria-label="Xóa"
+                            >
+                                <Trash2 size={15} />
+                            </button>
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        className={styles.toggleBtn}
+                        aria-expanded={open}
+                        aria-controls={panelId}
+                        onClick={() => setOpen((v) => !v)}
+                    >
+                        {open ? 'Ẩn chi tiết' : header.buttonLabel}
+                        <ChevronDown size={18} className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`} />
+                    </button>
+                </div>
             </div>
 
             <div id={panelId} className={`${styles.panelWrap} ${open ? styles.panelWrapOpen : ''}`}>

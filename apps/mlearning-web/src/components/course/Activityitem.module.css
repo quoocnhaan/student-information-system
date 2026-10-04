@@ -39,6 +39,9 @@
     overflow: hidden;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     transition: border-color 0.2s ease, box-shadow 0.25s ease;
+    /* Container query: font-size tương đối với width card */
+    container-type: inline-size;
+    min-width: 0;
 }
 
 .item:hover {
@@ -58,6 +61,14 @@
     flex-direction: column;
     gap: 14px;
     padding: 20px;
+}
+
+.buttonRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 12px;
 }
 
 @media (min-width: 768px) {
@@ -105,41 +116,99 @@
 }
 
 .metaText {
-    font-size: 12px;
+    font-size: clamp(10px, 2.5cqi, 13px);
     color: var(--secondary, #515f74);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .badge {
-    font-size: 12px;
+    font-size: clamp(10px, 2.5cqi, 13px);
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 4px;
     background-color: var(--tone-bg);
     color: var(--tone-fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .title {
     margin: 4px 0 0;
-    font-size: 16px;
+    font-size: clamp(13px, 3.8cqi, 18px);
     font-weight: 600;
     line-height: 1.35;
     color: var(--on-surface, #131b2e);
-}
-
-@media (min-width: 1024px) {
-    .title {
-        font-size: 18px;
-    }
+    overflow: hidden;
+    word-break: break-word;
 }
 
 .desc {
     margin: 2px 0 0;
-    font-size: 14px;
+    font-size: clamp(11px, 3cqi, 14px);
     line-height: 1.5;
     color: var(--on-surface-variant, #434655);
+    overflow: hidden;
+    word-break: break-word;
 }
 
 /* ---------- Nút toggle duy nhất ---------- */
+
+.headActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.teacherActions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px;
+    background: #f3f4f6;
+    border-radius: 8px;
+}
+
+.editBtn,
+.deleteBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.editBtn {
+    background: transparent;
+    color: #6b7280;
+}
+
+.editBtn:hover {
+    background: #e0e7ff;
+    color: #4f46e5;
+}
+
+.deleteBtn {
+    background: transparent;
+    color: #6b7280;
+}
+
+.deleteBtn:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.editBtn:active,
+.deleteBtn:active {
+    transform: scale(0.92);
+}
 
 .toggleBtn {
     flex-shrink: 0;
@@ -152,11 +221,12 @@
     border-radius: var(--radius-lg, 10px);
     background-color: var(--primary, #2563eb);
     color: var(--on-primary, #fff);
-    font-size: 14px;
+    font-size: clamp(11px, 3cqi, 14px);
     font-weight: 600;
     cursor: pointer;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     transition: background-color 0.2s ease, transform 0.1s ease;
+    white-space: nowrap;
 }
 
 .toggleBtn:hover {

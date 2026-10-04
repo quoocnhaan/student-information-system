@@ -98,6 +98,9 @@
   flex-direction: column;
   justify-content: space-between;
   transition: all 0.2s ease;
+  /* Container query cho các phần tử trong card */
+  container-type: inline-size;
+  min-width: 0;
 }
 
 .courseCard:hover {
@@ -113,11 +116,14 @@
 }
 
 .courseTitle {
-  font-size: 18px;
+  font-size: clamp(13px, 5cqi, 18px);
   font-weight: 700;
   color: var(--on-surface);
   transition: color 0.2s;
   margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
 }
 
 .courseCard:hover .courseTitle {
@@ -125,7 +131,7 @@
 }
 
 .courseDesc {
-  font-size: 14px;
+  font-size: clamp(11px, 3.5cqi, 14px);
   color: var(--on-surface-variant);
   margin-bottom: 12px;
   display: -webkit-box;
@@ -149,9 +155,12 @@
 }
 
 .instructorName {
-  font-size: 12px;
+  font-size: clamp(10px, 2.8cqi, 13px);
   font-weight: 500;
   color: var(--on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .courseFooter {
@@ -163,7 +172,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: clamp(10px, 2.8cqi, 13px);
   margin-bottom: 8px;
 }
 
@@ -186,7 +195,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: clamp(9px, 2.5cqi, 12px);
   color: var(--on-surface-variant);
 }
 
@@ -213,6 +222,8 @@
   gap: 16px;
   transition: border-color 0.2s;
   margin-bottom: 12px;
+  container-type: inline-size;
+  min-width: 0;
 }
 
 .noticeItem:last-child {
@@ -232,6 +243,8 @@
   border-radius: 10px;
   padding: 10px;
   background: #f8f9fb;
+  container-type: inline-size;
+  min-width: 0;
 }
 
 .deadlineItem:last-child {
@@ -269,9 +282,12 @@
 }
 
 .panelTitle {
-  font-size: 18px;
+  font-size: clamp(14px, 4cqi, 18px);
   font-weight: 700;
   color: var(--on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .headerActions {
@@ -324,20 +340,24 @@
 }
 
 .noticeDate {
-  font-size: 12px;
+  font-size: clamp(10px, 2.8cqi, 13px);
   color: var(--on-surface-variant);
 }
 
 .noticeTitle {
-  font-size: 14px;
+  font-size: clamp(11px, 3.5cqi, 14px);
   font-weight: 600;
   color: var(--on-surface);
   margin-bottom: 4px;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .noticeDesc {
-  font-size: 12px;
+  font-size: clamp(10px, 2.8cqi, 13px);
   color: var(--on-surface-variant);
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .deadlineHeader {
@@ -347,25 +367,31 @@
 }
 
 .deadlineBadge {
-  font-size: 13.5px;
+  font-size: clamp(10px, 3cqi, 14px);
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 4px;
   background-color: var(--surface-container-high);
   color: var(--on-surface-variant);
+  white-space: nowrap;
 }
 
 .deadlineTitle {
-  font-size: 14px;
+  font-size: clamp(11px, 3.5cqi, 14px);
   font-weight: 700;
   color: var(--on-surface);
   margin-top: 4px;
   margin-bottom: 2px;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .deadlineCourse {
-  font-size: 12px;
+  font-size: clamp(10px, 2.8cqi, 13px);
   color: var(--on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .deadlineFooter {
@@ -382,7 +408,8 @@
   color: #fff;
   border-radius: 7px;
   padding: 5px 9px;
-  font-size: 11px;
+  font-size: clamp(9px, 2.5cqi, 12px);
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
 }
