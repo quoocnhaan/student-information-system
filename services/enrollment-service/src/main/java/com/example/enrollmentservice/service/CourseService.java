@@ -24,6 +24,9 @@ public class CourseService {
     }
 
     public Course createCourse(Course course) {
+        if (course.getName() == null || course.getName().trim().isEmpty()) {
+            throw new BadRequestException("Tên môn học không được để trống.");
+        }
         if (course.getCredits() != null && course.getCredits() < 0) {
             throw new BadRequestException("Số tín chỉ của môn học không được âm.");
         }
@@ -36,6 +39,9 @@ public class CourseService {
     public Course updateCourse(String id, Course course) {
         if (!courseRepository.existsById(id)) {
             throw new ResourceNotFoundException("Không tìm thấy môn học với mã: " + id);
+        }
+        if (course.getName() == null || course.getName().trim().isEmpty()) {
+            throw new BadRequestException("Tên môn học không được để trống.");
         }
         if (course.getCredits() != null && course.getCredits() < 0) {
             throw new BadRequestException("Số tín chỉ của môn học không được âm.");

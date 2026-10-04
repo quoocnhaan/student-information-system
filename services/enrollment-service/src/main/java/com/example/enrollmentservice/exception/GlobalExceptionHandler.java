@@ -5,10 +5,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -32,10 +35,22 @@ public class GlobalExceptionHandler {
                 .body(buildResponseBody(HttpStatus.NOT_FOUND, ex.getMessage()));
     }
 
-    @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleNoHandlerFound(NoHandlerFoundException ex) {
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<Map<String, Object>> handleNoResourceFound(Exception ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(buildResponseBody(HttpStatus.NOT_FOUND, "Đường dẫn không tồn tại: " + ex.getRequestURL()));
+                .body(buildResponseBody(HttpStatus.NOT_FOUND, "Đường dẫn tài nguyên không tồn tại."));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(buildResponseBody(HttpStatus.METHOD_NOT_ALLOWED, "Phương thức HTTP không được hỗ trợ: " + ex.getMethod()));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(buildResponseBody(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Định dạng Content-Type không được hỗ trợ."));
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
@@ -47,7 +62,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(buildResponseBody(HttpStatus.CONFLICT, "Không thể xóa hoặc thay đổi dữ liệu do có bản ghi liên quan (Ràng buộc dữ liệu)."));
+                .body(buildResponseBody(HttpStatus.CONFLICT, "Dữ liệu không hợp lệ hoặc vi phạm ràng buộc cơ sở dữ liệu."));
     }
 
     @ExceptionHandler(BadRequestException.class)

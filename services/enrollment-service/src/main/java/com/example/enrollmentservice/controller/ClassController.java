@@ -5,6 +5,8 @@ import com.example.enrollmentservice.exception.BadRequestException;
 import com.example.enrollmentservice.exception.DuplicateResourceException;
 import com.example.enrollmentservice.exception.ResourceNotFoundException;
 import com.example.enrollmentservice.repository.ClassRepository;
+import com.example.enrollmentservice.repository.CourseRepository;
+import com.example.enrollmentservice.repository.SemesterRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,6 +25,8 @@ import java.util.List;
 public class ClassController {
 
     private final ClassRepository classRepository;
+    private final CourseRepository courseRepository;
+    private final SemesterRepository semesterRepository;
 
     @Operation(summary = "Lấy tất cả lớp học", description = "Yêu cầu quyền ADMIN")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
@@ -48,8 +52,18 @@ public class ClassController {
         if (classEntity.getCurrentEnrolled() != null && classEntity.getCurrentEnrolled() < 0) {
             throw new BadRequestException("Số lượng sinh viên hiện tại không thể âm.");
         }
+        if (classEntity.getCurrentEnrolled() != null && classEntity.getMaxCapacity() != null
+                && classEntity.getCurrentEnrolled() > classEntity.getMaxCapacity()) {
+            throw new BadRequestException("Số lượng sinh viên hiện tại không được lớn hơn sĩ số tối đa.");
+        }
         if (classEntity.getClassId() != null && classRepository.existsById(classEntity.getClassId())) {
             throw new DuplicateResourceException("Mã lớp học đã tồn tại: " + classEntity.getClassId());
+        }
+        if (classEntity.getCourseId() != null && !courseRepository.existsById(classEntity.getCourseId())) {
+            throw new ResourceNotFoundException("Không tìm thấy môn học với mã: " + classEntity.getCourseId());
+        }
+        if (classEntity.getSemesterId() != null && !semesterRepository.existsById(classEntity.getSemesterId())) {
+            throw new ResourceNotFoundException("Không tìm thấy học kỳ với mã: " + classEntity.getSemesterId());
         }
         if (classEntity.getCurrentEnrolled() == null) {
             classEntity.setCurrentEnrolled(0);
@@ -68,6 +82,16 @@ public class ClassController {
         }
         if (classEntity.getMaxCapacity() != null && classEntity.getMaxCapacity() < 0) {
             throw new BadRequestException("Sĩ số tối đa không thể âm.");
+        }
+        if (classEntity.getCurrentEnrolled() != null && classEntity.getMaxCapacity() != null
+                && classEntity.getCurrentEnrolled() > classEntity.getMaxCapacity()) {
+            throw new BadRequestException("Số lượng sinh viên hiện tại không được lớn hơn sĩ số tối đa.");
+        }
+        if (classEntity.getCourseId() != null && !courseRepository.existsById(classEntity.getCourseId())) {
+            throw new ResourceNotFoundException("Không tìm thấy môn học với mã: " + classEntity.getCourseId());
+        }
+        if (classEntity.getSemesterId() != null && !semesterRepository.existsById(classEntity.getSemesterId())) {
+            throw new ResourceNotFoundException("Không tìm thấy học kỳ với mã: " + classEntity.getSemesterId());
         }
         classEntity.setClassId(classId);
         return ResponseEntity.ok(classRepository.save(classEntity));

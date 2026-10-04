@@ -5,6 +5,7 @@ import com.example.enrollmentservice.exception.BadRequestException;
 import com.example.enrollmentservice.exception.DuplicateResourceException;
 import com.example.enrollmentservice.exception.ResourceNotFoundException;
 import com.example.enrollmentservice.repository.RegistrationPeriodRepository;
+import com.example.enrollmentservice.repository.SemesterRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RegistrationPeriodService {
     private final RegistrationPeriodRepository periodRepository;
+    private final SemesterRepository semesterRepository;
 
     public List<RegistrationPeriod> getAllPeriods() {
         return periodRepository.findAll();
@@ -24,6 +26,11 @@ public class RegistrationPeriodService {
     }
 
     public RegistrationPeriod createPeriod(RegistrationPeriod period) {
+        if (period.getSemester() != null && period.getSemester().getSemesterId() != null) {
+            if (!semesterRepository.existsById(period.getSemester().getSemesterId())) {
+                throw new ResourceNotFoundException("Không tìm thấy học kỳ với mã: " + period.getSemester().getSemesterId());
+            }
+        }
         if (period.getStartTime() != null && period.getEndTime() != null
                 && period.getEndTime().isBefore(period.getStartTime())) {
             throw new BadRequestException("Thời gian kết thúc đợt đăng ký không thể trước thời gian bắt đầu.");
@@ -40,6 +47,11 @@ public class RegistrationPeriodService {
     public RegistrationPeriod updatePeriod(String id, RegistrationPeriod period) {
         if (!periodRepository.existsById(id)) {
             throw new ResourceNotFoundException("Không tìm thấy đợt đăng ký với mã: " + id);
+        }
+        if (period.getSemester() != null && period.getSemester().getSemesterId() != null) {
+            if (!semesterRepository.existsById(period.getSemester().getSemesterId())) {
+                throw new ResourceNotFoundException("Không tìm thấy học kỳ với mã: " + period.getSemester().getSemesterId());
+            }
         }
         if (period.getStartTime() != null && period.getEndTime() != null
                 && period.getEndTime().isBefore(period.getStartTime())) {
@@ -58,5 +70,4 @@ public class RegistrationPeriodService {
         }
         periodRepository.deleteById(id);
     }
-
 }

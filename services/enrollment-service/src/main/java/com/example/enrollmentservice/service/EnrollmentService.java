@@ -64,6 +64,12 @@ public class EnrollmentService {
         RegistrationPeriod period = periodRepository.findById(request.getPeriodId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đợt đăng ký với mã: " + request.getPeriodId()));
 
+        // N-04 Check: Semester matching
+        if (period.getSemester() != null && courseClass.getSemesterId() != null
+                && !period.getSemester().getSemesterId().equals(courseClass.getSemesterId())) {
+            throw new BadRequestException("Lớp học phần không thuộc học kỳ của đợt đăng ký này.");
+        }
+
         // Check if class status is CLOSED
         if ("CLOSED".equalsIgnoreCase(courseClass.getStatus())) {
             throw new BadRequestException("Lớp học hiện tại đã đóng.");
@@ -82,14 +88,38 @@ public class EnrollmentService {
             throw new DuplicateResourceException("Sinh viên đã đăng ký lớp học này rồi.");
         }
 
-        // Fetch Course info for response
+        // Fetch Course info for response and credit calculation
+        Course course = null;
         String courseCode = null;
         String courseName = null;
         if (courseClass.getCourseId() != null) {
-            Course course = courseRepository.findById(courseClass.getCourseId()).orElse(null);
+            course = courseRepository.findById(courseClass.getCourseId()).orElse(null);
             if (course != null) {
                 courseCode = course.getCourseCode();
                 courseName = course.getName();
+            }
+        }
+
+        // N-04 Check: Max credit limit check
+        if (period.getMaxCredits() != null) {
+            int newCourseCredits = (course != null && course.getCredits() != null) ? course.getCredits() : 0;
+            List<Enrollment> existingEnrollments = enrollmentRepository.findByStudentId(request.getStudentId());
+
+            int currentTotalCredits = existingEnrollments.stream()
+                    .filter(e -> "ENROLLED".equalsIgnoreCase(e.getStatus()))
+                    .filter(e -> e.getSemester() != null && e.getSemester().getSemesterId().equals(courseClass.getSemesterId()))
+                    .mapToInt(e -> {
+                        if (e.getCourseClass() != null && e.getCourseClass().getCourseId() != null) {
+                            Course c = courseRepository.findById(e.getCourseClass().getCourseId()).orElse(null);
+                            return c != null && c.getCredits() != null ? c.getCredits() : 0;
+                        }
+                        return 0;
+                    }).sum();
+
+            if (currentTotalCredits + newCourseCredits > period.getMaxCredits()) {
+                throw new BadRequestException("Đăng ký không thành công. Tổng số tín chỉ ("
+                        + (currentTotalCredits + newCourseCredits)
+                        + ") vượt quá giới hạn tối đa cho phép (" + period.getMaxCredits() + " tín chỉ).");
             }
         }
 

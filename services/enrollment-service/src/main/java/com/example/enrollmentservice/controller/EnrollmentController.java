@@ -26,17 +26,8 @@ public class EnrollmentController {
     @PreAuthorize("hasAnyAuthority('ROLE_STUDENT', 'ROLE_ADMIN')")
     @PostMapping("/register")
     public ResponseEntity<EnrollmentResponse> registerClass(@RequestBody EnrollmentRequest request) {
-        try {
-            EnrollmentResponse response = enrollmentService.enroll(request);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(
-                    EnrollmentResponse.builder()
-                            .status("FAILED")
-                            .message(e.getMessage())
-                            .build()
-            );
-        }
+        EnrollmentResponse response = enrollmentService.enroll(request);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Lấy tất cả đăng ký")
@@ -49,11 +40,11 @@ public class EnrollmentController {
     @GetMapping("/{id}")
     public ResponseEntity<Enrollment> getEnrollmentById(
             @Parameter(description = "Mã đăng ký") @PathVariable String id) {
-        Enrollment enrollment = enrollmentService.getEnrollmentById(id);
-        return enrollment != null ? ResponseEntity.ok(enrollment) : ResponseEntity.notFound().build();
+        return ResponseEntity.ok(enrollmentService.getEnrollmentById(id));
     }
 
-    @Operation(summary = "Xóa đăng ký")
+    @Operation(summary = "Xóa đăng ký", description = "Chỉ Admin hoặc chính Sinh viên sở hữu đăng ký mới được phép hủy")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_STUDENT')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteEnrollment(
             @Parameter(description = "Mã đăng ký") @PathVariable String id) {
