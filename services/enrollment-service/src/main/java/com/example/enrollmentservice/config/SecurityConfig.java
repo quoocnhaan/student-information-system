@@ -1,5 +1,6 @@
 package com.example.enrollmentservice.config;
 
+import com.example.enrollmentservice.security.CustomAccessDeniedHandler;
 import com.example.enrollmentservice.security.CustomAuthenticationEntryPoint;
 import com.example.enrollmentservice.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
@@ -20,13 +21,17 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .exceptionHandling(exception -> exception.authenticationEntryPoint(customAuthenticationEntryPoint))
+            .exceptionHandling(exception -> exception
+                .authenticationEntryPoint(customAuthenticationEntryPoint)
+                .accessDeniedHandler(customAccessDeniedHandler)
+            )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers(

@@ -4,6 +4,7 @@ import com.example.enrollmentservice.entity.Waitlist;
 import com.example.enrollmentservice.exception.BadRequestException;
 import com.example.enrollmentservice.exception.DuplicateResourceException;
 import com.example.enrollmentservice.exception.ResourceNotFoundException;
+import com.example.enrollmentservice.repository.ClassRepository;
 import com.example.enrollmentservice.repository.WaitlistRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -16,6 +17,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class WaitlistService {
     private final WaitlistRepository waitlistRepository;
+    private final ClassRepository classRepository;
 
     public List<Waitlist> getAllWaitlists() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -51,6 +53,11 @@ public class WaitlistService {
         if (waitlist.getWaitlistId() != null && waitlistRepository.existsById(waitlist.getWaitlistId())) {
             throw new DuplicateResourceException("Mã danh sách chờ đã tồn tại: " + waitlist.getWaitlistId());
         }
+        if (waitlist.getCourseClass() != null && waitlist.getCourseClass().getClassId() != null) {
+            if (!classRepository.existsById(waitlist.getCourseClass().getClassId())) {
+                throw new ResourceNotFoundException("Không tìm thấy lớp học với mã: " + waitlist.getCourseClass().getClassId());
+            }
+        }
         return waitlistRepository.save(waitlist);
     }
 
@@ -60,6 +67,11 @@ public class WaitlistService {
         }
         if (waitlist.getPosition() != null && waitlist.getPosition() < 0) {
             throw new BadRequestException("Vị trí trong danh sách chờ không thể âm.");
+        }
+        if (waitlist.getCourseClass() != null && waitlist.getCourseClass().getClassId() != null) {
+            if (!classRepository.existsById(waitlist.getCourseClass().getClassId())) {
+                throw new ResourceNotFoundException("Không tìm thấy lớp học với mã: " + waitlist.getCourseClass().getClassId());
+            }
         }
         waitlist.setWaitlistId(id);
         return waitlistRepository.save(waitlist);

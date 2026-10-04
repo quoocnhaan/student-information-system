@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/courses")
+@RequestMapping({"/api/v1/courses", "/courses"})
 @RequiredArgsConstructor
 @Tag(name = "Môn học", description = "API quản lý môn học (Course)")
 public class CourseController {

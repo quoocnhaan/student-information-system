@@ -15,7 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/enrollments")
+@RequestMapping({"/api/v1/enrollments", "/enrollments"})
 @RequiredArgsConstructor
 @Tag(name = "Đăng ký học phần", description = "API đăng ký và quản lý đăng ký học phần")
 public class EnrollmentController {

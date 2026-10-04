@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/enrollment-histories")
+@RequestMapping({"/api/v1/enrollment-histories", "/enrollment-histories"})
 @RequiredArgsConstructor
 @Tag(name = "Lịch sử đăng ký", description = "API quản lý lịch sử đăng ký học phần")
 public class EnrollmentHistoryController {

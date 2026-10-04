@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/registration-periods")
+@RequestMapping({"/api/v1/registration-periods", "/registration-periods"})
 @RequiredArgsConstructor
 @Tag(name = "Đợt đăng ký", description = "API quản lý đợt đăng ký học phần")
 public class RegistrationPeriodController {

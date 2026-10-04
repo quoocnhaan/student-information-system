@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/classes")
+@RequestMapping({"/api/v1/classes", "/classes"})
 @RequiredArgsConstructor
 @Tag(name = "Lớp học", description = "API quản lý lớp học (ClassEntity)")
 public class ClassController {
@@ -33,6 +33,15 @@ public class ClassController {
     @GetMapping
     public ResponseEntity<List<ClassEntity>> getAllClasses() {
         return ResponseEntity.ok(classRepository.findAll());
+    }
+
+    @Operation(summary = "Lấy lớp học theo ID")
+    @GetMapping("/{classId}")
+    public ResponseEntity<ClassEntity> getClassById(
+            @Parameter(description = "Mã lớp học") @PathVariable String classId) {
+        ClassEntity classEntity = classRepository.findById(classId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lớp học với mã: " + classId));
+        return ResponseEntity.ok(classEntity);
     }
 
     @Operation(summary = "Lấy lớp học theo học kỳ", description = "Trả về danh sách lớp theo mã học kỳ")

@@ -4,6 +4,7 @@ import com.example.enrollmentservice.entity.EnrollmentHistory;
 import com.example.enrollmentservice.exception.DuplicateResourceException;
 import com.example.enrollmentservice.exception.ResourceNotFoundException;
 import com.example.enrollmentservice.repository.EnrollmentHistoryRepository;
+import com.example.enrollmentservice.repository.EnrollmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -15,6 +16,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EnrollmentHistoryService {
     private final EnrollmentHistoryRepository historyRepository;
+    private final EnrollmentRepository enrollmentRepository;
 
     public List<EnrollmentHistory> getAllHistories() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -47,12 +49,22 @@ public class EnrollmentHistoryService {
         if (history.getHistoryId() != null && historyRepository.existsById(history.getHistoryId())) {
             throw new DuplicateResourceException("Mã lịch sử đã tồn tại: " + history.getHistoryId());
         }
+        if (history.getEnrollment() != null && history.getEnrollment().getEnrollmentId() != null) {
+            if (!enrollmentRepository.existsById(history.getEnrollment().getEnrollmentId())) {
+                throw new ResourceNotFoundException("Không tìm thấy đăng ký với mã: " + history.getEnrollment().getEnrollmentId());
+            }
+        }
         return historyRepository.save(history);
     }
 
     public EnrollmentHistory updateHistory(String id, EnrollmentHistory history) {
         if (!historyRepository.existsById(id)) {
             throw new ResourceNotFoundException("Không tìm thấy lịch sử đăng ký mã: " + id);
+        }
+        if (history.getEnrollment() != null && history.getEnrollment().getEnrollmentId() != null) {
+            if (!enrollmentRepository.existsById(history.getEnrollment().getEnrollmentId())) {
+                throw new ResourceNotFoundException("Không tìm thấy đăng ký với mã: " + history.getEnrollment().getEnrollmentId());
+            }
         }
         history.setHistoryId(id);
         return historyRepository.save(history);

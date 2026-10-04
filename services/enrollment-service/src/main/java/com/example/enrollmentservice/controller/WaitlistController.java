@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/waitlists")
+@RequestMapping({"/api/v1/waitlists", "/waitlists"})
 @RequiredArgsConstructor
 @Tag(name = "Danh sách chờ", description = "API quản lý danh sách chờ đăng ký")
 public class WaitlistController {

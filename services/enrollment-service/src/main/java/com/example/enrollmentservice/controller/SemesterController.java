@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/semesters")
+@RequestMapping({"/api/v1/semesters", "/semesters"})
 @RequiredArgsConstructor
 @Tag(name = "Học kỳ", description = "API quản lý học kỳ")
 public class SemesterController {

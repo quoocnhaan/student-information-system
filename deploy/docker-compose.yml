@@ -20,6 +20,7 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-ptandat66}
       JWT_SECRET: ${JWT_SECRET:-DayLaMotSecretKeyRatDaiVaDuBaoMatChoViecTestRole123!}
+      SPRING_PROFILES_ACTIVE: dev
     depends_on:
       - mysql
     restart: always
