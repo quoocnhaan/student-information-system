@@ -1,0 +1,52 @@
+services:
+  mysqldb:
+    image: mysql:8.0
+    container_name: sis_mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3301:3306"
+    volumes:
+      - ./academic_activity.sql:/docker-entrypoint-initdb.d/academic_activity.sql
+    networks:
+      - sis_network
+
+  academic-service:
+    build:
+      context: ./services/academic-service
+    container_name: academic_service_app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysqldb:3306/academic_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-14400000}
+    networks:
+      - sis_network
+    restart: on-failure
+
+  activity-service:
+    build:
+      context: ./services/activity-service
+    container_name: activity_service_app
+    ports:
+      - "8081:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysqldb:3306/activity_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-14400000}
+    networks:
+      - sis_network
+    restart: on-failure
+
+networks:
+  sis_network:
+    driver: bridge

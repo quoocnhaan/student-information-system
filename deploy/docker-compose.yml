@@ -49,3 +49,5 @@ services:
 
 volumes:
   mysql-data:
+include:
+  - path: ../services/ai-service/knowledge/docker-compose.yml
