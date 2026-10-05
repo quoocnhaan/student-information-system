@@ -25,8 +25,7 @@ student-information-system/
 │       └── knowledge/db/schema.surql # Knowledge database schema
 ├── packages/
 │   └── contracts/         # Shared API schemas, events, and types
-├── deploy/
-│   └── docker-compose.yml # Local container orchestration
+├── docker-compose.yml     # Local container orchestration
 ├── docs/
 │   ├── architecture/      # Architecture decisions, diagrams, and logging standard
 │   ├── api/               # API documentation
@@ -49,11 +48,11 @@ Fill in the blank passwords and a JWT secret of at least 32 characters.
 Then run from the repository root:
 
 ```bash
-docker compose --env-file .env -f deploy/docker-compose.yml config --quiet
-docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+docker compose --env-file .env -f docker-compose.yml config --quiet
+docker compose --env-file .env -f docker-compose.yml up -d --build
 ```
 
-`deploy/docker-compose.yml` is the repository's only Compose file. It directly
+`docker-compose.yml` at the repository root is the repository's only Compose file. It directly
 defines the AI stack and registers every existing application/service Dockerfile.
 
 | Component | Local port |
@@ -66,7 +65,8 @@ defines the AI stack and registers every existing application/service Dockerfile
 
 Auth, User, and the gateway currently contain only placeholders;
 their reserved ports in `AGENTS.md` remain available for future implementations.
-SurrealDB is reachable inside Docker at `ws://surrealdb:8000`.
+SurrealDB is reachable inside Docker at `ws://surrealdb:8000` and from the
+host at `ws://localhost:8000/rpc`.
 MinIO and RabbitMQ keep their existing local development ports.
 
 Database assets belong to their service's `db/` folder. Academic initializes

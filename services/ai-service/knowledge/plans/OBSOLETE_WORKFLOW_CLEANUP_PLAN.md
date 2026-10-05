@@ -28,7 +28,7 @@ Read these files and their tests:
   `src/app/infrastructure/apply_migration.py`.
 - `src/app/worker/{correct,index,core,ocr,__main__}.py` and `src/app/jobs/publisher.py`.
 - `apps/admin-web/src/features/knowledge/{api,hooks,pages,components}`.
-- `deploy/docker-compose.yml`, service README, `services/ai-service/docs/upload-pdf-workflow.md`,
+- `docker-compose.yml`, service README, `services/ai-service/docs/upload-pdf-workflow.md`,
   and `docs/database/knowledge_schema_config.md` if present.
 
 Search the entire repository for each removed identifier, including callers outside
@@ -156,7 +156,7 @@ When reset execution is authorized: stop only Knowledge's containers and verify 
 termination, remove only its verified local volumes, rebuild API/workers/admin, then
 start Knowledge with its initializer services. Use the service-scoped reset procedure
 in `../README.md`; project-wide `down --volumes` also removes unrelated MySQL data
-now that all services share `deploy/docker-compose.yml`. Keep production,
+now that all services share the repository-root `docker-compose.yml`. Keep production,
 shared services, unrelated projects, bind mounts, and credentials outside this reset.
 Verify fresh schema startup, bucket/broker initialization, `/v1/health` and `/v1/ready`
 against the actual route definitions, and container status/logs. Determine exact

@@ -1,6 +1,6 @@
 > Historical plan: workflow/schema compatibility and manual acceptance requirements
 > are superseded by [the current workflow](../../README.md) and the obsolete workflow cleanup.
-> Deployment now uses only `deploy/docker-compose.yml` and the root environment
+> Deployment now uses only the repository-root `docker-compose.yml` and the root environment
 > files. Historical commands and worker-scaling instructions below are not current
 > run instructions; use the service README for deployment and reset procedures.
 
@@ -16,7 +16,7 @@ Wire the Knowledge worker into Docker Compose with an isolated RabbitMQ vhost, m
 
 ## Steps
 
-1. **Compose and broker isolation.** In `deploy/docker-compose.yml`:
+1. **Compose and broker isolation.** In `docker-compose.yml`:
    - Add a one-shot `rabbitmq-init` service, modelled on `minio-init`. It uses the RabbitMQ management HTTP API to create vhost `knowledge` and user `${KNOWLEDGE_RABBITMQ_USER}` with permissions on that vhost only.
    - Add `knowledge-worker-ocr`:
      - `build: .`, `command: python -m app.worker`, `KNOWLEDGE_WORKER_QUEUES=ocr`;
