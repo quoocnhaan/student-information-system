@@ -5,7 +5,7 @@ Knowledge owns source PDFs, document metadata, OCR drafts, and background jobs i
 ## Run locally
 
 Configure the repository-root `.env` using the root `.env.example`, then run
-`docker compose --env-file .env -f deploy/docker-compose.yml up -d --build`
+`docker compose --env-file .env -f docker-compose.yml up -d --build`
 from the repository root.
 All applications and services share these two root environment files.
 Run direct Python commands from the repository root so the settings loader
@@ -17,7 +17,7 @@ Knowledge is served at `http://localhost:8006` and the review UI at
 on the host at port 1234 by default. Workers wait for API health before startup
 recovery so the fresh schema is initialized first.
 
-All services are defined directly in `deploy/docker-compose.yml`; there is no
+All services are defined directly in the repository-root `docker-compose.yml`; there is no
 standalone Knowledge Compose file. To start only Knowledge and its dependencies,
 use the same root command with the service names `knowledge-api
 knowledge-worker-ocr knowledge-worker-correct knowledge-worker-index admin-web`.
@@ -69,7 +69,7 @@ only Knowledge services and their verified volumes: a project-wide
 Keep credentials, bind mounts, production, and shared resources outside the reset.
 
 ```powershell
-$composeArgs = @('--env-file', '.env', '-p', 'knowledge', '-f', 'deploy/docker-compose.yml', '--profile', 'maintenance')
+$composeArgs = @('--env-file', '.env', '-p', 'knowledge', '-f', 'docker-compose.yml', '--profile', 'maintenance')
 $knowledgeServices = @('surrealdb', 'minio', 'minio-init', 'rabbitmq', 'rabbitmq-init', 'knowledge-api', 'knowledge-worker-ocr', 'knowledge-worker-correct', 'knowledge-worker-index', 'knowledge-orphan-cleanup', 'admin-web')
 $normalServices = $knowledgeServices | Where-Object { $_ -ne 'knowledge-orphan-cleanup' }
 # Resolve scope without printing environment secrets.

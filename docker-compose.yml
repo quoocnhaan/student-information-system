@@ -34,7 +34,7 @@ services:
       - "3303:3306"
     volumes:
       - academic_mysql_data:/var/lib/mysql
-      - ../services/academic-service/db/academic.sql:/docker-entrypoint-initdb.d/academic.sql:ro
+      - ./services/academic-service/db/academic.sql:/docker-entrypoint-initdb.d/academic.sql:ro
 
   activity-db:
     <<: *mysql
@@ -45,7 +45,7 @@ services:
       - "3304:3306"
     volumes:
       - activity_mysql_data:/var/lib/mysql
-      - ../services/activity-service/db/activity.sql:/docker-entrypoint-initdb.d/activity.sql:ro
+      - ./services/activity-service/db/activity.sql:/docker-entrypoint-initdb.d/activity.sql:ro
 
   enrollment-db:
     <<: *mysql
@@ -60,7 +60,7 @@ services:
 
   academic-service:
     build:
-      context: ../services/academic-service
+      context: ./services/academic-service
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -74,7 +74,7 @@ services:
 
   activity-service:
     build:
-      context: ../services/activity-service
+      context: ./services/activity-service
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -88,7 +88,7 @@ services:
 
   student-web:
     build:
-      context: ../apps/student-web
+      context: ./apps/student-web
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
@@ -96,7 +96,7 @@ services:
 
   enrollment-service:
     build:
-      context: ../services/enrollment-service
+      context: ./services/enrollment-service
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -116,7 +116,7 @@ services:
 
   mlearning-web:
     build:
-      context: ../apps/mlearning-web
+      context: ./apps/mlearning-web
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
@@ -130,6 +130,8 @@ services:
     command: start --user ${SURREAL_USER:?Set SURREAL_USER in .env} --pass ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env} rocksdb:///data/database.db
     volumes:
       - surreal_data:/data
+    ports:
+      - "8000:8000"
     healthcheck:
       test: ["CMD", "/surreal", "is-ready", "--endpoint", "http://localhost:8000"]
       interval: 5s
@@ -181,7 +183,7 @@ services:
 
   rabbitmq-init:
     build:
-      context: ../services/ai-service/knowledge
+      context: ./services/ai-service/knowledge
       dockerfile: Dockerfile
     command: python -m app.init_rabbitmq
     environment:
@@ -198,7 +200,7 @@ services:
   knowledge-api:
     restart: unless-stopped
     build:
-      context: ../services/ai-service/knowledge
+      context: ./services/ai-service/knowledge
       dockerfile: Dockerfile
     environment:
       KNOWLEDGE_ENVIRONMENT: development
@@ -244,7 +246,7 @@ services:
   knowledge-worker-ocr:
     restart: unless-stopped
     build:
-      context: ../services/ai-service/knowledge
+      context: ./services/ai-service/knowledge
       dockerfile: Dockerfile
     command: python -m app.worker
     environment:
@@ -290,7 +292,7 @@ services:
   knowledge-worker-correct:
     restart: unless-stopped
     build:
-      context: ../services/ai-service/knowledge
+      context: ./services/ai-service/knowledge
       dockerfile: Dockerfile
     command: python -m app.worker
     environment:
@@ -334,7 +336,7 @@ services:
   knowledge-orphan-cleanup:
     profiles: ["maintenance"]
     build:
-      context: ../services/ai-service/knowledge
+      context: ./services/ai-service/knowledge
       dockerfile: Dockerfile
     command: python -m app.orphan_cleanup
     environment:
@@ -362,7 +364,7 @@ services:
   knowledge-worker-index:
     restart: unless-stopped
     build:
-      context: ../services/ai-service/knowledge
+      context: ./services/ai-service/knowledge
       dockerfile: Dockerfile
     command: python -m app.worker
     environment:
@@ -401,7 +403,7 @@ services:
 
   admin-web:
     build:
-      context: ../apps/admin-web
+      context: ./apps/admin-web
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:

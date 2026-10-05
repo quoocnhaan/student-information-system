@@ -112,7 +112,7 @@ use case AI đã chốt mà không lộ dữ liệu nhạy cảm.
 
 Mục tiêu: hệ thống chạy được nhất quán, có thể quan sát và sẵn sàng phát hành.
 
-- [ ] Hoàn thiện `deploy/docker-compose.yml` để chạy gateway, services, apps,
+- [ ] Hoàn thiện `docker-compose.yml` để chạy gateway, services, apps,
   database và dependency cần thiết ở môi trường local.
 - [ ] Hoàn thiện `.env.example`, tách cấu hình theo môi trường và quản lý secret
   bằng cơ chế triển khai, không commit secret.

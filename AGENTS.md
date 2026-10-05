@@ -32,7 +32,7 @@ Never push directly to `dev` or `main`. Create a pull request for every change i
   or integration-test fixtures. Service-owned database assets belong to the
   owning service's `db/` folder.
 - Each MySQL initialization seed must target only its owning service's database.
-  Configure `deploy/docker-compose.yml` to mount that service's seed into its
+  Configure `docker-compose.yml` to mount that service's seed into its
   own MySQL container's `/docker-entrypoint-initdb.d/` directory, read-only.
 - MySQL initialization scripts run on first database initialization, not during
   image build. Copy `db/` into an application image only when the application
@@ -47,21 +47,21 @@ Never push directly to `dev` or `main`. Create a pull request for every change i
 
 ## Docker and Docker Compose Rule
 
-- Use `deploy/docker-compose.yml` as the repository's only Compose file for
+- Use the repository-root `docker-compose.yml` as the only Compose file for
   every application and service. Add services directly to it rather than
-  creating service-local, root-level, override, or included Compose files.
+  creating service-local, override, or included Compose files.
 - When consolidating an existing Compose file, merge its services and resources
-  into the shared file, rebase paths relative to `deploy/`, and preserve runtime
+  into the shared file, rebase paths relative to the repository root, and preserve runtime
   settings, dependencies, health checks, volumes, networks, and profiles.
   Remove the duplicate and update its documentation and command references.
-- Run Compose from the repository root with `--env-file .env -f
-  deploy/docker-compose.yml`. Before finishing Compose changes, verify that
+- Run Compose from the repository root with `--env-file .env -f docker-compose.yml`.
+  Before finishing Compose changes, verify that
   this is the only Compose file and that its configuration validates.
 
 Whenever a task creates, adds, or introduces a `Dockerfile` for any application or service, the agent **must also update**:
 
 ```text
-deploy/docker-compose.yml
+docker-compose.yml
 ```
 
 so that the new container can be built and run through the repository's shared Docker Compose setup.
@@ -72,23 +72,23 @@ This is part of the same task. Do not consider a Dockerfile-related task complet
 
 1. If the user asks to create a Dockerfile for an app or service:
    - create or update the Dockerfile;
-   - inspect `deploy/docker-compose.yml`;
-   - add the corresponding service to `deploy/docker-compose.yml` if it is not already registered;
+   - inspect `docker-compose.yml`;
+   - add the corresponding service to `docker-compose.yml` if it is not already registered;
    - make sure the Compose `build.context` and `build.dockerfile` point to the correct paths;
    - include required ports, environment variables, volumes, dependencies, networks, or health checks when they are necessary for that service to run.
 
 2. If a Dockerfile already exists before the task:
-   - inspect `deploy/docker-compose.yml`;
+   - inspect `docker-compose.yml`;
    - if that app/service is missing from the Compose file, add it as part of the current task;
    - if an existing Compose entry no longer matches the Dockerfile or service configuration, update it.
 
-3. If the service is already correctly represented in `deploy/docker-compose.yml`:
+3. If the service is already correctly represented in `docker-compose.yml`:
    - do not create a duplicate Compose service;
    - verify that the existing entry still matches the Dockerfile and current service requirements.
 
 ## Consistency Requirements
 
-- Use paths relative to `deploy/docker-compose.yml` correctly.
+- Use paths relative to the repository-root `docker-compose.yml` correctly.
 - Keep Compose service names consistent with the repository's app/service naming conventions.
 - Do not expose unnecessary ports.
 - Do not hard-code secrets in `docker-compose.yml`.
@@ -103,7 +103,7 @@ After changing Docker-related files, validate the Compose configuration when the
 Preferred command:
 
 ```bash
-docker compose --env-file .env -f deploy/docker-compose.yml config --quiet
+docker compose --env-file .env -f docker-compose.yml config --quiet
 ```
 
 If Docker/Compose is unavailable, manually verify YAML structure, build paths, Dockerfile paths, port mappings, environment references, and dependencies.
@@ -113,7 +113,7 @@ If Docker/Compose is unavailable, manually verify YAML structure, build paths, D
 Before finishing any task that creates or modifies a Dockerfile, confirm:
 
 - the Dockerfile exists and is valid for the target service;
-- `deploy/docker-compose.yml` has been inspected;
+- `docker-compose.yml` has been inspected;
 - the corresponding service exists in Compose;
 - the Compose entry points to the correct build context and Dockerfile;
 - relevant runtime configuration has been included;
