@@ -28,7 +28,7 @@ Read these files and their tests:
   `src/app/infrastructure/apply_migration.py`.
 - `src/app/worker/{correct,index,core,ocr,__main__}.py` and `src/app/jobs/publisher.py`.
 - `apps/admin-web/src/features/knowledge/{api,hooks,pages,components}`.
-- `docker-compose.yml`, service README, `services/ai-service/docs/upload-pdf-workflow.md`,
+- `deploy/docker-compose.yml`, service README, `services/ai-service/docs/upload-pdf-workflow.md`,
   and `docs/database/knowledge_schema_config.md` if present.
 
 Search the entire repository for each removed identifier, including callers outside
@@ -146,16 +146,17 @@ configuration proven to serve only retired workflows, with their tests/docs.
 Keep current worker ownership recovery and failure reconciliation.
 
 Document the exact reset procedure after resolving Compose configuration and project
-identity. Current logical volumes in this service Compose file are `surreal_data`,
+identity. Knowledge's logical volumes in the shared Compose file are `surreal_data`,
 `minio_data`, and `rabbitmq_data`. Resolve actual names and inspect project labels
 and mounts before deletion; do not guess names or use global volume pruning.
 Reset all three together so old PDFs and queued envelopes cannot survive a fresh DB.
 Report that local PDFs, chunks, vectors, drafts, jobs, and queued messages are erased.
 
-When reset execution is authorized: stop this project's containers and verify worker
+When reset execution is authorized: stop only Knowledge's containers and verify worker
 termination, remove only its verified local volumes, rebuild API/workers/admin, then
-start the project with its initializer services. `docker compose down --volumes`
-is suitable only after verifying the selected project's volume scope. Keep production,
+start Knowledge with its initializer services. Use the service-scoped reset procedure
+in `../README.md`; project-wide `down --volumes` also removes unrelated MySQL data
+now that all services share `deploy/docker-compose.yml`. Keep production,
 shared services, unrelated projects, bind mounts, and credentials outside this reset.
 Verify fresh schema startup, bucket/broker initialization, `/v1/health` and `/v1/ready`
 against the actual route definitions, and container status/logs. Determine exact

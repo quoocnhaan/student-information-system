@@ -45,7 +45,7 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ onSubmit, onCancel }) => {
     const [content, setContent] = useState("");
     const [type, setType] = useState<QuestionType>("single");
     const [points, setPoints] = useState(1);
-    const [explanation, setExplanation] = useState("");
+    const [explanation] = useState("");
     const [options, setOptions] = useState<QuestionOption[]>([
         createEmptyOption(),
         createEmptyOption(),

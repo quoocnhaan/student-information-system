@@ -27,6 +27,6 @@ COPY --from=build /app/target/*.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
 
-EXPOSE 8083
+EXPOSE 8005
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

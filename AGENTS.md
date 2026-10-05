@@ -6,7 +6,57 @@ This file contains repository-wide instructions for coding agents working in thi
 
 These instructions apply to the entire repository unless a more specific `AGENTS.md` exists in a subdirectory.
 
+## Service Ports
+
+Use the following ports for local service and MySQL configuration:
+
+| Service            | Service port | MySQL port                  |
+| ------------------ | ------------: | ---------------------------: |
+| Auth service       | 8001         | 3301                        |
+| User service       | 8002         | 3302                        |
+| Academic service   | 8003         | 3303                        |
+| Activity service   | 8004         | 3304                        |
+| Enrollment service | 8005         | 3305                        |
+| AI service         | 8006         | Ai service do not use MySQL |
+
+## Git Branch Protection
+
+Never push directly to `dev` or `main`. Create a pull request for every change intended for either branch.
+
+## Database Schema Ownership
+
+- Keep each service's database schemas, migrations, and seed data in its own
+  `db/` folder, beside its code. Nested services keep that folder at their own
+  root, such as `services/ai-service/knowledge/db/`.
+- Reserve a repository-root `schemas/` folder for genuinely shared definitions
+  or integration-test fixtures. Service-owned database assets belong to the
+  owning service's `db/` folder.
+- Each MySQL initialization seed must target only its owning service's database.
+  Configure `deploy/docker-compose.yml` to mount that service's seed into its
+  own MySQL container's `/docker-entrypoint-initdb.d/` directory, read-only.
+- MySQL initialization scripts run on first database initialization, not during
+  image build. Copy `db/` into an application image only when the application
+  reads those files at runtime, as Knowledge does when applying its schema.
+- Create `db/` when database assets exist; services that generate their schema
+  through an ORM do not need an empty placeholder folder.
+- When adding or moving database assets, update Compose and documentation
+  references in the same task. Before finishing, verify that every referenced
+  file exists, each seed contains only its owning database's definitions and
+  data, and Compose validates. Preserve existing database volumes unless the
+  user explicitly requests a reset.
+
 ## Docker and Docker Compose Rule
+
+- Use `deploy/docker-compose.yml` as the repository's only Compose file for
+  every application and service. Add services directly to it rather than
+  creating service-local, root-level, override, or included Compose files.
+- When consolidating an existing Compose file, merge its services and resources
+  into the shared file, rebase paths relative to `deploy/`, and preserve runtime
+  settings, dependencies, health checks, volumes, networks, and profiles.
+  Remove the duplicate and update its documentation and command references.
+- Run Compose from the repository root with `--env-file .env -f
+  deploy/docker-compose.yml`. Before finishing Compose changes, verify that
+  this is the only Compose file and that its configuration validates.
 
 Whenever a task creates, adds, or introduces a `Dockerfile` for any application or service, the agent **must also update**:
 
@@ -53,7 +103,7 @@ After changing Docker-related files, validate the Compose configuration when the
 Preferred command:
 
 ```bash
-docker compose -f deploy/docker-compose.yml config
+docker compose --env-file .env -f deploy/docker-compose.yml config --quiet
 ```
 
 If Docker/Compose is unavailable, manually verify YAML structure, build paths, Dockerfile paths, port mappings, environment references, and dependencies.

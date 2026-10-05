@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { CalendarClock, CalendarDays, CheckCircle2, Clock, Lock, Play, Repeat, Timer, Edit2, Save, X } from 'lucide-react';
+import { CalendarClock, CalendarDays, CheckCircle2, Clock, Lock, Play, Repeat, Timer, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import styles from './Activityitem.module.css';
 import type { QuizActivity } from './Activitytypes';
@@ -11,7 +11,7 @@ import InfoTile from './InfoTile';
 import QuizStartModal from './QuizStartModal';
 import { useIsTeacher } from '../../hooks/useRole';
 import QuestionBankModal from './Questionbankmodal';
-import type { QuestionFormValues, QuestionItem } from './Questionform';
+import type { QuestionItem } from './Questionform';
 
 interface Props {
     activity: QuizActivity;
