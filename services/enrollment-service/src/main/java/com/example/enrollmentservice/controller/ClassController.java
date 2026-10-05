@@ -55,6 +55,9 @@ public class ClassController {
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @PostMapping
     public ResponseEntity<ClassEntity> createClass(@RequestBody ClassEntity classEntity) {
+        if (classEntity.getClassId() == null || classEntity.getClassId().trim().isEmpty()) {
+            throw new BadRequestException("Mã lớp học không được để trống.");
+        }
         if (classEntity.getMaxCapacity() != null && classEntity.getMaxCapacity() < 0) {
             throw new BadRequestException("Sĩ số tối đa không thể âm.");
         }
@@ -65,7 +68,7 @@ public class ClassController {
                 && classEntity.getCurrentEnrolled() > classEntity.getMaxCapacity()) {
             throw new BadRequestException("Số lượng sinh viên hiện tại không được lớn hơn sĩ số tối đa.");
         }
-        if (classEntity.getClassId() != null && classRepository.existsById(classEntity.getClassId())) {
+        if (classRepository.existsById(classEntity.getClassId())) {
             throw new DuplicateResourceException("Mã lớp học đã tồn tại: " + classEntity.getClassId());
         }
         if (classEntity.getCourseId() != null && !courseRepository.existsById(classEntity.getCourseId())) {

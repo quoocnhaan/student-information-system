@@ -46,7 +46,10 @@ public class EnrollmentHistoryService {
     }
 
     public EnrollmentHistory createHistory(EnrollmentHistory history) {
-        if (history.getHistoryId() != null && historyRepository.existsById(history.getHistoryId())) {
+        if (history.getHistoryId() == null || history.getHistoryId().trim().isEmpty()) {
+            throw new BadRequestException("Mã lịch sử đăng ký không được để trống.");
+        }
+        if (historyRepository.existsById(history.getHistoryId())) {
             throw new DuplicateResourceException("Mã lịch sử đã tồn tại: " + history.getHistoryId());
         }
         if (history.getEnrollment() != null && history.getEnrollment().getEnrollmentId() != null) {

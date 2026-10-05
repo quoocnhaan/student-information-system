@@ -26,6 +26,9 @@ public class RegistrationPeriodService {
     }
 
     public RegistrationPeriod createPeriod(RegistrationPeriod period) {
+        if (period.getPeriodId() == null || period.getPeriodId().trim().isEmpty()) {
+            throw new BadRequestException("Mã đợt đăng ký không được để trống.");
+        }
         if (period.getSemester() != null && period.getSemester().getSemesterId() != null) {
             if (!semesterRepository.existsById(period.getSemester().getSemesterId())) {
                 throw new ResourceNotFoundException("Không tìm thấy học kỳ với mã: " + period.getSemester().getSemesterId());
@@ -38,7 +41,7 @@ public class RegistrationPeriodService {
         if (period.getMaxCredits() != null && period.getMaxCredits() < 0) {
             throw new BadRequestException("Số tín chỉ tối đa không được âm.");
         }
-        if (period.getPeriodId() != null && periodRepository.existsById(period.getPeriodId())) {
+        if (periodRepository.existsById(period.getPeriodId())) {
             throw new DuplicateResourceException("Mã đợt đăng ký đã tồn tại: " + period.getPeriodId());
         }
         return periodRepository.save(period);

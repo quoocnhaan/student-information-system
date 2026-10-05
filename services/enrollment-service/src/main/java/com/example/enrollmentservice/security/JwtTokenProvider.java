@@ -14,13 +14,16 @@ import java.util.Date;
 @Component
 public class JwtTokenProvider {
 
-    @Value("${jwt.secret:DayLaMotSecretKeyRatDaiVaDuBaoMatChoViecTestRole123!}")
+    @Value("${jwt.secret:}")
     private String jwtSecret;
 
     private Key key;
 
     @PostConstruct
     public void init() {
+        if (jwtSecret == null || jwtSecret.trim().isEmpty()) {
+            throw new IllegalStateException("JWT secret chưa được cấu hình. Vui lòng đặt biến môi trường JWT_SECRET.");
+        }
         this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 

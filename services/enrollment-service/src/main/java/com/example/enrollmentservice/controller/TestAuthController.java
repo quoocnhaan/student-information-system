@@ -15,6 +15,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
+@Profile("dev")
 @Tag(name = "Xác thực (Test - Dev Profile)", description = "API lấy token test cho các role khác nhau trong môi trường Dev")
 public class TestAuthController {
 

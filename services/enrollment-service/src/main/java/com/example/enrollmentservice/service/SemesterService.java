@@ -24,11 +24,14 @@ public class SemesterService {
     }
 
     public Semester createSemester(Semester semester) {
+        if (semester.getSemesterId() == null || semester.getSemesterId().trim().isEmpty()) {
+            throw new BadRequestException("Mã học kỳ không được để trống.");
+        }
         if (semester.getStartDate() != null && semester.getEndDate() != null
                 && semester.getEndDate().isBefore(semester.getStartDate())) {
             throw new BadRequestException("Ngày kết thúc học kỳ không thể trước ngày bắt đầu.");
         }
-        if (semester.getSemesterId() != null && semesterRepository.existsById(semester.getSemesterId())) {
+        if (semesterRepository.existsById(semester.getSemesterId())) {
             throw new DuplicateResourceException("Mã học kỳ đã tồn tại: " + semester.getSemesterId());
         }
         return semesterRepository.save(semester);

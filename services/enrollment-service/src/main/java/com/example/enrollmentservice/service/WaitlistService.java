@@ -47,10 +47,13 @@ public class WaitlistService {
     }
 
     public Waitlist createWaitlist(Waitlist waitlist) {
+        if (waitlist.getWaitlistId() == null || waitlist.getWaitlistId().trim().isEmpty()) {
+            throw new BadRequestException("Mã danh sách chờ không được để trống.");
+        }
         if (waitlist.getPosition() != null && waitlist.getPosition() < 0) {
             throw new BadRequestException("Vị trí trong danh sách chờ không thể âm.");
         }
-        if (waitlist.getWaitlistId() != null && waitlistRepository.existsById(waitlist.getWaitlistId())) {
+        if (waitlistRepository.existsById(waitlist.getWaitlistId())) {
             throw new DuplicateResourceException("Mã danh sách chờ đã tồn tại: " + waitlist.getWaitlistId());
         }
         if (waitlist.getCourseClass() != null && waitlist.getCourseClass().getClassId() != null) {
