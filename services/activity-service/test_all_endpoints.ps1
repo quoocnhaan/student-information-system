@@ -1,4 +1,4 @@
-$baseUrl = "http://localhost:8080/api"
+$baseUrl = "http://localhost:8004/api"
 $tmpFile = [System.IO.Path]::GetTempFileName()
 
 # Fixed JWT Tokens for RBAC testing

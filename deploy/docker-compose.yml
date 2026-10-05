@@ -1,53 +1,425 @@
-version: '3.8'
+name: student-information-system
+
+x-mysql: &mysql
+  image: mysql:8.0
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysqladmin ping -h 127.0.0.1 -u root --silent"]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 30s
+
+x-mysql-environment: &mysql-environment
+  MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in the root .env}
+  MYSQL_USER: ${SPRING_DATASOURCE_USERNAME:-sis}
+  MYSQL_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?Set SPRING_DATASOURCE_PASSWORD in the root .env}
+
+x-spring-environment: &spring-environment
+  SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-sis}
+  SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?Set SPRING_DATASOURCE_PASSWORD in the root .env}
+  SPRING_JPA_HIBERNATE_DDL_AUTO: update
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the root .env}
+  JWT_EXPIRATION: ${JWT_EXPIRATION:-14400000}
 
 services:
+  # Each service initializes only its own database from its service-local seed.
+  academic-db:
+    <<: *mysql
+    environment:
+      <<: *mysql-environment
+      MYSQL_DATABASE: academic_db
+    ports:
+      - "3303:3306"
+    volumes:
+      - academic_mysql_data:/var/lib/mysql
+      - ../services/academic-service/db/academic.sql:/docker-entrypoint-initdb.d/academic.sql:ro
+
+  activity-db:
+    <<: *mysql
+    environment:
+      <<: *mysql-environment
+      MYSQL_DATABASE: activity_db
+    ports:
+      - "3304:3306"
+    volumes:
+      - activity_mysql_data:/var/lib/mysql
+      - ../services/activity-service/db/activity.sql:/docker-entrypoint-initdb.d/activity.sql:ro
+
+  enrollment-db:
+    <<: *mysql
+    environment:
+      <<: *mysql-environment
+      MYSQL_DATABASE: enrollment_db
+    ports:
+      - "3305:3306"
+    volumes:
+      # Retain the upstream volume name to preserve existing Enrollment data.
+      - mysql-data:/var/lib/mysql
+
+  academic-service:
+    build:
+      context: ../services/academic-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *spring-environment
+      SPRING_DATASOURCE_URL: jdbc:mysql://academic-db:3306/academic_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    ports:
+      - "8003:8003"
+    depends_on:
+      academic-db:
+        condition: service_healthy
+
+  activity-service:
+    build:
+      context: ../services/activity-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *spring-environment
+      SPRING_DATASOURCE_URL: jdbc:mysql://activity-db:3306/activity_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    ports:
+      - "8004:8004"
+    depends_on:
+      activity-db:
+        condition: service_healthy
+
   student-web:
     build:
       context: ../apps/student-web
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
-      - "8080:80"
-    restart: always
+      - "${STUDENT_WEB_PORT:-5174}:80"
 
   enrollment-service:
     build:
       context: ../services/enrollment-service
       dockerfile: Dockerfile
-    ports:
-      - "8083:8083"
+    restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/enrollment_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      <<: *spring-environment
+      SPRING_DATASOURCE_URL: jdbc:mysql://enrollment-db:3306/enrollment_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
+    ports:
+      - "8005:8005"
     depends_on:
-      mysql:
+      enrollment-db:
         condition: service_healthy
-    restart: always
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8083/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8005/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
-  mysql:
-    image: mysql:8.0
+  mlearning-web:
+    build:
+      context: ../apps/mlearning-web
+      dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
-      - "3306:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}}
-      MYSQL_DATABASE: enrollment_db
+      - "${MLEARNING_WEB_PORT:-5175}:80"
+
+
+  surrealdb:
+    image: surrealdb/surrealdb:v3.2.4
+    # Local-only: root can initialise the Docker named volume at /data.
+    user: "0:0"
+    command: start --user ${SURREAL_USER:?Set SURREAL_USER in .env} --pass ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env} rocksdb:///data/database.db
     volumes:
-      - mysql-data:/var/lib/mysql
-    restart: always
+      - surreal_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD:-$${MYSQL_PASSWORD}} || exit 1"]
+      test: ["CMD", "/surreal", "is-ready", "--endpoint", "http://localhost:8000"]
       interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    # The former quay.io/minio images are no longer anonymously pullable.
+    # This pinned, MinIO-compatible image includes the server and mc client.
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    depends_on:
+      minio:
+        condition: service_started
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
+    entrypoint: >-
+      /bin/sh -c "until mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\"; do sleep 1; done;
+      mc mb --ignore-existing local/$$MINIO_BUCKET"
+
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 6
+
+  rabbitmq-init:
+    build:
+      context: ../services/ai-service/knowledge
+      dockerfile: Dockerfile
+    command: python -m app.init_rabbitmq
+    environment:
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq:15672
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+      KNOWLEDGE_RABBITMQ_USER: ${KNOWLEDGE_RABBITMQ_USER:-knowledge}
+      KNOWLEDGE_RABBITMQ_PASSWORD: ${KNOWLEDGE_RABBITMQ_PASSWORD:?Set KNOWLEDGE_RABBITMQ_PASSWORD in .env}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+
+  knowledge-api:
+    restart: unless-stopped
+    build:
+      context: ../services/ai-service/knowledge
+      dockerfile: Dockerfile
+    environment:
+      KNOWLEDGE_ENVIRONMENT: development
+      KNOWLEDGE_SURREAL_ENABLED: "true"
+      KNOWLEDGE_SURREAL_APPLY_SCHEMA_ON_STARTUP: "true"
+      SURREAL_URL: ws://surrealdb:8000
+      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
+      MINIO_SECURE: "false"
+      # Docker reaches the LM Studio server running on the Windows host here.
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      LMSTUDIO_CHAT_MODEL: ${LMSTUDIO_CHAT_MODEL:-qwen2.5-14b-instruct}
+      LMSTUDIO_EMBEDDING_MODEL: ${LMSTUDIO_EMBEDDING_MODEL:-text-embedding-nomic-embed-text-v1.5}
+      KNOWLEDGE_OCR_MAX_PAGES: ${KNOWLEDGE_OCR_MAX_PAGES:-100}
+      KNOWLEDGE_RABBITMQ_URL: amqp://${KNOWLEDGE_RABBITMQ_USER:-knowledge}:${KNOWLEDGE_RABBITMQ_PASSWORD:?Set KNOWLEDGE_RABBITMQ_PASSWORD in .env}@rabbitmq:5672/knowledge
+      KNOWLEDGE_JOB_REPLAY_BATCH_SIZE: ${KNOWLEDGE_JOB_REPLAY_BATCH_SIZE:-100}
+      KNOWLEDGE_WEBSOCKET_AUTH_TOKEN: ${KNOWLEDGE_WEBSOCKET_AUTH_TOKEN:-}
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      rabbitmq-init:
+        condition: service_completed_successfully
+    ports:
+      - "8006:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  knowledge-worker-ocr:
+    restart: unless-stopped
+    build:
+      context: ../services/ai-service/knowledge
+      dockerfile: Dockerfile
+    command: python -m app.worker
+    environment:
+      KNOWLEDGE_SURREAL_ENABLED: "true"
+      SURREAL_URL: ws://surrealdb:8000
+      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      LMSTUDIO_OCR_MODEL: ${LMSTUDIO_OCR_MODEL:-lightonocr-2-1b}
+      KNOWLEDGE_OCR_MAX_PAGES: ${KNOWLEDGE_OCR_MAX_PAGES:-100}
+      KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS: ${KNOWLEDGE_OCR_MAX_OUTPUT_TOKENS:-4096}
+      KNOWLEDGE_OCR_TIMEOUT_SECONDS: ${KNOWLEDGE_OCR_TIMEOUT_SECONDS:-60}
+      KNOWLEDGE_WORKER_QUEUES: ocr
+      KNOWLEDGE_WORKER_ID: ${KNOWLEDGE_OCR_WORKER_ID:-knowledge-ocr-1}
+      KNOWLEDGE_DATABASE_TIMEOUT_SECONDS: ${KNOWLEDGE_DATABASE_TIMEOUT_SECONDS:-30}
+      KNOWLEDGE_INDEX_COMMIT_TIMEOUT_SECONDS: ${KNOWLEDGE_INDEX_COMMIT_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_FAILURE_TIMEOUT_SECONDS: ${KNOWLEDGE_FAILURE_TIMEOUT_SECONDS:-60}
+      KNOWLEDGE_STARTUP_RECOVERY_TIMEOUT_SECONDS: ${KNOWLEDGE_STARTUP_RECOVERY_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_OCR_PROCESSING_TIMEOUT_SECONDS: ${KNOWLEDGE_OCR_PROCESSING_TIMEOUT_SECONDS:-7200}
+      KNOWLEDGE_CORRECTION_PROCESSING_TIMEOUT_SECONDS: ${KNOWLEDGE_CORRECTION_PROCESSING_TIMEOUT_SECONDS:-14400}
+      KNOWLEDGE_INDEX_PROCESSING_TIMEOUT_SECONDS: ${KNOWLEDGE_INDEX_PROCESSING_TIMEOUT_SECONDS:-3600}
+      KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS: ${KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_RABBITMQ_URL: amqp://${KNOWLEDGE_RABBITMQ_USER:-knowledge}:${KNOWLEDGE_RABBITMQ_PASSWORD:?Set KNOWLEDGE_RABBITMQ_PASSWORD in .env}@rabbitmq:5672/knowledge
+    depends_on:
+      knowledge-api:
+        condition: service_healthy
+      surrealdb:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      rabbitmq-init:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stop_grace_period: 5m
+
+  knowledge-worker-correct:
+    restart: unless-stopped
+    build:
+      context: ../services/ai-service/knowledge
+      dockerfile: Dockerfile
+    command: python -m app.worker
+    environment:
+      KNOWLEDGE_SURREAL_ENABLED: "true"
+      SURREAL_URL: ws://surrealdb:8000
+      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      LMSTUDIO_CHAT_MODEL: ${LMSTUDIO_CHAT_MODEL:-qwen2.5-14b-instruct}
+      KNOWLEDGE_CORRECTION_TIMEOUT_SECONDS: ${KNOWLEDGE_CORRECTION_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_WORKER_QUEUES: correct
+      KNOWLEDGE_WORKER_ID: ${KNOWLEDGE_CORRECT_WORKER_ID:-knowledge-correct-1}
+      KNOWLEDGE_DATABASE_TIMEOUT_SECONDS: ${KNOWLEDGE_DATABASE_TIMEOUT_SECONDS:-30}
+      KNOWLEDGE_INDEX_COMMIT_TIMEOUT_SECONDS: ${KNOWLEDGE_INDEX_COMMIT_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_FAILURE_TIMEOUT_SECONDS: ${KNOWLEDGE_FAILURE_TIMEOUT_SECONDS:-60}
+      KNOWLEDGE_STARTUP_RECOVERY_TIMEOUT_SECONDS: ${KNOWLEDGE_STARTUP_RECOVERY_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_OCR_PROCESSING_TIMEOUT_SECONDS: ${KNOWLEDGE_OCR_PROCESSING_TIMEOUT_SECONDS:-7200}
+      KNOWLEDGE_CORRECTION_PROCESSING_TIMEOUT_SECONDS: ${KNOWLEDGE_CORRECTION_PROCESSING_TIMEOUT_SECONDS:-14400}
+      KNOWLEDGE_INDEX_PROCESSING_TIMEOUT_SECONDS: ${KNOWLEDGE_INDEX_PROCESSING_TIMEOUT_SECONDS:-3600}
+      KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS: ${KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_RABBITMQ_URL: amqp://${KNOWLEDGE_RABBITMQ_USER:-knowledge}:${KNOWLEDGE_RABBITMQ_PASSWORD:?Set KNOWLEDGE_RABBITMQ_PASSWORD in .env}@rabbitmq:5672/knowledge
+    depends_on:
+      knowledge-api:
+        condition: service_healthy
+      surrealdb:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      rabbitmq-init:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stop_grace_period: 5m
+
+  knowledge-orphan-cleanup:
+    profiles: ["maintenance"]
+    build:
+      context: ../services/ai-service/knowledge
+      dockerfile: Dockerfile
+    command: python -m app.orphan_cleanup
+    environment:
+      KNOWLEDGE_SURREAL_ENABLED: "true"
+      SURREAL_URL: ws://surrealdb:8000
+      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-knowledge-assets}
+      MINIO_SECURE: "false"
+      KNOWLEDGE_ORPHAN_CLEANUP_ENABLED: ${KNOWLEDGE_ORPHAN_CLEANUP_ENABLED:-false}
+      KNOWLEDGE_ORPHAN_CLEANUP_DRY_RUN: ${KNOWLEDGE_ORPHAN_CLEANUP_DRY_RUN:-true}
+      KNOWLEDGE_ORPHAN_CLEANUP_GRACE_SECONDS: ${KNOWLEDGE_ORPHAN_CLEANUP_GRACE_SECONDS:-86400}
+      KNOWLEDGE_ORPHAN_CLEANUP_INTERVAL_SECONDS: ${KNOWLEDGE_ORPHAN_CLEANUP_INTERVAL_SECONDS:-3600}
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  knowledge-worker-index:
+    restart: unless-stopped
+    build:
+      context: ../services/ai-service/knowledge
+      dockerfile: Dockerfile
+    command: python -m app.worker
+    environment:
+      KNOWLEDGE_SURREAL_ENABLED: "true"
+      SURREAL_URL: ws://surrealdb:8000
+      SURREAL_USER: ${SURREAL_USER:?Set SURREAL_USER in .env}
+      SURREAL_PASSWORD: ${SURREAL_PASSWORD:?Set SURREAL_PASSWORD in .env}
+      SURREAL_NAMESPACE: ${SURREAL_NAMESPACE:-student_information}
+      SURREAL_DATABASE: ${SURREAL_DATABASE:-knowledge}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      LMSTUDIO_EMBEDDING_MODEL: ${LMSTUDIO_EMBEDDING_MODEL:-text-embedding-nomic-embed-text-v1.5}
+      KNOWLEDGE_WORKER_QUEUES: index
+      KNOWLEDGE_WORKER_ID: ${KNOWLEDGE_INDEX_WORKER_ID:-knowledge-index-1}
+      KNOWLEDGE_DATABASE_TIMEOUT_SECONDS: ${KNOWLEDGE_DATABASE_TIMEOUT_SECONDS:-30}
+      KNOWLEDGE_INDEX_COMMIT_TIMEOUT_SECONDS: ${KNOWLEDGE_INDEX_COMMIT_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_FAILURE_TIMEOUT_SECONDS: ${KNOWLEDGE_FAILURE_TIMEOUT_SECONDS:-60}
+      KNOWLEDGE_STARTUP_RECOVERY_TIMEOUT_SECONDS: ${KNOWLEDGE_STARTUP_RECOVERY_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_OCR_PROCESSING_TIMEOUT_SECONDS: ${KNOWLEDGE_OCR_PROCESSING_TIMEOUT_SECONDS:-7200}
+      KNOWLEDGE_CORRECTION_PROCESSING_TIMEOUT_SECONDS: ${KNOWLEDGE_CORRECTION_PROCESSING_TIMEOUT_SECONDS:-14400}
+      KNOWLEDGE_INDEX_PROCESSING_TIMEOUT_SECONDS: ${KNOWLEDGE_INDEX_PROCESSING_TIMEOUT_SECONDS:-3600}
+      KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS: ${KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS:-120}
+      KNOWLEDGE_RABBITMQ_URL: amqp://${KNOWLEDGE_RABBITMQ_USER:-knowledge}:${KNOWLEDGE_RABBITMQ_PASSWORD:?Set KNOWLEDGE_RABBITMQ_PASSWORD in .env}@rabbitmq:5672/knowledge
+    depends_on:
+      knowledge-api:
+        condition: service_healthy
+      surrealdb:
+        condition: service_healthy
+      rabbitmq-init:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stop_grace_period: 5m
+
+  admin-web:
+    build:
+      context: ../apps/admin-web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      knowledge-api:
+        condition: service_healthy
+    ports:
+      - "${ADMIN_WEB_PORT:-5173}:80"
 
 volumes:
+  academic_mysql_data:
+    name: deploy_academic_mysql_data
+  activity_mysql_data:
+    name: deploy_activity_mysql_data
   mysql-data:
-include:
-  - path: ../services/ai-service/knowledge/docker-compose.yml
+    name: deploy_mysql-data
+  surreal_data:
+    name: deploy_surreal_data
+  minio_data:
+    name: deploy_minio_data
+  rabbitmq_data:
+    name: deploy_rabbitmq_data

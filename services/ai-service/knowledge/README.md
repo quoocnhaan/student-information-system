@@ -4,7 +4,23 @@ Knowledge owns source PDFs, document metadata, OCR drafts, and background jobs i
 
 ## Run locally
 
-Configure `.env` using `.env.example`, then run `docker compose up -d --build` from this directory. Knowledge is served at `http://localhost:8000` and the review UI at `http://localhost:5173`. The OCR worker calls LM Studio on the host at port 1234 by default. Workers wait for API health before startup recovery so the fresh schema is initialized first.
+Configure the repository-root `.env` using the root `.env.example`, then run
+`docker compose --env-file .env -f deploy/docker-compose.yml up -d --build`
+from the repository root.
+All applications and services share these two root environment files.
+Run direct Python commands from the repository root so the settings loader
+reads the shared `.env`; set `PYTHONPATH=services/ai-service/knowledge/src` when
+the Knowledge package is not installed in your Python environment.
+Knowledge is served at `http://localhost:8006` and the review UI at
+`http://localhost:5173`. SurrealDB is internal to Docker at
+`ws://surrealdb:8000`; no host port is published. The OCR worker calls LM Studio
+on the host at port 1234 by default. Workers wait for API health before startup
+recovery so the fresh schema is initialized first.
+
+All services are defined directly in `deploy/docker-compose.yml`; there is no
+standalone Knowledge Compose file. To start only Knowledge and its dependencies,
+use the same root command with the service names `knowledge-api
+knowledge-worker-ocr knowledge-worker-correct knowledge-worker-index admin-web`.
 
 For the API workflow, see [Knowledge upload to OCR](../docs/upload-pdf-workflow.md). For the shared architecture rules, see [background jobs](../../../docs/architecture/background-jobs.md). LM Studio must serve OCR, chat-correction, and 768-dimensional embedding models configured in `.env`.
 
@@ -39,45 +55,52 @@ recovery described below remains part of startup.
 
 Reset execution requires an explicit request to erase the local Knowledge stack.
 It erases local PDFs, chunks, vectors, OCR drafts, jobs, and queued messages together.
-The resolved project is `knowledge`, with `knowledge_surreal_data`,
-`knowledge_minio_data`, and `knowledge_rabbitmq_data`. These names and project/volume
-labels were inspected for this workspace; resolve and inspect them again before a reset.
-The current SurrealDB container also owns an anonymous `/logs` volume,
-`806f9e6d718272b74878a60b24948969344c32d7a07a2d8bff6a137546d895ae`.
-`down --volumes` removes that container-owned log volume too. Its only inspected
-user was `knowledge-surrealdb-1`; anonymous IDs change when containers are recreated.
-Verify every volume shown in container mounts has no unrelated users before deletion.
-Keep credentials, bind mounts, production, shared services, and unrelated projects outside it.
+The previously inspected local project was `knowledge`, with
+`knowledge_surreal_data`, `knowledge_minio_data`, and `knowledge_rabbitmq_data`.
+Resolve the actual project and inspect volume labels and consumers again before
+a reset. The commands below retain that historical project name; use them only
+if inspection confirms it owns the stack being reset. A new shared stack defaults
+to project `deploy`; changing the project name selects different containers and
+volumes rather than migrating existing data.
 
-Run from `services/ai-service/knowledge` in PowerShell, after reset authorization:
+Run from the repository root in PowerShell, after reset authorization. Target
+only Knowledge services and their verified volumes: a project-wide
+`down --volumes` now also removes unrelated services' MySQL data.
+Keep credentials, bind mounts, production, and shared resources outside the reset.
 
 ```powershell
-# Resolve the scope without printing environment secrets.
-$config = docker compose -p knowledge -f docker-compose.yml config --format json | ConvertFrom-Json
+$composeArgs = @('--env-file', '.env', '-p', 'knowledge', '-f', 'deploy/docker-compose.yml', '--profile', 'maintenance')
+$knowledgeServices = @('surrealdb', 'minio', 'minio-init', 'rabbitmq', 'rabbitmq-init', 'knowledge-api', 'knowledge-worker-ocr', 'knowledge-worker-correct', 'knowledge-worker-index', 'knowledge-orphan-cleanup', 'admin-web')
+$normalServices = $knowledgeServices | Where-Object { $_ -ne 'knowledge-orphan-cleanup' }
+# Resolve scope without printing environment secrets.
+$config = docker compose @composeArgs config --format json | ConvertFrom-Json
 $config.name
-$config.volumes | ConvertTo-Json -Depth 4
+$config.volumes.surreal_data.name
+$config.volumes.minio_data.name
+$config.volumes.rabbitmq_data.name
 docker volume inspect knowledge_surreal_data knowledge_minio_data knowledge_rabbitmq_data --format '{{.Name}} {{json .Labels}}'
-# Inspect every container mount and confirm these volumes have no unrelated users.
-$containerIds = docker ps -aq --filter label=com.docker.compose.project=knowledge
+# Inspect mounts and confirm every target volume has no unrelated consumers.
+$containerIds = docker compose @composeArgs ps --all --quiet --orphans=false @knowledgeServices
 if ($containerIds) { docker inspect $containerIds --format '{{.Name}} {{json .Mounts}}' }
 docker ps -a --filter volume=knowledge_surreal_data --format '{{.Names}}'
 docker ps -a --filter volume=knowledge_minio_data --format '{{.Names}}'
 docker ps -a --filter volume=knowledge_rabbitmq_data --format '{{.Names}}'
-# Stop the verified project and verify workers have terminated before deletion.
-docker compose -p knowledge -f docker-compose.yml stop
-if (docker ps -q --filter label=com.docker.compose.project=knowledge) { throw 'Project containers still running' }
-docker compose -p knowledge -f docker-compose.yml down --volumes
-# Rebuild and start dependencies, initializers, API, workers, and admin.
-docker compose -p knowledge -f docker-compose.yml build
-docker compose -p knowledge -f docker-compose.yml up -d
-docker compose -p knowledge -f docker-compose.yml ps -a
-docker compose -p knowledge -f docker-compose.yml logs --tail 100 surrealdb minio-init rabbitmq-init knowledge-api knowledge-worker-ocr knowledge-worker-correct knowledge-worker-index
-# Check the actual API container port, independent of configured host ports.
-docker compose -p knowledge -f docker-compose.yml exec -T knowledge-api python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/v1/health').status); print(urllib.request.urlopen('http://localhost:8000/v1/ready').status)"
+# Stop and verify only Knowledge; preserve other services and MySQL volumes.
+docker compose @composeArgs stop @knowledgeServices
+if (docker compose @composeArgs ps --quiet --status running --orphans=false @knowledgeServices) { throw 'Knowledge containers still running' }
+# rm --volumes removes container-owned anonymous volumes, such as /logs.
+docker compose @composeArgs rm --force --volumes @knowledgeServices
+docker volume rm knowledge_surreal_data knowledge_minio_data knowledge_rabbitmq_data
+# Rebuild/start normal Knowledge services, not the maintenance cleanup job.
+docker compose @composeArgs build @normalServices
+docker compose @composeArgs up -d @normalServices
+docker compose @composeArgs ps --all --orphans=false @knowledgeServices
+docker compose @composeArgs logs --tail 100 surrealdb minio-init rabbitmq-init knowledge-api knowledge-worker-ocr knowledge-worker-correct knowledge-worker-index
+docker compose @composeArgs exec -T knowledge-api python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/v1/health').status); print(urllib.request.urlopen('http://localhost:8000/v1/ready').status)"
 ```
 
-Confirm the final schema initialized, both initializer services exited successfully,
-and API/workers/admin are running. Do not substitute global volume pruning.
+Confirm the schema initialized, both initializers exited successfully, and
+API/workers/admin are running. Do not substitute global volume pruning.
 
 ## Indexed operation contracts
 
@@ -99,7 +122,7 @@ document membership, and running claims fence concurrent or superseded work.
 
 ## Deadlines and manual retry
 
-Configure timeout durations in `services/ai-service/knowledge/.env` (copy `.env.example`).
+Configure timeout durations in the repository-root `.env` (copy the root `.env.example`).
 Docker Compose forwards these settings to each worker. All durations are positive seconds;
 recreate affected containers after changing configuration. Direct Python workers read the same
 `KNOWLEDGE_*` environment variables through `app.config.Settings`.

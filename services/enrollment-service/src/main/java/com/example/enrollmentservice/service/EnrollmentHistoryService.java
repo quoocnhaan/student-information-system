@@ -1,6 +1,7 @@
 package com.example.enrollmentservice.service;
 
 import com.example.enrollmentservice.entity.EnrollmentHistory;
+import com.example.enrollmentservice.exception.BadRequestException;
 import com.example.enrollmentservice.exception.DuplicateResourceException;
 import com.example.enrollmentservice.exception.ResourceNotFoundException;
 import com.example.enrollmentservice.repository.EnrollmentHistoryRepository;

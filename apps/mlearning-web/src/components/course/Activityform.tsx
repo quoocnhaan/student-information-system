@@ -62,7 +62,7 @@ const ActivityForm: React.FC<ActivityFormProps> = ({ onSubmit, onClose, initialV
     const [totalPoints, setTotalPoints] = useState(100);
     const [attemptsAllowed, setAttemptsAllowed] = useState("1");
     const [shuffleQuestions, setShuffleQuestions] = useState(true);
-    const [showAnswersAfterSubmit, setShowAnswersAfterSubmit] = useState(false);
+    const [showAnswersAfterSubmit] = useState(false);
 
     // ─── File handlers ────────────────────────────────────────────────────────
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
