@@ -40,5 +40,22 @@ def test_correction_requires_every_snapshot_field(field):
 
 @pytest.mark.parametrize("result", [{}, {"outcome": "pending", "proposed_text": None}, {"outcome": "applied"}, {"outcome": "failed", "proposed_text": 123}, {"outcome": "applied", "proposed_text": "text", "extra": True}])
 def test_correction_results_reject_incomplete_and_malformed_values(result):
-    from app.domain.job import CorrectionResult
+    from app.domain.job import CorrectionResult, validate_correction_result
     with pytest.raises(ValueError): CorrectionResult.model_validate(result)
+    with pytest.raises(ValueError): validate_correction_result(result)
+
+
+def test_correction_result_is_strict_and_frozen():
+    from app.domain.job import validate_correction_result
+
+    result = validate_correction_result({"outcome": "failed", "proposed_text": None})
+    with pytest.raises(ValidationError):
+        result.outcome = "applied"
+
+
+def test_correction_result_normalizes_surreal_none_for_failed_jobs_only():
+    from app.domain.job import validate_correction_result
+
+    assert validate_correction_result({"outcome": "failed"}).proposed_text is None
+    with pytest.raises(ValueError):
+        validate_correction_result({"outcome": "applied"})

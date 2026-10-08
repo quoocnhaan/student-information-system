@@ -1,7 +1,7 @@
 import {
   documentResultSchema,
   indexedDocumentSchema, indexedMetadataSchema, metadataOptionsSchema, indexedMetadataUpdateSchema,
-  type IndexedDocument, type IndexedMetadata, type DocumentMetadata,
+  type IndexedDocument, type IndexedMetadata, type DocumentMetadata, type MetadataOptions,
   indexedDocumentListSchema,
   type IndexedDocumentList,
   indexedChunksSchema,
@@ -85,8 +85,8 @@ export const knowledgeClient = {
     return indexedDocumentSchema.parse(await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}`, { signal })));
   },
 
-  async getMetadataOptions(signal?: AbortSignal): Promise<string[]> {
-    return metadataOptionsSchema.parse(await responseJson(await fetch("/v1/documents/metadata-options", { signal }))).program_scope_types;
+  async getMetadataOptions(signal?: AbortSignal): Promise<MetadataOptions> {
+    return metadataOptionsSchema.parse(await responseJson(await fetch("/v1/documents/metadata-options", { signal })));
   },
 
   async updateMetadata(documentId: string, expectedVersion: string, metadata: DocumentMetadata): Promise<IndexedMetadata> {

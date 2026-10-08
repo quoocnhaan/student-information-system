@@ -6,7 +6,14 @@ import { afterEach, expect, it, vi } from "vitest";
 import { UploadPage } from "./UploadPage";
 import { knowledgeClient } from "../api/knowledgeClient";
 
-afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
+afterEach(() => {
+  cleanup();
+  // Node 25 can expose an incomplete process-level localStorage alongside the
+  // JSDOM environment. This test does not persist browser state, so clear it
+  // only when the browser implementation is available.
+  if (typeof localStorage.clear === "function") localStorage.clear();
+  vi.restoreAllMocks();
+});
 
 it("uploads a PDF and opens OCR without a skip-correction control", async () => {
   const upload = vi.spyOn(knowledgeClient, "uploadPdf").mockResolvedValue({ document_id: "document:test", job_id: "job:ocr", status: "processing" });

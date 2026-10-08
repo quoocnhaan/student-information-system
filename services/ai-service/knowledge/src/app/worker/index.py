@@ -1,31 +1,11 @@
 """Embed reviewed chunks and atomically publish the index."""
 
-import asyncio
 from collections.abc import Mapping
-
-import httpx
 
 from app.application.chunking import chunk_pages
 from app.config import Settings
+from app.infrastructure.embeddings import embedding_profile, embed_texts
 from app.infrastructure.surreal import SurrealDatabase
-
-
-async def embed_texts(texts: list[str], settings: Settings, client: httpx.AsyncClient | None = None) -> list[list[float]]:
-    owned_client = client is None
-    client = client or httpx.AsyncClient(timeout=settings.embedding_timeout_seconds)
-    try:
-        async with asyncio.timeout(settings.embedding_timeout_seconds):
-            response = await client.post(settings.lmstudio_base_url.rstrip("/") + "/embeddings", json={
-                "model": settings.lmstudio_embedding_model, "input": texts,
-            })
-            response.raise_for_status()
-            vectors = [entry["embedding"] for entry in sorted(response.json()["data"], key=lambda item: item["index"])]
-            if len(vectors) != len(texts) or any(len(vector) != 768 for vector in vectors):
-                raise ValueError("Embedding response must contain one 768-dimensional vector per chunk")
-            return vectors
-    finally:
-        if owned_client:
-            await client.aclose()
 
 
 class IndexDocumentHandler:
@@ -74,6 +54,9 @@ class ReembedChunkHandler:
             raise ValueError("Captured embedding input is missing")
         if claimed["payload"].get("embedding_version") is None:
             raise ValueError("Captured embedding version is missing")
+        document = await self.database.get_document(str(claimed["document_id"]).split(":")[-1])
+        if document is None or document.get("embedding_model") != self.settings.lmstudio_embedding_model or document.get("embedding_profile") != embedding_profile(self.settings.lmstudio_embedding_model):
+            raise ValueError("Document embedding model or task profile differs; re-index the document before re-embedding a chunk")
         vector = (await embed_texts([text], self.settings))[0]
         if await self.database.complete_reembed_job(job_id, attempt_id, text, vector) is None:
             raise RuntimeError("Re-embedding claim is no longer active")

@@ -1,5 +1,8 @@
 # Remove obsolete workflow endpoints and schema fields
 
+> **Superseded.** Follow `DOCUMENT_ENDPOINTS_AND_CORRECTION_JOB_DATA_PLAN.md`
+> for the active correction storage and document-route contracts.
+
 ## Objective and authority
 
 Make the Knowledge service and admin client describe only the current workflow:

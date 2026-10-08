@@ -191,3 +191,4 @@ class IndexedDocumentResponse(IndexedMetadataResponse):
 
 class MetadataOptionsResponse(BaseModel):
     program_scope_types: list[str]
+    majors: list[dict[str, str]]

@@ -132,7 +132,9 @@ export const indexedMetadataSchema = z.object({
   version: z.string().min(1), metadata: documentMetadataSchema,
 });
 export const indexedDocumentSchema = indexedMetadataSchema.extend({ pages: indexedChunksSchema.shape.pages });
-export const metadataOptionsSchema = z.object({ program_scope_types: z.array(z.string().min(1)) });
+export const majorOptionSchema = z.object({ key: z.string(), label: z.string() });
+export const metadataOptionsSchema = z.object({ program_scope_types: z.array(z.string().min(1)), majors: z.array(majorOptionSchema) });
+export type MetadataOptions = z.infer<typeof metadataOptionsSchema>;
 const indexedMetadataInputSchema = z.object({
   title: z.string().min(1).max(500).nullable(), document_type: z.string().min(1).max(120).nullable(),
   document_number: z.string().max(200).nullable(), description: z.string().max(10000).nullable(),

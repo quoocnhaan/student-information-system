@@ -3,6 +3,7 @@ import type { DocumentMetadata } from "../api/contracts";
 type MetadataEditorProps = {
   value: DocumentMetadata;
   options: string[];
+  majors: { key: string; label: string }[];
   indexed?: boolean;
   errors?: Record<string, string>;
   onChange: (value: DocumentMetadata) => void;
@@ -18,13 +19,7 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function programmeList(value: unknown): string {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string").join(", ")
-    : "";
-}
-
-export function MetadataEditor({ value, onChange, options, indexed = false, errors = {} }: MetadataEditorProps) {
+export function MetadataEditor({ value, onChange, options, majors, indexed = false, errors = {} }: MetadataEditorProps) {
   const cohort = record(value.cohort);
   const scope = record(value.program_scope);
   const scopeType = text(scope.type);
@@ -46,14 +41,14 @@ export function MetadataEditor({ value, onChange, options, indexed = false, erro
     else update("cohort", updated);
   }
 
-  function updateScope(field: "type" | "programs", next: string) {
+  function updateScope(field: "type" | "programs", next: string | string[]) {
     const current = record(value.program_scope);
     if (field === "type" && next === "") {
       update("program_scope", null);
       return;
     }
     const updated: Record<string, unknown> = { ...current };
-    if (field === "programs") updated.programs = next.split(",").map((entry) => entry.trim()).filter(Boolean);
+    if (field === "programs") updated.programs = next;
     else {
       updated.type = next;
       updated.programs = current.programs ?? [];
@@ -72,7 +67,7 @@ export function MetadataEditor({ value, onChange, options, indexed = false, erro
       <label>Cohort start year<input type="number" min="1900" max="9999" value={fromYear} onChange={(event) => updateCohort("from_year", event.target.value)} />{errors.cohort && <span className="field-error" role="alert">{errors.cohort}</span>}</label>
       <label>Cohort end year<input type="number" min="1900" max="9999" value={toYear} onChange={(event) => updateCohort("to_year", event.target.value)} /></label>
       <label>Programme scope<select value={scopeType} onChange={(event) => updateScope("type", event.target.value)}><option value="">Not set</option>{scopeType && !options.includes(scopeType) && <option value={scopeType}>{scopeType.replaceAll("_", " ")}</option>}{options.map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}</select>{errors.program_scope && <span className="field-error" role="alert">{errors.program_scope}</span>}</label>
-      {scopeType === "specific_programs" && <label>Programmes (comma separated)<input value={programmeList(scope.programs)} onChange={(event) => updateScope("programs", event.target.value)} /></label>}
+      {scopeType === "specific_programs" && <label>Applicable majors<select multiple value={Array.isArray(scope.programs) ? scope.programs : []} onChange={(event) => updateScope("programs", Array.from(event.target.selectedOptions, (option) => option.value))}>{majors.filter((major) => major.key !== "non_language").map((major) => <option key={major.key} value={major.key}>{major.label}</option>)}</select></label>}
       <label className="wide-field">Description<textarea value={text(value.description)} onChange={(event) => update("description", event.target.value)} />{errors.description && <span className="field-error" role="alert">{errors.description}</span>}</label>
     </div>
     {cohortError && <p className="field-error" role="alert">{cohortError}</p>}

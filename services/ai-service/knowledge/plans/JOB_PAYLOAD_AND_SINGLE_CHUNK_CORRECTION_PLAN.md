@@ -1,5 +1,9 @@
 # Job payloads and single-chunk correction
 
+> **Superseded.** The active correction contract is
+> `DOCUMENT_ENDPOINTS_AND_CORRECTION_JOB_DATA_PLAN.md`: correction snapshots and
+> terminal results live on `job`; there is no `chunk_correction_input` record.
+
 Status: ready for implementation. This document authorizes no implementation or
 data reset by itself; implement when the user asks to implement this plan.
 

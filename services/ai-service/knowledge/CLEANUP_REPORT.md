@@ -1,5 +1,9 @@
 # Obsolete workflow cleanup
 
+> Historical report. Its `chunk_correction_input` references describe an
+> intermediate workflow superseded by
+> `plans/DOCUMENT_ENDPOINTS_AND_CORRECTION_JOB_DATA_PLAN.md`.
+
 The [service README](README.md) defines the current workflow and reset procedure.
 The implementation uses a fresh schema and preserves the existing in-progress
 automatic-correction, deadline, worker-ownership, and confirmation work.

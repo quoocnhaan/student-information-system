@@ -3,13 +3,21 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
+
+
+MAJOR_OPTIONS = (
+    {"key": "english", "label": "English major"},
+    {"key": "chinese", "label": "Chinese major"},
+    {"key": "non_language", "label": "Non-language major"},
+)
+MAJOR_KEYS = frozenset(option["key"] for option in MAJOR_OPTIONS)
+SPECIFIC_MAJOR_KEYS = MAJOR_KEYS - {"non_language"}
 
 
 class ProgramScopeType(StrEnum):
     ALL = "all"
     NON_LANGUAGE_MAJOR = "non_language_major"
-    LANGUAGE_MAJOR = "language_major"
     SPECIFIC_PROGRAMS = "specific_programs"
 
 
@@ -47,6 +55,14 @@ class ProgramScope(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: ProgramScopeType
     programs: list[str] = Field(default_factory=list)
+
+    @field_validator("programs")
+    @classmethod
+    def normalize_programs(cls, values: list[str]) -> list[str]:
+        normalized = list(dict.fromkeys(value.strip().lower() for value in values))
+        if any(value not in SPECIFIC_MAJOR_KEYS for value in normalized):
+            raise ValueError("programs must contain only english or chinese")
+        return normalized
 
     @model_validator(mode="after")
     def validate_programs(self) -> "ProgramScope":

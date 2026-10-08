@@ -45,7 +45,7 @@ def test_route_inventory_and_static_options_precede_document_identity():
     database = AsyncMock()
     response = client(database).get("/v1/documents/metadata-options")
     assert response.status_code == 200
-    assert response.json()["program_scope_types"] == ["all", "non_language_major", "language_major", "specific_programs"]
+    assert response.json()["program_scope_types"] == ["all", "non_language_major", "specific_programs"]
     database.indexed_document.assert_not_awaited()
 
 

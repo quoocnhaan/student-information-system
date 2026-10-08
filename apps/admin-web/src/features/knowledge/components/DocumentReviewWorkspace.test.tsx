@@ -28,7 +28,7 @@ const result: DocumentResult = {
   },
 };
 
-beforeEach(() => { vi.spyOn(knowledgeClient, "getMetadataOptions").mockResolvedValue(["all", "specific_programs"]); });
+beforeEach(() => { vi.spyOn(knowledgeClient, "getMetadataOptions").mockResolvedValue({ program_scope_types: ["all", "specific_programs"], majors: [{ key: "english", label: "English major" }, { key: "chinese", label: "Chinese major" }] }); });
 
 afterEach(() => {
   cleanup();

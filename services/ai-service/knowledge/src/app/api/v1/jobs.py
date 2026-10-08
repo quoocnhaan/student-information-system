@@ -126,6 +126,11 @@ async def stream_job_status(websocket: WebSocket, job_id: str) -> None:
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+    except asyncio.CancelledError:
+        # A client closing a TestClient/browser socket can cancel this handler
+        # while the heartbeat receive is pending. Cleanup still runs below; a
+        # normal disconnect must not turn into a cancelled server task.
+        pass
     except (SurrealDatabaseError, OSError, RuntimeError, WebSocketDisconnect):
         try:
             await websocket.close(code=1013, reason="Job status unavailable")

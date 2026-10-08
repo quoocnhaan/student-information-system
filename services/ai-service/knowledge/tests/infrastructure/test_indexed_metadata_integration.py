@@ -24,7 +24,7 @@ def test_metadata_roundtrip_clearing_and_conflict_preserve_indexed_content():
             document, before = await database.indexed_document(document_id)
             jobs_before = await database.client.query("SELECT * FROM job;")
             metadata = dict(title="New title", document_type="Policy", document_number="42", description="Description",
-                            language="en", cohort={"from_year": 2025, "to_year": None}, program_scope={"type": "specific_programs", "programs": ["CS"]})
+                            language="en", cohort={"from_year": 2025, "to_year": None}, program_scope={"type": "specific_programs", "programs": ["english"]})
             saved = await database.update_indexed_metadata(document_id, document["metadata_version"], metadata)
             assert saved and saved["title"] == "New title"
             assert saved["metadata_version"] != document["metadata_version"]

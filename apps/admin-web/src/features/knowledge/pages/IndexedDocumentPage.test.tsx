@@ -21,7 +21,7 @@ const base: IndexedChunks = {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const header = { document_id: base.document_id, process_status: "indexed", source: { original_filename: "test.pdf", mime_type: "application/pdf" }, page_count: 2, created_at: "uploaded", updated_at: "updated", version: "v1", metadata: { title: "Stored title", document_type: "Policy", document_number: null, description: null, language: "en", cohort: null, program_scope: null } };
-beforeEach(() => { vi.spyOn(knowledgeClient, "getMetadataOptions").mockResolvedValue(["all", "specific_programs"]); });
+beforeEach(() => { vi.spyOn(knowledgeClient, "getMetadataOptions").mockResolvedValue({ program_scope_types: ["all", "specific_programs"], majors: [{ key: "english", label: "English major" }, { key: "chinese", label: "Chinese major" }] }); });
 
 function open(data: IndexedChunks = base) {
   vi.spyOn(knowledgeClient, "getIndexedDocument").mockResolvedValue({ ...header, pages: data.pages });

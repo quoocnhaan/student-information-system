@@ -11,8 +11,11 @@ DEFINE FIELD OVERWRITE cohort.from_year ON TABLE document TYPE option<int>;
 DEFINE FIELD IF NOT EXISTS cohort.to_year ON TABLE document TYPE option<int>;
 DEFINE FIELD OVERWRITE program_scope ON TABLE document TYPE option<object>;
 DEFINE FIELD OVERWRITE program_scope.type ON TABLE document TYPE option<string>
-  ASSERT $value INSIDE ['all', 'non_language_major', 'language_major', 'specific_programs'];
-DEFINE FIELD OVERWRITE program_scope.programs ON TABLE document TYPE option<array<string>>;
+  ASSERT $value INSIDE ['all', 'non_language_major', 'specific_programs'];
+DEFINE FIELD OVERWRITE program_scope.programs ON TABLE document TYPE option<array<string>>
+  ASSERT $value = NONE OR ($value ALLINSIDE ['english', 'chinese']
+    AND array::len($value) = array::len(array::distinct($value))
+    AND (IF $this.program_scope.type = 'specific_programs' THEN array::len($value) > 0 ELSE array::len($value) = 0 END));
 DEFINE FIELD OVERWRITE language ON TABLE document TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS source ON TABLE document TYPE object;
 DEFINE FIELD IF NOT EXISTS source.object_key ON TABLE document TYPE string;
@@ -21,6 +24,7 @@ DEFINE FIELD IF NOT EXISTS source.mime_type ON TABLE document TYPE string;
 DEFINE FIELD OVERWRITE process_status ON TABLE document TYPE string
   ASSERT $value INSIDE ['processing', 'review', 'indexing', 'indexed', 'failed'];
 DEFINE FIELD IF NOT EXISTS page_count ON TABLE document TYPE option<int>;
+DEFINE FIELD IF NOT EXISTS embedding_profile ON TABLE document TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS embedding_model ON TABLE document TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS status ON TABLE document TYPE string
   ASSERT $value INSIDE ['active', 'inactive'];

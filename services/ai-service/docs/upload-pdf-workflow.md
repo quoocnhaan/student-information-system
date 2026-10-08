@@ -12,7 +12,7 @@ REST `GET /v1/jobs/{id}` and WebSocket `/v1/ws/jobs/{id}` share a status contrac
 
 ## Manual review and one-shot confirmation
 
-`GET /v1/documents/{id}/result` returns raw OCR pages, original page numbers, draft revision, and detected metadata. The admin compares the source PDF with the editable draft and keeps metadata edits, page text edits, and selections locally.
+`GET /v1/documents/{id}/draft` returns raw OCR pages, original page numbers, draft revision, and detected metadata while the document is in review. The admin compares the source PDF with the editable draft and keeps metadata edits, page text edits, and selections locally.
 
 `POST /v1/documents/{id}/confirm` submits `expected_revision`, final `metadata`, `page_edits` (`page`, `reviewed_text`), and `selected_pages`. One transaction validates revision and review status, saves metadata, marks the draft confirmed, creates an immutable `index_input` containing only selected original page numbers and final text, and queues `index_document`. Its payload contains a typed `index_input_id` and a confirmation fingerprint. Identical replay returns the existing job; conflicting confirmation is rejected.
 
@@ -34,13 +34,13 @@ The index worker loads only its captured confirmed input, chunks legal structure
 {"chunk_id": "chunk:chunk_0123456789abcdef0123456789abcdef"}
 ```
 
-It returns `202 {job_id}`. Legacy batch bodies are rejected. A foreign, missing, locked chunk or a non-indexed document returns conflict. One transaction revalidates membership, creates a durable lock and exactly one `chunk_correction_input` snapshot, and queues `correct_chunks` with typed `chunk_id` and `correction_input_id` payload fields.
+It returns `202 {job_id}`. Legacy batch bodies are rejected. A foreign, missing, locked chunk or a non-indexed document returns conflict. One transaction revalidates membership, acquires the durable lock, and queues `correct_chunks` with an immutable payload containing the typed `chunk_id`, `base_text`, `embedding_text`, `embedding_version`, `embedding_status`, and hierarchy.
 
-The worker resolves that exact snapshot and calls the model once. A guarded transaction applies valid text, completes the snapshot and parent, and creates zero or one `reembed_chunk` child. Changed text or unchanged text with a stale vector needs a child; unchanged text with a fresh vector does not. The child captures chunk ID, embedding text, and version in its payload.
+The worker calls the model once using that exact captured text. A guarded transaction applies valid text, saves the terminal `job.result`, completes the parent, and creates zero or one `reembed_chunk` child. Changed text or unchanged text with a stale vector needs a child; unchanged text with a fresh vector does not. The child captures chunk ID, embedding text, and version in its payload.
 
 Invalid output or correction failure releases the lock and preserves committed text/vector. Re-embedding failure preserves corrected text and the previous searchable vector as stale; Correct again explicitly refreshes it. Captured text, hierarchy, version, document membership, locks, and running claims fence superseded writes. Lost commit replies reconcile against durable state and recover an existing child without duplicating it.
 
-Public operation shape remains `{input_id, outcome, job, children, chunk_child_ids}`. Parent completion means text is durable; fully indexed means its child completed. Reload/polling recovers active jobs, no-op, terminal failures, and stale-vector state.
+Public operation shape is `{outcome, job, children, chunk_child_ids}`. Parent completion means text is durable; fully indexed means its child completed. Reload/polling recovers active jobs, no-op, terminal failures, and stale-vector state. `GET /v1/documents/{id}` returns the indexed document's safe header, editable metadata, optimistic-lock version, and page-grouped chunks together; `PUT /v1/documents/{id}/metadata` saves metadata without reloading chunks.
 
 ## Recovery and schema cutover
 

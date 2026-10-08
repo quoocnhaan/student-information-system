@@ -14,7 +14,8 @@ from uuid import uuid4
 from surrealdb import AsyncSurreal, RecordID
 
 from app.config import Settings
-from app.domain.job import validate_payload
+from app.infrastructure.embeddings import embedding_profile
+from app.domain.job import validate_correction_result, validate_payload
 
 
 class SurrealDatabaseError(RuntimeError):
@@ -451,7 +452,7 @@ class SurrealDatabase:
             "IF array::len($input) = 0 THEN THROW 'index_input_conflict'; END;",
             f"DELETE chunk WHERE document_id = {document_id};",
         ]
-        variables: dict[str, Any] = {"attempt_id": attempt_id, "model": model}
+        variables: dict[str, Any] = {"attempt_id": attempt_id, "model": model, "profile": embedding_profile(model)}
         for index, chunk in enumerate(chunks):
             key = f"chunk_{index}"
             variables[key] = dict(chunk)
@@ -463,7 +464,7 @@ class SurrealDatabase:
             )
         statements.extend([
             f"LET $document = (UPDATE {document_id} SET process_status = 'indexed', "
-            "embedding_model = $model WHERE process_status = 'indexing' RETURN AFTER);",
+            "embedding_model = $model, embedding_profile = $profile WHERE process_status = 'indexing' RETURN AFTER);",
             "IF array::len($document) = 0 THEN THROW 'document_not_indexing'; END;",
             f"LET $job = (UPDATE job:{record_id} SET status = 'completed', step = 'completed', "
             "progress = 100, version += 1 WHERE status = 'running' AND attempt_id = $attempt_id RETURN AFTER);",
@@ -575,17 +576,28 @@ class SurrealDatabase:
             return None
         by_id = {str(job["id"]): job for job in jobs}
         latest = {}
-        for job in jobs:
-            if job["type"] == "correct_chunks":
-                latest.setdefault(str(job["payload"]["chunk_id"]), job)
+        try:
+            for job in jobs:
+                if job["type"] == "correct_chunks":
+                    payload = validate_payload("correct_chunks", job["payload"])
+                    latest.setdefault(payload.chunk_id, job)
+        except (KeyError, TypeError, ValueError) as error:
+            raise SurrealDatabaseError("Correction job has an invalid payload") from error
         from app.api.v1.jobs import _as_response
         for chunk in chunks:
             parent = latest.get(str(chunk["id"]))
             chunk["correction"] = None
             if parent:
                 children = [by_id[str(child)] for child in parent.get("followup_job_ids", []) if str(child) in by_id]
+                try:
+                    outcome = (
+                        "pending" if parent["status"] in ("queued", "running")
+                        else validate_correction_result(parent.get("result")).outcome
+                    )
+                except (KeyError, TypeError, ValueError) as error:
+                    raise SurrealDatabaseError("Correction job has an invalid result") from error
                 chunk["correction"] = {
-                    "outcome": "pending" if parent["status"] in ("queued", "running") else parent["result"]["outcome"],
+                    "outcome": outcome,
                     "job": _as_response(parent).model_dump(),
                     "children": [_as_response(child).model_dump() for child in children],
                     "chunk_child_ids": [str(child["id"]) for child in children
@@ -669,13 +681,17 @@ class SurrealDatabase:
             raise ValueError("Correction result must contain usable text")
         from app.application.chunking import build_embedding_text
         changed = proposed_text != captured.base_text
+        result = validate_correction_result({
+            "outcome": "applied" if changed else "unchanged",
+            "proposed_text": proposed_text,
+        })
         child_id = RecordID("job", "job_" + uuid4().hex) if changed or captured.embedding_status == "stale" else None
         embedding = build_embedding_text(captured.hierarchy.model_dump(), proposed_text) if changed else captured.embedding_text
         variables = {"job_id": job["id"], "chunk_id": job["payload"]["chunk_id"], "document_id": job["document_id"],
                      "attempt": attempt_id, "base": captured.base_text, "captured_embedding": captured.embedding_text,
                      "captured_version": captured.embedding_version, "hierarchy": job["payload"]["hierarchy"],
                      "captured_status": captured.embedding_status, "proposed": proposed_text,
-                     "outcome": "applied" if changed else "unchanged", "child_id": child_id,
+                     "outcome": result.outcome, "child_id": child_id,
                      "embedding": embedding, "tokens": len(proposed_text.split()),
                      "next_version": captured.embedding_version + int(changed), "children": [child_id] if child_id else [],
                      "dedupe": "reembed_chunk:" + uuid4().hex}
@@ -890,6 +906,7 @@ class SurrealDatabase:
             status = "processing" if job_type == "ocr_pdf" else "indexing"
             statements.append(f"UPDATE {document_id} SET process_status = 'failed' WHERE process_status = '{status}';")
         elif job_type == "correct_chunks":
+            validate_correction_result({"outcome": "failed", "proposed_text": None})
             statements.append(f"UPDATE job:{record_id} SET result = {{outcome: 'failed', proposed_text: NONE}};")
             statements.append(f"UPDATE chunk SET active_job_id = NONE WHERE active_job_id = job:{record_id};")
         elif job_type == "reembed_chunk":

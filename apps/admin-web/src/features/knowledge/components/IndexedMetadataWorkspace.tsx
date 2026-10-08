@@ -81,7 +81,7 @@ export function IndexedMetadataWorkspace({ initial, onSaved }: { initial: Indexe
     {router && <NavigationGuard dirty={dirty} />}
     {editing ? <>
       <fieldset disabled={saving} style={{ border: 0, padding: 0 }}>
-        <MetadataEditor indexed value={draft} onChange={setDraft} options={options.values ?? []} errors={errors} />
+        <MetadataEditor indexed value={draft} onChange={setDraft} options={options.values?.program_scope_types ?? []} majors={options.values?.majors ?? []} errors={errors} />
       </fieldset>
       {options.error && <p className="notice danger">{options.error} <button onClick={options.retry}>Retry metadata options</button></p>}
       <div className="split-row">
@@ -92,7 +92,7 @@ export function IndexedMetadataWorkspace({ initial, onSaved }: { initial: Indexe
       <div className="split-row"><h2>Document metadata</h2><button className="secondary-button" onClick={() => { setDraft(saved.metadata); setEditing(true); setMessage(null); }}>Edit metadata</button></div>
       <dl className="metadata-editor-grid">
         {([ ["Title", saved.metadata.title], ["Document type", saved.metadata.document_type], ["Document number", saved.metadata.document_number], ["Language", saved.metadata.language], ["Description", saved.metadata.description] ] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{readable(value)}</dd></div>)}
-        <div><dt>Cohort</dt><dd>{cohort ? `${String(cohort.from_year)}${cohort.to_year ? ` ? ${String(cohort.to_year)}` : ""}` : "Not set"}</dd></div>
+        <div><dt>Cohort</dt><dd>{cohort ? `${String(cohort.from_year)}${cohort.to_year ? ` - ${String(cohort.to_year)}` : ""}` : "Not set"}</dd></div>
         <div><dt>Programme scope</dt><dd>{scope ? `${String(scope.type).replaceAll("_", " ")}${Array.isArray(scope.programs) && scope.programs.length ? `: ${scope.programs.join(", ")}` : ""}` : "Not set"}</dd></div>
         <div><dt>Original filename</dt><dd>{saved.source.original_filename}</dd></div>
         <div><dt>Page count</dt><dd>{saved.page_count ?? "Not set"}</dd></div>

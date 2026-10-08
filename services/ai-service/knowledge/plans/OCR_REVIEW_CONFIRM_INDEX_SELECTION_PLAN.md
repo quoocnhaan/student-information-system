@@ -5,6 +5,11 @@
 
 # Confirm OCR review once, index selected pages, and remove temporary drafts
 
+> **Superseded for route names.** OCR review is now read through
+> `GET /v1/documents/{id}/draft`; use
+> `DOCUMENT_ENDPOINTS_AND_CORRECTION_JOB_DATA_PLAN.md` for the active route
+> organization.
+
 ## Outcome
 
 After OCR (and optional automatic correction), Knowledge stores one temporary

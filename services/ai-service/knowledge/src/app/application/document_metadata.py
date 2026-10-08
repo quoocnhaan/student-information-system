@@ -31,12 +31,12 @@ _TITLE_BLOCK_END_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _NON_LANGUAGE_MAJOR_PATTERN = re.compile(
-    r"(?:các\s+)?ngành\s+không\s+chuyên\s+(?:ngôn\s+ngữ|ngoại\s+ngữ|ngữ)",
+    r"(?:các\s+)?ngành\s+không\s+chuyên\s+(?:ngôn\s+ngữ|ngoại\s+ngữ|ngữ)|non-language\s+majors?",
     re.IGNORECASE,
 )
-_LANGUAGE_MAJOR_PATTERN = re.compile(
-    r"(?:các\s+)?ngành\s+(?:chuyên\s+)?(?:ngôn\s+ngữ|ngoại\s+ngữ|ngữ)",
-    re.IGNORECASE,
+_SPECIFIC_MAJOR_PATTERNS = (
+    ("english", re.compile(r"(?:ngành\s+(?:ngôn\s+ngữ\s+)?(?:tiếng\s+)?anh|english\s+(?:language\s+)?majors?)", re.IGNORECASE)),
+    ("chinese", re.compile(r"(?:ngành\s+(?:ngôn\s+ngữ\s+)?(?:tiếng\s+)?trung(?:\s+quốc)?|chinese\s+(?:language\s+)?majors?)", re.IGNORECASE)),
 )
 
 
@@ -119,8 +119,9 @@ def _detect_cohort(title_block: str) -> dict[str, int | None] | None:
 def _detect_program_scope(title_block: str) -> dict[str, object] | None:
     if _NON_LANGUAGE_MAJOR_PATTERN.search(title_block):
         return {"type": "non_language_major", "programs": []}
-    if _LANGUAGE_MAJOR_PATTERN.search(title_block):
-        return {"type": "language_major", "programs": []}
+    programs = [key for key, pattern in _SPECIFIC_MAJOR_PATTERNS if pattern.search(title_block)]
+    if programs:
+        return {"type": "specific_programs", "programs": programs}
     return None
 
 

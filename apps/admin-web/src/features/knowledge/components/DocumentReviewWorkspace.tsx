@@ -87,7 +87,7 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
   }
 
   return <section className="stack review-workspace">
-    <MetadataEditor options={options.values ?? []} errors={metadataErrors(metadata)} value={metadata} onChange={(next) => { setMetadata(next); setSaveState("idle"); setMessage(null); }} />
+    <MetadataEditor options={options.values?.program_scope_types ?? []} majors={options.values?.majors ?? []} errors={metadataErrors(metadata)} value={metadata} onChange={(next) => { setMetadata(next); setSaveState("idle"); setMessage(null); }} />
     {options.error && <p className="notice danger">{options.error} <button onClick={options.retry}>Retry metadata options</button></p>}
     <div className="review-save-bar"><span className={dirty ? "dirty-state" : "muted"}>{dirty ? "Unsaved changes" : "Ready to confirm"}</span><button className="primary-button" type="button" disabled={confirming || !hasIndexableSelection || !options.values || Object.keys(metadataErrors(metadata)).length > 0} onClick={() => void confirm()}>{confirming ? "Confirming..." : `Confirm and index (${selectedPages.size} selected)`}</button></div>
     {message && <div className={saveState === "error" || saveState === "conflict" ? "notice danger split-row" : "notice warning"} role="status"><span>{message}</span>{saveState === "conflict" && <button className="secondary-button" type="button" onClick={() => void reloadLatest()}>Reload latest version</button>}</div>}

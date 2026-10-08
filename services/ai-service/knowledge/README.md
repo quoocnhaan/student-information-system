@@ -2,6 +2,61 @@
 
 Knowledge owns source PDFs, document metadata, OCR drafts, and background jobs in one SurrealDB. The API publishes job IDs into the `knowledge` RabbitMQ vhost; worker processes run from the same image and access Knowledge's database and MinIO directly.
 
+## Retrieval and applicability
+
+The admin **Retrieval** tab is at `/knowledge/retrieval`. It offers semantic search,
+article/clause lookup, and literal text lookup, with optional student context and
+document filters. Choices and indexed document versions come from Knowledge APIs.
+See [retrieval API examples](../docs/retrieval-api.md) for request/response semantics.
+
+Knowledge owns the major keys `english`, `chinese`, and `non_language` (the last is
+an aggregate applicability group). Scope types are `all`, `non_language_major`, and
+`specific_programs`. Specific scopes require English and/or Chinese keys; other
+scopes have empty lists. Submitted keys are trimmed, lowercased, validated, and
+deduplicated. Heading-only OCR detection leaves ambiguous applicability unset.
+Reviewers select specific majors from API-backed options.
+
+Every retrieval path requires active, indexed parent documents. With student
+context, cohort bounds are inclusive and an absent end year means ongoing;
+publication year is irrelevant. Cohort and scope must both match. Missing cohort
+means unrestricted years; missing scope excludes the document when context is
+provided. Without context, the UI explicitly describes searches as admin exploration.
+Metadata edits affect retrieval immediately without embedding work.
+
+Semantic retrieval uses exact cosine ranking over eligible chunks, not global HNSW
+top-k followed by filtering. This prioritizes correctness; the work grows linearly
+with eligible vector count. Exact lookup scans eligible text in bounded batches
+to preserve Unicode casefold semantics. Large corpora can exceed the configured
+database timeout and return 503. Hybrid ranking is not implemented or advertised.
+Scores are ranking measures, not probabilities. Source text may have stale vectors;
+results expose `embedding_status` so reviewers can recognize that condition.
+
+New indexes record `embedding_model` and `embedding_profile`. The configured Nomic
+model uses `search_document:` / `search_query:` task prefixes and 768-dimensional
+finite, nonzero vectors. Older documents without the matching task profile are
+excluded from semantic results with a warning; structured/exact lookup still works.
+Rebuild the reviewed index to include those documents. Single-chunk re-embedding
+rejects model/profile mismatches to avoid mixing encoders in one document.
+Schema startup adds the
+profile field and replaces scope assertions. Existing unsupported scope values
+must be reviewed using the supported keys; no legacy-scope compatibility is added.
+This change does not reset any application data or Docker volumes. A local fresh
+stack reset requires a separate explicit request, as described below.
+
+Validation from the service directory (PowerShell):
+
+```powershell
+$env:PYTHONPATH = 'src'
+$env:KNOWLEDGE_TEST_SURREAL_URL = 'ws://127.0.0.1:18000' # isolated test instance only
+python -m pytest -q -p no:cacheprovider
+```
+
+The retrieval integration test uses its own temporary database and the repository's
+SurrealDB 3.2.4 version. Use a disposable instance with test credentials `root/root`;
+never set the test URL to a shared or production database. Without a test URL,
+integration tests skip. Admin validation runs `npm run test:run`, `npm run typecheck`,
+`npm run lint`, and `npm run build` from `apps/admin-web`.
+
 ## Run locally
 
 Configure the repository-root `.env` using the root `.env.example`, then run
@@ -28,7 +83,7 @@ For the API workflow, see [Knowledge upload to OCR](../docs/upload-pdf-workflow.
 
 PDF upload stores the source object, then creates the document and `ocr_pdf` job in one SurrealDB transaction. It publishes `{version, type, job_id}` after commit. The worker claims the job before acknowledging the message. OCR detects metadata from raw pages, then atomically saves the draft and opens manual review. OCR creates no follow-up job. The reviewer keeps metadata, text edits, and page choices locally, then confirms once. That transaction persists final metadata and an immutable temporary `index_input`; `index_document` reads only that selected-page input, chunks it by legal structure, embeds it, and atomically replaces chunks while deleting the input and OCR draft. Failed indexing retains both temporary records for retry. Indexed documents support automatic single-chunk `correct_chunks` requests and optional `reembed_chunk` children. Correct captures one chunk, applies valid output atomically, then queues zero or one embedding child. `followup_job_ids` reports that child; a completed correction means text is durable, while indexing completes after its child succeeds. Failed children retain corrected text and the previous searchable vector as `stale`; Correct again is the explicit refresh request. Raw OCR can affect detected metadata and chunk boundaries. Manual review repairs document structure before confirmation; later chunk correction does not re-chunk.
 
-API flow: `POST /v1/documents` → `GET /v1/jobs/{id}` → `GET /v1/documents/{id}/result` → `POST /v1/documents/{id}/confirm` (revision, final metadata, text edits, selected original page numbers) → `GET /v1/documents/{id}/chunks` → `POST /v1/documents/{id}/corrections`. Correction callers poll or subscribe to the returned job and track the optional `followup_job_ids` child. The correction body is exactly `{ "chunk_id": "chunk:chunk_<32 hexadecimal characters>" }`; batch requests are rejected. Fresh installations apply `db/schema.surql` directly. See the local reset procedure below for this breaking workflow change.
+API flow: `POST /v1/documents` -> `GET /v1/jobs/{id}` -> `GET /v1/documents/{id}/draft` -> `POST /v1/documents/{id}/confirm` (revision, final metadata, text edits, selected original page numbers) -> `GET /v1/documents/{id}` for the indexed detail (or `/chunks` for progress refresh) -> `POST /v1/documents/{id}/corrections`. The indexed detail response contains safe document metadata and page-grouped chunks; `PUT /v1/documents/{id}/metadata` conditionally saves the complete editable metadata object using its returned `version`. Correction callers poll or subscribe to the returned job and track the optional `followup_job_ids` child. The correction body is exactly `{ "chunk_id": "chunk:chunk_<32 hexadecimal characters>" }`; batch requests are rejected. Fresh installations apply `db/schema.surql` directly. See the local reset procedure below for this breaking workflow change.
 
 If indexing fails, retry the same retained confirmation input with `POST /v1/jobs/{job_id}/retry`. The action only requeues a failed `index_document` job whose `index_input` remains present; it never accepts replacement browser content.
 
@@ -38,7 +93,7 @@ Jobs persist lifecycle, identity, ownership, and orchestration in the envelope. 
 | --- | --- |
 | `ocr_pdf` | `{}` |
 | `index_document` | `index_input_id`, `confirmation_fingerprint` |
-| `correct_chunks` | `chunk_id`, `correction_input_id` |
+| `correct_chunks` | `chunk_id`, `base_text`, `embedding_text`, `embedding_version`, `embedding_status`, `hierarchy` |
 | `reembed_chunk` | `chunk_id`, `embedding_text`, `embedding_version` |
 
 Payloads reject unknown fields and invalid inputs at creation and before processing. References are stored as typed records inside a flexible object. Public REST/WebSocket statuses expose `step`, integer `progress`, update `version`, and mandatory `followup_job_ids`, never input payloads, ownership, or page counters. Running progress stays below 100 and cannot decrease within an attempt; completion sets 100, failure retains progress, and manual index retry resets it to zero while preserving the payload.
@@ -121,11 +176,14 @@ API/workers/admin are running. Do not substitute global volume pruning.
 
 ## Indexed operation contracts
 
-Every chunk from `GET /v1/documents/{id}/chunks` has nullable `correction`:
-`{input_id, outcome, job, children, chunk_child_ids}`. `job` and `children` use the
+Every chunk from `GET /v1/documents/{id}/chunks` (and the combined indexed detail)
+has nullable `correction`: `{outcome, job, children, chunk_child_ids}`. `job` and `children` use the
 REST job status contract; `children` contains zero or one re-embedding job and
 `chunk_child_ids` selects children belonging to that chunk. Errors are bounded to
-500 characters. Captured base/proposed text is private to the worker audit record.
+500 characters. Captured payload text and the model result stay private; the safe
+operation projection exposes only the outcome and job relationships. The immutable
+correction snapshot is stored on the `correct_chunks` job payload, while its terminal
+`applied`, `unchanged`, or `failed` result is stored on `job.result`.
 `outcome` is `pending`, `applied`, `unchanged`, or `failed`. Jobs always include
 `followup_job_ids`, including an empty array. It is the sole field for subsequent
 jobs; OCR completes with no children, and correction persists zero or one child.

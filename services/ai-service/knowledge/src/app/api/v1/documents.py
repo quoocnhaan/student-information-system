@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from app.api.v1.document_helpers import _document_record_id_or_none
 from app.api.v1.schemas.documents import MetadataOptionsResponse
 from app.dependencies import get_database, get_object_store
-from app.domain.document import ProgramScopeType
+from app.domain.document import MAJOR_OPTIONS, ProgramScopeType
 from app.infrastructure.minio import MinioObjectStore, ObjectStoreError
 from app.infrastructure.surreal import SurrealDatabase, SurrealDatabaseError
 
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 @router.get("/metadata-options", response_model=MetadataOptionsResponse)
 async def metadata_options() -> dict:
-    return {"program_scope_types": [value.value for value in ProgramScopeType]}
+    return {"program_scope_types": [value.value for value in ProgramScopeType], "majors": list(MAJOR_OPTIONS)}
 
 
 @router.get("/{document_id}/source")
