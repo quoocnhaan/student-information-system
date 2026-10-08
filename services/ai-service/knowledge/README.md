@@ -41,7 +41,17 @@ Jobs persist lifecycle, identity, ownership, and orchestration in the envelope. 
 | `correct_chunks` | `chunk_id`, `correction_input_id` |
 | `reembed_chunk` | `chunk_id`, `embedding_text`, `embedding_version` |
 
-Payloads reject unknown fields and invalid inputs at creation and before processing. References are stored as typed records inside a flexible object. Public REST/WebSocket statuses expose `step` and integer `progress`, never input payloads, ownership, or page counters. Running progress stays below 100 and cannot decrease within a claim; completion sets 100, failure retains progress, and manual index retry resets it to zero while preserving the payload.
+Payloads reject unknown fields and invalid inputs at creation and before processing. References are stored as typed records inside a flexible object. Public REST/WebSocket statuses expose `step`, integer `progress`, update `version`, and mandatory `followup_job_ids`, never input payloads, ownership, or page counters. Running progress stays below 100 and cannot decrease within an attempt; completion sets 100, failure retains progress, and manual index retry resets it to zero while preserving the payload.
+
+Each job starts at `version = 1`. Lifecycle updates increment this counter;
+progress writes compare the version they read to fence concurrent updates.
+WebSocket events and the admin UI accept only newer versions of the same job;
+selecting another job resets the comparison. This counter is independent of
+RabbitMQ envelope and handler protocol versions, which remain unchanged.
+Each successful claim sets a fresh UUID hex `attempt_id`; an obsolete attempt
+cannot update, complete, or fail the job after it has been retried and reclaimed.
+Manual index retry preserves the job ID, increments its version, and clears
+`attempt_id`, `worker_id`, and `worker_run_id` before the next claim.
 
 New job types must be mapped in `app.jobs.routes.JOB_QUEUES` and registered in the worker pool for their queue. Queues represent workload profiles; worker replicas provide throughput.
 
@@ -52,6 +62,13 @@ API startup applies the schema directly (`app.infrastructure.initialize_schema` 
 also available as an explicit initializer), and no migration runner,
 central-job copy, or legacy recovery command is shipped. The current ownership
 recovery described below remains part of startup.
+
+The job schema refactor requires a fresh local database. Applying the schema to
+an existing database does not rename or remove its old field definitions. The
+local stack cutover requires an explicitly authorized Knowledge reset;
+restart the API, all Knowledge workers, and admin-web together after that reset.
+Do not run the new contract against the previous database. A shared or production
+rollout requires a separate data-preserving plan.
 
 Reset execution requires an explicit request to erase the local Knowledge stack.
 It erases local PDFs, chunks, vectors, OCR drafts, jobs, and queued messages together.
@@ -110,7 +127,8 @@ REST job status contract; `children` contains zero or one re-embedding job and
 `chunk_child_ids` selects children belonging to that chunk. Errors are bounded to
 500 characters. Captured base/proposed text is private to the worker audit record.
 `outcome` is `pending`, `applied`, `unchanged`, or `failed`. Jobs always include
-`followup_job_ids`, including an empty array. `next_job_id` remains a generic optional link and is empty for OCR.
+`followup_job_ids`, including an empty array. It is the sole field for subsequent
+jobs; OCR completes with no children, and correction persists zero or one child.
 
 Correction completion commits text and creates the optional child atomically.
 Changed text and unchanged text with a stale vector both require embedding work.
@@ -161,7 +179,7 @@ Failure transactions preserve the source PDF, index input/draft, and existing co
 Chunk correction fails its pending snapshot and releases its lock, and
 reembedding preserves the existing vector. Database transaction results are checked for every
 statement, including errors hidden behind transaction-aborted results. Commit logs include job,
-claim, chunk count, and duration without document contents or vectors. Clients receive bounded
+attempt ID, chunk count, and duration without document contents or vectors. Clients receive bounded
 safe failure messages.
 
 ## Worker identity and startup recovery
@@ -172,7 +190,8 @@ Override these with `KNOWLEDGE_OCR_WORKER_ID`, `KNOWLEDGE_CORRECT_WORKER_ID`, an
 replica needs its own stable identity; do not scale a Compose worker service using one shared
 identity. Exactly one live process may use an identity. Stop and verify termination of the
 predecessor before starting its replacement; overlapping rolling replacement is unsupported.
-A fresh process run ID and unique attempt claim accompany each claim.
+A fresh `worker_run_id` identifies each process startup; a unique `attempt_id`
+identifies each successful claim.
 
 Before broker connection or consumer registration, one bounded recovery pass fails only this
 identity's running jobs from previous runs, fencing ownership and claim inside the transaction.
@@ -192,6 +211,28 @@ Docker's unhealthy status alone does not restart a container, and `restart: unle
 only restarts exited processes.
 
 ## Validation evidence
+
+The job schema refactor was verified on 2026-10-06: all 123 Knowledge tests
+passed, including database-backed tests against an isolated in-memory SurrealDB
+3.2.4 server with fresh schemas. Coverage includes simultaneous claims, stale
+attempts and progress versions, manual retry, startup recovery, durable children,
+lost commit replies, and REST/WebSocket contracts. All 29 admin-web tests passed;
+typecheck, lint, and production build passed. The frontend ordering tests passed
+again after a test-only lint fix. Nonblocking output included a Starlette test
+client deprecation, React Router future flags, and Vite's bundle-size warning.
+The temporary test container was removed. Existing Docker volumes were preserved
+during implementation.
+Historical plans, migrations, and `CLEANUP_REPORT.md` retain their original terms.
+
+The local cutover completed on 2026-10-06 after explicit reset authorization.
+The inspected Compose project was `student-information-system`; only
+`deploy_surreal_data`, `deploy_minio_data`, and `deploy_rabbitmq_data` were reset.
+The API, all three workers, RabbitMQ initializer, and admin-web were rebuilt;
+both initializers exited successfully, health/readiness and the admin UI returned
+200, and each Knowledge processing queue had one consumer with zero messages.
+The fresh database exposes the new job fields and contains no prior documents or
+jobs. All eight unrelated containers retained their IDs and startup times, and
+their MySQL volumes were preserved.
 
 Regression tests run against an isolated SurrealDB 3.2.4 instance and use valid 768-dimensional
 chunk vectors. They inject hanging commits and committed-but-unanswered responses, verify checked

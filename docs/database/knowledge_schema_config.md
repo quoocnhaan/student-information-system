@@ -114,7 +114,7 @@
 
 ## 4. Persisted jobs
 
-Jobs keep identity (`id`, `type`, `document_id`, `dedupe_key`), lifecycle (`status`, `step`, `progress`, `sequence`, `error`, timestamps), private ownership (`claim_id`, `worker_id`, `worker_run_id`), and orchestration (`next_job_id`, `followup_job_ids`) in the envelope. `payload` is required, validated by type, and read-only:
+Jobs keep identity (`id`, `type`, `document_id`, `dedupe_key`), lifecycle (`status`, `step`, `progress`, `version`, `error`, timestamps), private ownership (`attempt_id`, `worker_id`, `worker_run_id`), and orchestration (`followup_job_ids`) in the envelope. `payload` is required, validated by type, and read-only:
 
 | Type | Payload |
 | --- | --- |

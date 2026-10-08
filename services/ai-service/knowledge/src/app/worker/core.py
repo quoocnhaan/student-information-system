@@ -15,7 +15,7 @@ class Handler(Protocol):
     type: str
     version: int
 
-    async def process(self, job_id: str, claim_id: str, claimed: dict) -> Any: ...
+    async def process(self, job_id: str, attempt_id: str, claimed: dict) -> Any: ...
 
 
 class Registry:
@@ -47,9 +47,9 @@ def processing_deadline(settings: Settings, job_type: str) -> float:
 async def execute(envelope: Envelope, handler: Handler, database: SurrealDatabase, message: Any,
                   settings: Settings | None = None) -> Any:
     settings = settings or Settings(_env_file=None)
-    claim_id = uuid4().hex
+    attempt_id = uuid4().hex
     try:
-        claimed = await database.claim_job(envelope.job_id, claim_id, envelope.type)
+        claimed = await database.claim_job(envelope.job_id, attempt_id, envelope.type)
     except Exception:
         await message.nack(requeue=True)
         return None
@@ -60,10 +60,10 @@ async def execute(envelope: Envelope, handler: Handler, database: SurrealDatabas
         async with asyncio.timeout(processing_deadline(settings, envelope.type)):
             await message.ack()
             validate_payload(envelope.type, claimed.get("payload"))
-            result = await handler.process(envelope.job_id, claim_id, claimed)
+            result = await handler.process(envelope.job_id, attempt_id, claimed)
             if isinstance(database, SurrealDatabase):
                 current = await database.get_job(envelope.job_id)
-                if not current or current.get("status") != "completed" or current.get("claim_id") != claim_id:
+                if not current or current.get("status") != "completed" or current.get("attempt_id") != attempt_id:
                     raise RuntimeError("Processing returned without completing this claim")
             return result
     except Exception as error:
@@ -75,20 +75,20 @@ async def execute(envelope: Envelope, handler: Handler, database: SurrealDatabas
                 except Exception:
                     logging.getLogger(__name__).exception("processing_connection_discard_failed")
                 safe_error = "Job processing timed out; manual retry required" if isinstance(error, TimeoutError) else "Job processing failed; manual retry required"
-                reconciled = await database.reconcile_failure(envelope.job_id, claim_id, safe_error)
+                reconciled = await database.reconcile_failure(envelope.job_id, attempt_id, safe_error)
                 # A commit may have succeeded even though its response was
                 # lost.  Recover the durable fan-out so delivery can publish
                 # exactly those already-authorized jobs.
                 if (reconciled.get("type") == "correct_chunks"
                         and reconciled.get("status") == "completed"
-                        and reconciled.get("claim_id") == claim_id):
+                        and reconciled.get("attempt_id") == attempt_id):
                     return reconciled.get("_followups", [])
                 return None
             failure_handler = getattr(handler, "on_failure", None)
             if failure_handler is not None:
-                await failure_handler(envelope.job_id, claim_id, claimed, str(error)[:500] or "Job processing failed")
+                await failure_handler(envelope.job_id, attempt_id, claimed, str(error)[:500] or "Job processing failed")
             else:
-                await database.fail_job(envelope.job_id, claim_id, str(error)[:500] or "Job processing failed")
+                await database.fail_job(envelope.job_id, attempt_id, str(error)[:500] or "Job processing failed")
         except Exception as failure:
             logging.getLogger(__name__).exception("job_failure_not_persisted", extra={"job_id": envelope.job_id})
             raise FailurePersistenceError("Failure persistence pending; worker restart required") from failure

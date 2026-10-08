@@ -20,7 +20,7 @@ class Handler:
         self.type = job_type
         self.calls = 0
 
-    async def process(self, job_id, claim_id, claimed):
+    async def process(self, job_id, attempt_id, claimed):
         self.calls += 1
 
 
@@ -29,14 +29,14 @@ class Database:
         self.claimed = False
         self.failed = []
 
-    async def claim_job(self, job_id, claim_id, job_type):
+    async def claim_job(self, job_id, attempt_id, job_type):
         if self.claimed:
             return None
         self.claimed = True
         payload = {} if job_type == "ocr_pdf" else {"index_input_id": "index_input:index_input_" + "b" * 32, "confirmation_fingerprint": "c" * 64}
         return {"id": job_id, "type": job_type, "payload": payload}
 
-    async def fail_job(self, job_id, claim_id, error):
+    async def fail_job(self, job_id, attempt_id, error):
         self.failed.append(error)
 
 

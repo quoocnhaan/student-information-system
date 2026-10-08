@@ -16,7 +16,7 @@ def test_removed_routes_and_job_fields():
                              "status": "queued", "step": "queued", "progress": 0}).model_dump()
     assert response["followup_job_ids"] == []
     assert "ocr_draft_id" not in response and "correction_mode" not in response
-    assert not {"payload", "total_pages", "processed_pages", "claim_id", "worker_id"}.intersection(response)
+    assert not {"payload", "total_pages", "processed_pages", "attempt_id", "worker_id"}.intersection(response)
 
 
 @pytest.mark.parametrize("body", [
@@ -40,6 +40,9 @@ def test_correction_rejects_batch_and_invalid_bodies(body):
 def test_single_chunk_correction_request(available):
     chunk_id = "chunk:chunk_" + "b" * 32
     class Database:
+        async def get_document(self, _):
+            return {"process_status": "indexed"}
+
         async def request_chunk_correction(self, document, chunk):
             assert document == "doc_" + "a" * 32 and chunk == chunk_id
             return {"id": "job:job_" + "c" * 32} if available else None
@@ -59,11 +62,10 @@ def test_chunk_response_exposes_durable_operations_without_captured_text():
         async def get_document(self, _):
             return {"process_status": "indexed"}
 
-        async def indexed_chunks(self, _):
-            return [{"id": "chunk:test", "text": "Original", "hierarchy": {},
-                     "position": {"chunk_index": 0, "page_start": 1, "page_end": 1},
-                     "correction": {"input_id": "chunk_correction_input:test", "outcome": "failed",
-                                    "job": parent, "children": [], "chunk_child_ids": [], "base_text": "Private"}}]
+        async def indexed_document(self, _):
+            return {"id": "document:test", "process_status": "indexed"}, [{"id": "chunk:test", "text": "Original", "hierarchy": {},
+                     "position": {"chunk_index": 0, "page_start": 1, "page_end": 1}, "embedding_status": "ok", "updated_at": "now",
+                     "correction": {"outcome": "failed", "job": parent, "children": [], "chunk_child_ids": [], "base_text": "Private"}}]
     app = create_app()
     app.dependency_overrides[get_database] = Database
     response = TestClient(app).get("/v1/documents/doc_" + "a" * 32 + "/chunks")

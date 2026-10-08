@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, it, expect, vi } from "vitest";
 import { KnowledgeError, indexedChunksSchema, jobStatusSchema, type IndexedChunks, type JobStatus } from "../api/contracts";
 import { knowledgeClient } from "../api/knowledgeClient";
 import { IndexedDocumentPage } from "./IndexedDocumentPage";
@@ -20,7 +20,11 @@ const base: IndexedChunks = {
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-function open() {
+const header = { document_id: base.document_id, process_status: "indexed", source: { original_filename: "test.pdf", mime_type: "application/pdf" }, page_count: 2, created_at: "uploaded", updated_at: "updated", version: "v1", metadata: { title: "Stored title", document_type: "Policy", document_number: null, description: null, language: "en", cohort: null, program_scope: null } };
+beforeEach(() => { vi.spyOn(knowledgeClient, "getMetadataOptions").mockResolvedValue(["all", "specific_programs"]); });
+
+function open(data: IndexedChunks = base) {
+  vi.spyOn(knowledgeClient, "getIndexedDocument").mockResolvedValue({ ...header, pages: data.pages });
   render(<MemoryRouter initialEntries={["/knowledge/documents/document:doc_test"]}>
     <Routes><Route path="/knowledge/documents/:documentId" element={<IndexedDocumentPage />} /></Routes>
   </MemoryRouter>);
@@ -28,9 +32,9 @@ function open() {
 
 it("requests an automatic correction without review controls", async () => {
   const pending: IndexedChunks = { ...base, pages: [{ page: 1, chunks: [{
-    ...base.pages[0].chunks[0], active_job_id: "job:job_correct", correction: { input_id: "chunk_correction_input:input_test", outcome: "pending", job: { id: "job:job_correct", type: "correct_chunks", document_id: base.document_id, status: "running", step: "correcting", progress: 10, sequence: 1, followup_job_ids: [] }, children: [], chunk_child_ids: [] },
+    ...base.pages[0].chunks[0], active_job_id: "job:job_correct", correction: { outcome: "pending", job: { id: "job:job_correct", type: "correct_chunks", document_id: base.document_id, status: "running", step: "correcting", progress: 10, version: 1, followup_job_ids: [] }, children: [], chunk_child_ids: [] },
   }] }] };
-  vi.spyOn(knowledgeClient, "getIndexedChunks").mockResolvedValueOnce(base).mockResolvedValue(pending);
+  vi.spyOn(knowledgeClient, "getIndexedChunks").mockResolvedValue(pending);
   const request = vi.spyOn(knowledgeClient, "requestCorrections").mockResolvedValue("job:job_correct");
   open();
   fireEvent.click(await screen.findByRole("button", { name: /^Correct$/ }));
@@ -51,14 +55,14 @@ it("shows an active automatic correction conflict", async () => {
 
 const status = (id: string, state: string, type = "correct_chunks"): JobStatus => ({
   id, type, document_id: base.document_id, status: state, step: state,
-  progress: 100, sequence: 1, followup_job_ids: [],
+  progress: 100, version: 1, followup_job_ids: [],
 });
 
 function operation(parent: JobStatus, children: JobStatus[] = [], outcome: "pending" | "applied" | "unchanged" | "failed" = "applied"): IndexedChunks {
   return { ...base, pages: [{ page: 1, chunks: [{
     ...base.pages[0].chunks[0],
     active_job_id: parent.status === "running" ? parent.id : children.find((child) => child.status === "running")?.id,
-    correction: { input_id: "chunk_correction_input:input_test", outcome, job: parent, children, chunk_child_ids: children.map((child) => child.id) },
+    correction: { outcome, job: parent, children, chunk_child_ids: children.map((child) => child.id) },
   }] }] };
 }
 
@@ -68,7 +72,7 @@ it.each([
   ["completed", "unchanged", "No changes needed."],
 ] as const)("recovers %s correction after reload", async (state, outcome, text) => {
   vi.spyOn(knowledgeClient, "getIndexedChunks").mockResolvedValue(operation(status("job:parent", state), [], outcome));
-  open();
+  open(operation(status("job:parent", state), [], outcome));
   expect(await screen.findByText(text)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /^Correct$/ }).hasAttribute("disabled")).toBe(state === "running");
 });
@@ -80,7 +84,7 @@ it.each([
   const data = operation(status("job:parent", "completed"), [status("job:child", state, "reembed")]);
   data.pages[0].chunks[0].embedding_status = "stale";
   vi.spyOn(knowledgeClient, "getIndexedChunks").mockResolvedValue(data);
-  open();
+  open(data);
   expect(await screen.findByText(text)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /^Correct$/ }).hasAttribute("disabled")).toBe(state === "running");
 });
@@ -89,7 +93,7 @@ it("makes a stale vector without active work actionable", async () => {
   const data = structuredClone(base);
   data.pages[0].chunks[0].embedding_status = "stale";
   vi.spyOn(knowledgeClient, "getIndexedChunks").mockResolvedValue(data);
-  open();
+  open(data);
   expect(await screen.findByText("Index is stale. Correct again to refresh.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /^Correct$/ })).toBeEnabled();
 });
@@ -99,7 +103,7 @@ it("waits for its child before reporting selected request indexed", async () => 
   const children = [status("job:one", "running", "reembed")];
   const pending = operation(parent, children);
   const finished = operation(parent, children.map((child) => ({ ...child, status: "completed" })));
-  const read = vi.spyOn(knowledgeClient, "getIndexedChunks").mockResolvedValueOnce(base).mockResolvedValue(pending);
+  const read = vi.spyOn(knowledgeClient, "getIndexedChunks").mockResolvedValue(pending);
   vi.spyOn(knowledgeClient, "requestCorrections").mockResolvedValue(parent.id);
   open();
   fireEvent.click(await screen.findByRole("button", { name: /^Correct$/ }));
@@ -114,4 +118,45 @@ it("requires durable operation data and followup arrays in contracts", () => {
   const { followup_job_ids: omitted, ...incomplete } = status("job:parent", "failed");
   expect(omitted).toEqual([]);
   expect(jobStatusSchema.safeParse(incomplete).success).toBe(false);
+});
+
+
+it("fetches combined detail once and keeps a dirty draft through chunk polling", async () => {
+  vi.spyOn(knowledgeClient, "getIndexedChunks").mockResolvedValue(base);
+  open();
+  expect(await screen.findByRole("heading", { name: "Stored title" })).toBeInTheDocument();
+  expect(knowledgeClient.getIndexedDocument).toHaveBeenCalledTimes(1);
+  expect(knowledgeClient.getIndexedChunks).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Edit metadata" }));
+  fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Unsaved" } });
+  await waitFor(() => expect(knowledgeClient.getIndexedChunks).toHaveBeenCalled(), { timeout: 2500 });
+  expect(screen.getByLabelText("Title")).toHaveValue("Unsaved");
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getAllByText("Stored title").length).toBeGreaterThan(0);
+});
+
+it("saves metadata using its version and uses the saved response", async () => {
+  const save = vi.spyOn(knowledgeClient, "updateMetadata").mockResolvedValue({ ...header, version: "v2", metadata: { ...header.metadata, title: "Saved title" } });
+  open();
+  fireEvent.click(await screen.findByRole("button", { name: "Edit metadata" }));
+  fireEvent.change(screen.getByLabelText("Title"), { target: { value: " Saved title " } });
+  fireEvent.click(screen.getByRole("button", { name: "Save metadata" }));
+  await waitFor(() => expect(save).toHaveBeenCalledWith(base.document_id, "v1", { ...header.metadata, title: "Saved title" }));
+  expect(await screen.findByText("Metadata saved.")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Saved title" })).toBeInTheDocument();
+});
+
+it("retains conflicting edits until the user accepts reloading", async () => {
+  vi.spyOn(knowledgeClient, "updateMetadata").mockRejectedValue(new KnowledgeError("Metadata version is stale.", 409));
+  const discard = vi.spyOn(window, "confirm").mockReturnValue(false);
+  open();
+  fireEvent.click(await screen.findByRole("button", { name: "Edit metadata" }));
+  fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Unsaved" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save metadata" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Reload latest metadata" }));
+  expect(discard).toHaveBeenCalled();
+  expect(screen.getByLabelText("Title")).toHaveValue("Unsaved");
+  discard.mockReturnValue(true);
+  fireEvent.click(screen.getByRole("button", { name: "Reload latest metadata" }));
+  await waitFor(() => expect(screen.getByLabelText("Title")).toHaveValue("Stored title"));
 });

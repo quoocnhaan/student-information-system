@@ -80,7 +80,7 @@ def review_client() -> TestClient:
 
 def test_completed_document_result_hides_object_key() -> None:
     with review_client() as client:
-        response = client.get(f"/v1/documents/document:{_DOCUMENT_ID}/result")
+        response = client.get(f"/v1/documents/document:{_DOCUMENT_ID}/draft")
 
     assert response.status_code == 200
     body = response.json()

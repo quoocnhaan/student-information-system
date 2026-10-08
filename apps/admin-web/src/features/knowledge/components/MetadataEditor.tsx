@@ -2,6 +2,9 @@ import type { DocumentMetadata } from "../api/contracts";
 
 type MetadataEditorProps = {
   value: DocumentMetadata;
+  options: string[];
+  indexed?: boolean;
+  errors?: Record<string, string>;
   onChange: (value: DocumentMetadata) => void;
 };
 
@@ -21,7 +24,7 @@ function programmeList(value: unknown): string {
     : "";
 }
 
-export function MetadataEditor({ value, onChange }: MetadataEditorProps) {
+export function MetadataEditor({ value, onChange, options, indexed = false, errors = {} }: MetadataEditorProps) {
   const cohort = record(value.cohort);
   const scope = record(value.program_scope);
   const scopeType = text(scope.type);
@@ -60,17 +63,17 @@ export function MetadataEditor({ value, onChange }: MetadataEditorProps) {
   }
 
   return <section className="card stack" aria-labelledby="metadata-title">
-    <div className="split-row"><div><p className="eyebrow">Awaiting review</p><h2 id="metadata-title">Detected metadata - review and correct</h2></div><span className="status-pill warning">draft</span></div>
+    <div className="split-row"><div><p className="eyebrow">{indexed ? "Indexed document" : "Awaiting review"}</p><h2 id="metadata-title">{indexed ? "Document metadata" : "Detected metadata - review and correct"}</h2></div>{!indexed && <span className="status-pill warning">draft</span>}</div>
     <div className="metadata-editor-grid">
-      <label>Title<input value={text(value.title)} onChange={(event) => update("title", event.target.value)} /></label>
-      <label>Document type<input value={text(value.document_type)} onChange={(event) => update("document_type", event.target.value)} /></label>
-      <label>Document number<input value={text(value.document_number)} onChange={(event) => update("document_number", event.target.value)} /></label>
-      <label>Language<input value={text(value.language)} onChange={(event) => update("language", event.target.value)} /></label>
-      <label>Cohort start year<input type="number" min="1900" max="9999" value={fromYear} onChange={(event) => updateCohort("from_year", event.target.value)} /></label>
+      <label>Title<input value={text(value.title)} onChange={(event) => update("title", event.target.value)} />{errors.title && <span className="field-error" role="alert">{errors.title}</span>}</label>
+      <label>Document type<input value={text(value.document_type)} onChange={(event) => update("document_type", event.target.value)} />{errors.document_type && <span className="field-error" role="alert">{errors.document_type}</span>}</label>
+      <label>Document number<input value={text(value.document_number)} onChange={(event) => update("document_number", event.target.value)} />{errors.document_number && <span className="field-error" role="alert">{errors.document_number}</span>}</label>
+      <label>Language<input value={text(value.language)} onChange={(event) => update("language", event.target.value)} />{errors.language && <span className="field-error" role="alert">{errors.language}</span>}</label>
+      <label>Cohort start year<input type="number" min="1900" max="9999" value={fromYear} onChange={(event) => updateCohort("from_year", event.target.value)} />{errors.cohort && <span className="field-error" role="alert">{errors.cohort}</span>}</label>
       <label>Cohort end year<input type="number" min="1900" max="9999" value={toYear} onChange={(event) => updateCohort("to_year", event.target.value)} /></label>
-      <label>Programme scope<select value={scopeType} onChange={(event) => updateScope("type", event.target.value)}><option value="">Not detected</option><option value="all">All programmes</option><option value="non_language_major">Non-language major</option><option value="language_major">Language major</option><option value="specific_programs">Specific programmes</option></select></label>
+      <label>Programme scope<select value={scopeType} onChange={(event) => updateScope("type", event.target.value)}><option value="">Not set</option>{scopeType && !options.includes(scopeType) && <option value={scopeType}>{scopeType.replaceAll("_", " ")}</option>}{options.map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}</select>{errors.program_scope && <span className="field-error" role="alert">{errors.program_scope}</span>}</label>
       {scopeType === "specific_programs" && <label>Programmes (comma separated)<input value={programmeList(scope.programs)} onChange={(event) => updateScope("programs", event.target.value)} /></label>}
-      <label className="wide-field">Description<textarea value={text(value.description)} onChange={(event) => update("description", event.target.value)} /></label>
+      <label className="wide-field">Description<textarea value={text(value.description)} onChange={(event) => update("description", event.target.value)} />{errors.description && <span className="field-error" role="alert">{errors.description}</span>}</label>
     </div>
     {cohortError && <p className="field-error" role="alert">{cohortError}</p>}
   </section>;

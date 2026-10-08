@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from surrealdb import AsyncSurreal
+from surrealdb import AsyncSurreal, RecordID
 
 from app.config import Settings
 from app.domain.job import validate_payload
@@ -159,6 +159,52 @@ class SurrealDatabase:
         except Exception as error:
             raise SurrealDatabaseError("Unable to run SurrealDB script") from error
 
+    async def list_indexed_documents(
+        self, *, q: str = "", document_type: str | None = None,
+        language: str | None = None, page: int = 1, page_size: int = 20,
+    ) -> dict[str, Any]:
+        """Return a filtered page and library-wide filter choices."""
+        conditions = ["process_status = 'indexed'"]
+        variables: dict[str, Any] = {"limit": page_size, "offset": (page - 1) * page_size}
+        if q:
+            conditions.append(
+                "(string::contains(string::lowercase(title ?? ''), $search) OR "
+                "string::contains(string::lowercase(source.original_filename), $search) OR "
+                "string::contains(string::lowercase(document_number ?? ''), $search))"
+            )
+            variables["search"] = q.lower()
+        for field, value in (("document_type", document_type), ("language", language)):
+            if value:
+                conditions.append(f"{field} = ${field}")
+                variables[field] = value
+        where = " AND ".join(conditions)
+        try:
+            counts = await self.client.query(
+                f"SELECT count() AS total FROM document WHERE {where} GROUP ALL;", variables,
+            )
+            rows = await self.client.query(
+                "SELECT id, title, source.original_filename AS original_filename, "
+                "document_type, document_number, language, page_count, created_at "
+                f"FROM document WHERE {where} ORDER BY created_at DESC, id ASC "
+                "LIMIT $limit START $offset;", variables,
+            )
+            facets = await self.client.query(
+                "SELECT document_type, language FROM document WHERE process_status = 'indexed' "
+                "GROUP BY document_type, language;"
+            )
+            return {
+                "items": [{**row, "document_id": str(row["id"]),
+                           "created_at": str(row["created_at"])} for row in rows],
+                "total": int(counts[0]["total"]) if counts else 0,
+                "page": page, "page_size": page_size,
+                "document_types": sorted({row["document_type"] for row in facets
+                                          if isinstance(row.get("document_type"), str)}),
+                "languages": sorted({row["language"] for row in facets
+                                     if isinstance(row.get("language"), str)}),
+            }
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to list indexed documents") from error
+
     async def create_document(
         self, record_id: str, document: Mapping[str, Any]
     ) -> None:
@@ -191,7 +237,7 @@ class SurrealDatabase:
             f"CREATE job:{job_record_id} CONTENT {{"
             f"document_id: document:{record_id}, type: 'ocr_pdf', "
             "dedupe_key: 'ocr_pdf', status: 'queued', step: 'queued', "
-            "payload: {}, progress: 0, sequence: 1}; "
+            "payload: {}, progress: 0, version: 1}; "
             "COMMIT TRANSACTION;"
         )
         try:
@@ -225,19 +271,19 @@ class SurrealDatabase:
         return rows[0] if rows else None
 
     async def claim_job(
-        self, job_id: str, claim_id: str, job_type: str
+        self, job_id: str, attempt_id: str, job_type: str
     ) -> Mapping[str, Any] | None:
         record_id = _record_id(job_id)
-        if not _JOB_ID.fullmatch(record_id) or not re.fullmatch(r"[0-9a-f]{32}", claim_id):
+        if not _JOB_ID.fullmatch(record_id) or not re.fullmatch(r"[0-9a-f]{32}", attempt_id):
             return None
         for attempt in range(5):
             try:
                 rows = await self.client.query(
                     f"UPDATE job:{record_id} SET status = 'running', step = 'claimed', "
-                    "progress = 5, claim_id = $claim_id, worker_id = $worker_id, "
-                    "worker_run_id = $worker_run_id, sequence += 1 "
+                    "progress = 5, attempt_id = $attempt_id, worker_id = $worker_id, "
+                    "worker_run_id = $worker_run_id, version += 1 "
                     "WHERE status = 'queued' AND type = $type RETURN AFTER;",
-                    {"claim_id": claim_id, "type": job_type,
+                    {"attempt_id": attempt_id, "type": job_type,
                      "worker_id": self._settings.worker_id, "worker_run_id": self.worker_run_id},
                 )
                 if rows:
@@ -245,7 +291,7 @@ class SurrealDatabase:
                 existing = await self.get_job(job_id)
                 return (
                     existing if existing and existing.get("status") == "running"
-                    and existing.get("claim_id") == claim_id
+                    and existing.get("attempt_id") == attempt_id
                     and existing.get("type") == job_type else None
                 )
             except Exception as error:
@@ -255,7 +301,7 @@ class SurrealDatabase:
         return None
 
     async def job_progress(
-        self, job_id: str, claim_id: str, changes: Mapping[str, Any]
+        self, job_id: str, attempt_id: str, changes: Mapping[str, Any]
     ) -> Mapping[str, Any] | None:
         record_id = _record_id(job_id)
         fields = {"step", "progress"}
@@ -264,7 +310,7 @@ class SurrealDatabase:
         if "progress" in changes and (type(changes["progress"]) is not int or not 0 <= changes["progress"] < 100):
             raise ValueError("Running progress must be an integer below 100")
         previous = await self.get_job(job_id)
-        if previous is None or previous.get("claim_id") != claim_id or previous.get("status") != "running":
+        if previous is None or previous.get("attempt_id") != attempt_id or previous.get("status") != "running":
             return None
         if int(changes.get("progress", previous["progress"])) < int(previous["progress"]):
             return None
@@ -272,13 +318,13 @@ class SurrealDatabase:
             return previous
         assignments = ", ".join(f"{field} = $changes.{field}" for field in changes)
         rows = await self.client.query(
-            f"UPDATE job:{record_id} SET {assignments}, sequence += 1 "
-            "WHERE status = 'running' AND claim_id = $claim_id "
-            "AND progress <= $minimum_progress AND sequence = $sequence RETURN AFTER;",
+            f"UPDATE job:{record_id} SET {assignments}, version += 1 "
+            "WHERE status = 'running' AND attempt_id = $attempt_id "
+            "AND progress <= $minimum_progress AND version = $version RETURN AFTER;",
             {
-                "claim_id": claim_id, "changes": dict(changes),
+                "attempt_id": attempt_id, "changes": dict(changes),
                 "minimum_progress": changes.get("progress", previous["progress"]),
-                "sequence": previous["sequence"],
+                "version": previous["version"],
             },
         )
         return rows[0] if rows else None
@@ -364,7 +410,7 @@ class SurrealDatabase:
             f"CREATE job:{job_record_id} CONTENT {{"
             f"document_id: document:{document_record_id}, payload: {{index_input_id: index_input:{input_record_id}, confirmation_fingerprint: $fingerprint}}, "
             "type: 'index_document', dedupe_key: 'index_document', "
-            "status: 'queued', step: 'queued', progress: 0, sequence: 1}; "
+            "status: 'queued', step: 'queued', progress: 0, version: 1}; "
             "COMMIT TRANSACTION;"
         )
         try:
@@ -383,14 +429,14 @@ class SurrealDatabase:
         return await self.get_job(job_record_id)
 
     async def complete_index_job(
-        self, job_id: str, claim_id: str, chunks: list[Mapping[str, Any]], model: str
+        self, job_id: str, attempt_id: str, chunks: list[Mapping[str, Any]], model: str
     ) -> Mapping[str, Any] | None:
         job = await self.get_job(job_id)
         if job is None or job.get("type") != "index_document":
             return None
-        if job.get("status") == "completed" and job.get("claim_id") == claim_id:
+        if job.get("status") == "completed" and job.get("attempt_id") == attempt_id:
             return job
-        if job.get("status") != "running" or job.get("claim_id") != claim_id:
+        if job.get("status") != "running" or job.get("attempt_id") != attempt_id:
             return None
         document_id = str(job["document_id"])
         index_input_id = str(job["payload"].get("index_input_id", ""))
@@ -399,13 +445,13 @@ class SurrealDatabase:
         record_id = _record_id(job_id)
         statements = [
             "BEGIN TRANSACTION;",
-            f"LET $claimed = (SELECT id FROM job:{record_id} WHERE status = 'running' AND claim_id = $claim_id);",
+            f"LET $claimed = (SELECT id FROM job:{record_id} WHERE status = 'running' AND attempt_id = $attempt_id);",
             "IF array::len($claimed) = 0 THEN THROW 'job_claim_conflict'; END;",
             f"LET $input = (SELECT id FROM {index_input_id} WHERE document_id = {document_id});",
             "IF array::len($input) = 0 THEN THROW 'index_input_conflict'; END;",
             f"DELETE chunk WHERE document_id = {document_id};",
         ]
-        variables: dict[str, Any] = {"claim_id": claim_id, "model": model}
+        variables: dict[str, Any] = {"attempt_id": attempt_id, "model": model}
         for index, chunk in enumerate(chunks):
             key = f"chunk_{index}"
             variables[key] = dict(chunk)
@@ -420,21 +466,21 @@ class SurrealDatabase:
             "embedding_model = $model WHERE process_status = 'indexing' RETURN AFTER);",
             "IF array::len($document) = 0 THEN THROW 'document_not_indexing'; END;",
             f"LET $job = (UPDATE job:{record_id} SET status = 'completed', step = 'completed', "
-            "progress = 100, sequence += 1 WHERE status = 'running' AND claim_id = $claim_id RETURN AFTER);",
+            "progress = 100, version += 1 WHERE status = 'running' AND attempt_id = $attempt_id RETURN AFTER);",
             "IF array::len($job) = 0 THEN THROW 'job_claim_conflict'; END;",
             f"DELETE {index_input_id};",
             f"DELETE ocr_draft WHERE document_id = {document_id};",
             "COMMIT TRANSACTION;",
         ])
         started = time.monotonic()
-        context = {"job_id": job_id, "claim_id": claim_id, "chunk_count": len(chunks)}
+        context = {"job_id": job_id, "attempt_id": attempt_id, "chunk_count": len(chunks)}
         logger = logging.getLogger(__name__)
         logger.info("index_commit_enter", extra=context)
         try:
             await self.client.query(" ".join(statements), variables,
                                     timeout_seconds=self._settings.index_commit_timeout_seconds)
             completed = await self.get_job(job_id)
-            if not completed or completed.get("status") != "completed" or completed.get("claim_id") != claim_id:
+            if not completed or completed.get("status") != "completed" or completed.get("attempt_id") != attempt_id:
                 raise SurrealDatabaseError("Index completion did not persist for this claim")
             logger.info("index_commit_completed", extra={**context, "duration_seconds": time.monotonic() - started})
             return completed
@@ -459,9 +505,9 @@ class SurrealDatabase:
             raise SurrealDatabaseError("Unable to read index input") from error
         return rows[0] if rows else None
 
-    async def fail_index_job(self, job_id: str, claim_id: str, error: str) -> None:
+    async def fail_index_job(self, job_id: str, attempt_id: str, error: str) -> None:
         job = await self.get_job(job_id)
-        if job is None or job.get("status") != "running" or job.get("claim_id") != claim_id:
+        if job is None or job.get("status") != "running" or job.get("attempt_id") != attempt_id:
             return
         document_id = str(job["document_id"])
         record_id = _record_id(job_id)
@@ -470,12 +516,12 @@ class SurrealDatabase:
         await self.client.query(
             "BEGIN TRANSACTION; "
             f"LET $job = (UPDATE job:{record_id} SET status = 'failed', step = 'failed', "
-            "error = $error, sequence += 1 WHERE status = 'running' "
-            "AND claim_id = $claim_id RETURN AFTER); "
+            "error = $error, version += 1 WHERE status = 'running' "
+            "AND attempt_id = $attempt_id RETURN AFTER); "
             "IF array::len($job) = 0 THEN THROW 'job_claim_conflict'; END; "
             f"UPDATE {document_id} SET process_status = 'failed' WHERE process_status = 'indexing'; "
             "COMMIT TRANSACTION;",
-            {"claim_id": claim_id, "error": error[:500]},
+            {"attempt_id": attempt_id, "error": error[:500]},
         )
 
     async def requeue_failed_index_job(self, job_id: str) -> Mapping[str, Any] | None:
@@ -494,8 +540,8 @@ class SurrealDatabase:
                 f"LET $input = (SELECT id FROM {input_id} WHERE document_id = {document_id}); "
                 "IF array::len($input) = 0 THEN THROW 'retry_conflict'; END; "
                 f"LET $job = (UPDATE job:{_record_id(job_id)} SET status = 'queued', "
-                "step = 'queued', progress = 0, claim_id = NONE, "
-                "worker_id = NONE, worker_run_id = NONE, error = NONE, sequence += 1 "
+                "step = 'queued', progress = 0, attempt_id = NONE, "
+                "worker_id = NONE, worker_run_id = NONE, error = NONE, version += 1 "
                 "WHERE type = 'index_document' AND status = 'failed' "
                 "AND payload.index_input_id = $input_id RETURN AFTER); "
                 "IF array::len($job) = 0 THEN THROW 'retry_conflict'; END; "
@@ -510,98 +556,92 @@ class SurrealDatabase:
             raise SurrealDatabaseError("Unable to requeue failed index job") from error
         return await self.get_job(job_id)
 
-    async def indexed_chunks(self, document_record_id: str) -> list[Mapping[str, Any]] | None:
-        document = await self.get_document(document_record_id)
-        if document is None or document.get("process_status") != "indexed":
-            return None
-        chunks = await self.client.query(
-            "SELECT * FROM chunk WHERE document_id = type::record('document', $id) "
-            "ORDER BY position.chunk_index ASC;", {"id": document_record_id},
-        )
-        from app.api.v1.jobs import _as_response
-
-        for chunk in chunks:
-            inputs = await self.client.query(
-                "SELECT * FROM chunk_correction_input WHERE chunk_id = $chunk_id "
-                "ORDER BY created_at DESC LIMIT 1;", {"chunk_id": chunk["id"]},
+    async def indexed_document(self, document_record_id: str) -> tuple[Mapping, list[Mapping]] | None:
+        """Read the header, chunks and operation states from one database snapshot."""
+        try:
+            response = await self.client.query_raw(
+                "BEGIN TRANSACTION; "
+                "SELECT *, type::string(updated_at) AS metadata_version FROM $document; "
+                "SELECT * FROM chunk WHERE document_id = $document ORDER BY position.chunk_index; "
+                "SELECT * FROM job WHERE document_id = $document AND type INSIDE ['correct_chunks', 'reembed_chunk'] "
+                "ORDER BY created_at DESC, id DESC; COMMIT TRANSACTION;",
+                {"document": RecordID("document", document_record_id)},
             )
+        except Exception as error:
+            raise SurrealDatabaseError("Unable to read indexed document") from error
+        results = response["result"]
+        documents, chunks, jobs = [entry["result"] for entry in results[1:4]]
+        if not documents:
+            return None
+        by_id = {str(job["id"]): job for job in jobs}
+        latest = {}
+        for job in jobs:
+            if job["type"] == "correct_chunks":
+                latest.setdefault(str(job["payload"]["chunk_id"]), job)
+        from app.api.v1.jobs import _as_response
+        for chunk in chunks:
+            parent = latest.get(str(chunk["id"]))
             chunk["correction"] = None
-            if inputs:
-                captured = inputs[0]
-                parent = await self.get_job(str(captured["job_id"]))
-                if parent:
-                    children = await self.followup_jobs(str(parent["id"]))
-                    chunk["correction"] = {
-                        "input_id": str(captured["id"]), "outcome": captured["status"],
-                        "job": _as_response(parent).model_dump(),
-                        "children": [_as_response(child).model_dump() for child in children],
-                        "chunk_child_ids": [str(child["id"]) for child in children
-                                            if str(child["payload"].get("chunk_id")) == str(chunk["id"])],
-                    }
-        return chunks
+            if parent:
+                children = [by_id[str(child)] for child in parent.get("followup_job_ids", []) if str(child) in by_id]
+                chunk["correction"] = {
+                    "outcome": "pending" if parent["status"] in ("queued", "running") else parent["result"]["outcome"],
+                    "job": _as_response(parent).model_dump(),
+                    "children": [_as_response(child).model_dump() for child in children],
+                    "chunk_child_ids": [str(child["id"]) for child in children
+                                        if str(child["payload"]["chunk_id"]) == str(chunk["id"])],
+                }
+        return documents[0], chunks
 
-    async def request_chunk_correction(
-        self, document_record_id: str, chunk_id: str
-    ) -> Mapping[str, Any] | None:
-        """Create one automatically-applied correction request under chunk locks.
+    async def indexed_chunks(self, document_record_id: str) -> list[Mapping[str, Any]] | None:
+        result = await self.indexed_document(document_record_id)
+        if result is None or result[0]["process_status"] != "indexed":
+            return None
+        return result[1]
 
-        Capturing the text and taking the durable lock are one transaction.  The
-        earlier read is used only to build guarded statements; every mutable
-        value is checked again by the transaction.
-        """
+    async def update_indexed_metadata(self, document_record_id: str, expected_version: str,
+                                      metadata: Mapping) -> Mapping | None:
+        fields = ("title", "document_type", "document_number", "description", "language", "cohort", "program_scope")
+        assignments = ", ".join(f"{field} = IF $metadata.{field} IS NULL THEN NONE ELSE $metadata.{field} END" for field in fields)
+        try:
+            response = await self.client.query_raw(
+                "BEGIN TRANSACTION; LET $saved = (UPDATE $document SET " + assignments +
+                " WHERE process_status = 'indexed' AND type::string(updated_at) = $version RETURN AFTER); "
+                "RETURN IF array::len($saved) = 0 THEN NONE ELSE "
+                "object::extend($saved[0], {metadata_version: type::string($saved[0].updated_at)}) END; COMMIT TRANSACTION;",
+                {"document": RecordID("document", document_record_id), "version": expected_version, "metadata": dict(metadata)},
+            )
+        except Exception as error:
+            if "Transaction conflict" in str(error):
+                return None
+            raise SurrealDatabaseError("Unable to update indexed metadata") from error
+        return response["result"][2]["result"]
+
+    async def request_chunk_correction(self, document_record_id: str, chunk_id: str) -> Mapping[str, Any] | None:
+        """Capture exactly the locked row; lock and immutable job commit together."""
         if not isinstance(chunk_id, str) or not re.fullmatch(r"chunk:chunk_[0-9a-f]{32}", chunk_id):
             return None
-        chunks = await self.indexed_chunks(document_record_id)
-        if chunks is None:
-            return None
-        selected = [chunk for chunk in chunks if str(chunk["id"]) == chunk_id]
-        if len(selected) != 1:
-            return None
-        job_record_id = f"job_{uuid4().hex}"
-        input_record_id = f"input_{uuid4().hex}"
-        validate_payload("correct_chunks", {"chunk_id": chunk_id, "correction_input_id": f"chunk_correction_input:{input_record_id}"})
-        statements = ["BEGIN TRANSACTION;",
-                      f"LET $document = (SELECT id FROM document:{document_record_id} WHERE process_status = 'indexed');",
-                      "IF array::len($document) = 0 THEN THROW 'not_indexed'; END;",
-                      f"CREATE job:{job_record_id} CONTENT {{document_id: document:{document_record_id}, "
-                      f"type: 'correct_chunks', dedupe_key: 'correct_chunks:{uuid4().hex}', "
-                      f"payload: {{chunk_id: {chunk_id}, correction_input_id: chunk_correction_input:{input_record_id}}}, followup_job_ids: [], "
-                      "status: 'queued', step: 'queued', progress: 0, sequence: 1};"]
-        variables: dict[str, Any] = {}
-        for index, chunk in enumerate(selected):
-            chunk_id = str(chunk["id"])
-            variables[f"base_{index}"] = str(chunk["text"])
-            statements.extend([
-                f"LET $lock_{index} = (UPDATE {chunk_id} SET active_job_id = job:{job_record_id} "
-                f"WHERE document_id = document:{document_record_id} AND text = $base_{index} "
-                "AND active_job_id IS NONE RETURN AFTER);",
-                f"IF array::len($lock_{index}) = 0 THEN THROW 'chunk_busy_or_changed'; END;",
-                f"CREATE chunk_correction_input:{input_record_id} CONTENT {{"
-                f"document_id: document:{document_record_id}, chunk_id: {chunk_id}, job_id: job:{job_record_id}, "
-                f"base_text: $base_{index}, embedding_text: $lock_{index}[0].embedding_text, "
-                f"embedding_version: $lock_{index}[0].embedding_version, hierarchy: $lock_{index}[0].hierarchy, "
-                f"embedding_status: $lock_{index}[0].embedding_status, status: 'pending'}};",
-            ])
-        statements.append("COMMIT TRANSACTION;")
+        job_id = "job_" + uuid4().hex
         try:
-            await self.client.query(" ".join(statements), variables)
+            await self.client.query(
+                "BEGIN TRANSACTION; LET $document = (SELECT id FROM $document_id WHERE process_status = 'indexed'); "
+                "IF array::len($document) = 0 THEN THROW 'not_indexed'; END; "
+                "LET $locked = (UPDATE $chunk_id SET active_job_id = $job_id "
+                "WHERE document_id = $document_id AND active_job_id IS NONE RETURN AFTER); "
+                "IF array::len($locked) = 0 THEN THROW 'chunk_busy_or_changed'; END; "
+                "CREATE $job_id CONTENT {document_id: $document_id, type: 'correct_chunks', dedupe_key: $dedupe, "
+                "payload: {chunk_id: $chunk_id, base_text: $locked[0].text, embedding_text: $locked[0].embedding_text, "
+                "embedding_version: $locked[0].embedding_version, embedding_status: $locked[0].embedding_status, "
+                "hierarchy: $locked[0].hierarchy}, status: 'queued', step: 'queued', progress: 0, version: 1}; "
+                "COMMIT TRANSACTION;",
+                {"document_id": RecordID("document", document_record_id), "chunk_id": RecordID("chunk", _record_id(chunk_id)),
+                 "job_id": RecordID("job", job_id), "dedupe": "correct_chunks:" + uuid4().hex},
+            )
         except Exception as error:
-            if any(marker in str(error) for marker in ("chunk_busy_or_changed", "not_indexed")):
+            if any(marker in str(error) for marker in ("chunk_busy_or_changed", "not_indexed", "Transaction conflict")):
                 return None
             raise SurrealDatabaseError("Unable to request chunk correction") from error
-        return await self.get_job(job_record_id)
-
-    async def correction_inputs(self, job_id: str) -> list[Mapping[str, Any]]:
-        job = await self.get_job(job_id)
-        if not job or job["type"] != "correct_chunks":
-            return []
-        payload = validate_payload(job["type"], job["payload"])
-        rows = await self.client.query(
-            f"SELECT * FROM {payload.correction_input_id} WHERE job_id = $job_id "
-            "AND chunk_id = $chunk_id AND document_id = $document_id;",
-            {"job_id": job["id"], "chunk_id": job["payload"]["chunk_id"], "document_id": job["document_id"]},
-        )
-        return rows
+        return await self.get_job(job_id)
 
     async def followup_jobs(self, job_id: str) -> list[Mapping[str, Any]]:
         """Return the optional durable child for a completed correction."""
@@ -617,128 +657,70 @@ class SurrealDatabase:
                 rows.append(child)
         return rows
 
-    async def apply_chunk_corrections(
-        self, job_id: str, claim_id: str, corrections: Mapping[str, str],
-    ) -> list[Mapping[str, Any]] | None:
-        """Atomically apply one captured result and create its optional child.
-
-        The model call happens before this operation. A conflict aborts both
-        the text change and creation of the embedding child.
-        """
-
-        record_id = _record_id(job_id)
-        if not _JOB_ID.fullmatch(record_id):
-            return None
+    async def apply_chunk_correction(self, job_id: str, attempt_id: str, proposed_text: str) -> list[Mapping] | None:
+        """Fence snapshot and attempt, then commit text, result and child atomically."""
         job = await self.get_job(job_id)
-        if job and job.get("status") == "completed" and job.get("claim_id") == claim_id:
+        if not job or job["type"] != "correct_chunks":
+            return None
+        if job["status"] == "completed" and job.get("attempt_id") == attempt_id:
             return await self.followup_jobs(job_id)
-        inputs = await self.correction_inputs(job_id)
-        if len(inputs) != 1 or set(map(str, (row["id"] for row in inputs))) != set(corrections):
-            raise ValueError("Correction results do not match the selected chunks")
+        captured = validate_payload("correct_chunks", job["payload"])
+        if not isinstance(proposed_text, str) or not proposed_text.strip():
+            raise ValueError("Correction result must contain usable text")
         from app.application.chunking import build_embedding_text
-
+        changed = proposed_text != captured.base_text
+        child_id = RecordID("job", "job_" + uuid4().hex) if changed or captured.embedding_status == "stale" else None
+        embedding = build_embedding_text(captured.hierarchy.model_dump(), proposed_text) if changed else captured.embedding_text
+        variables = {"job_id": job["id"], "chunk_id": job["payload"]["chunk_id"], "document_id": job["document_id"],
+                     "attempt": attempt_id, "base": captured.base_text, "captured_embedding": captured.embedding_text,
+                     "captured_version": captured.embedding_version, "hierarchy": job["payload"]["hierarchy"],
+                     "captured_status": captured.embedding_status, "proposed": proposed_text,
+                     "outcome": "applied" if changed else "unchanged", "child_id": child_id,
+                     "embedding": embedding, "tokens": len(proposed_text.split()),
+                     "next_version": captured.embedding_version + int(changed), "children": [child_id] if child_id else [],
+                     "dedupe": "reembed_chunk:" + uuid4().hex}
         statements = [
-            "BEGIN TRANSACTION;",
-            f"LET $parent = (UPDATE job:{record_id} SET sequence += 1 "
-            "WHERE type = 'correct_chunks' "
-            "AND status = 'running' AND claim_id = $claim_id RETURN AFTER);",
-            "IF array::len($parent) = 0 THEN THROW 'claim_conflict'; END;",
-            "LET $document = (SELECT id FROM document WHERE id = $parent[0].document_id AND process_status = 'indexed');",
-            "IF array::len($document) = 0 THEN THROW 'chunk_conflict'; END;",
+            "BEGIN TRANSACTION; LET $parent = (UPDATE $job_id SET version += 1 WHERE type = 'correct_chunks' "
+            "AND status = 'running' AND attempt_id = $attempt RETURN AFTER); "
+            "IF array::len($parent) = 0 THEN THROW 'claim_conflict'; END; "
+            "LET $document = (SELECT id FROM $document_id WHERE process_status = 'indexed'); "
+            "IF array::len($document) = 0 THEN THROW 'chunk_conflict'; END; "
+            "LET $fence = (SELECT id FROM $chunk_id WHERE document_id = $document_id "
+            "AND text = $base AND embedding_text = $captured_embedding AND embedding_version = $captured_version "
+            "AND hierarchy = $hierarchy AND embedding_status = $captured_status AND active_job_id = $job_id); "
+            "IF array::len($fence) = 0 THEN THROW 'chunk_conflict'; END;"
         ]
-        variables: dict[str, Any] = {"claim_id": claim_id}
-        child_ids: list[str] = []
-        for index, captured in enumerate(inputs):
-            input_id = _record_id(captured["id"])
-            chunk_id = str(captured["chunk_id"])
-            proposed = corrections[str(captured["id"])]
-            base = str(captured["base_text"])
-            changed = proposed != base
-            stale = captured["embedding_status"] == "stale"
-            if not re.fullmatch(r"input_[0-9a-f]{32}", input_id) or not re.fullmatch(r"chunk:chunk_[0-9a-f]{32}", chunk_id):
-                raise ValueError("Invalid correction input ID")
-            variables.update({f"captured_embedding_{index}": captured["embedding_text"],
-                              f"version_{index}": captured["embedding_version"],
-                              f"hierarchy_{index}": captured["hierarchy"],
-                              f"document_{index}": captured["document_id"],
-                              f"captured_status_{index}": captured["embedding_status"]})
-            statements.extend([
-                f"LET $fence_{index} = (SELECT id FROM {chunk_id} WHERE document_id = $document_{index} "
-                f"AND document_id = $parent[0].document_id AND text = $base_{index} "
-                f"AND embedding_text = $captured_embedding_{index} AND embedding_version = $version_{index} "
-                f"AND hierarchy = $hierarchy_{index} AND embedding_status = $captured_status_{index} "
-                f"AND active_job_id = job:{record_id});",
-                f"IF array::len($fence_{index}) = 0 THEN THROW 'chunk_conflict'; END;",
-            ])
-            child_id = f"job_{uuid4().hex}" if changed or stale else None
-            variables.update({f"base_{index}": base, f"proposed_{index}": proposed})
-            statements.extend([
-                f"LET $input_{index} = (UPDATE chunk_correction_input:{input_id} SET proposed_text = $proposed_{index}, "
-                f"status = $audit_status_{index} WHERE job_id = job:{record_id} AND status = 'pending' "
-                f"AND chunk_id = {chunk_id} AND document_id = $document_{index} AND base_text = $base_{index} "
-                f"AND embedding_text = $captured_embedding_{index} AND embedding_version = $version_{index} "
-                f"AND hierarchy = $hierarchy_{index} AND embedding_status = $captured_status_{index} RETURN AFTER);",
-                f"IF array::len($input_{index}) = 0 THEN THROW 'input_conflict'; END;",
-            ])
-            variables[f"audit_status_{index}"] = "applied" if changed else "unchanged"
-            if changed:
-                hierarchy = captured["hierarchy"]
-                embedding_text = build_embedding_text(hierarchy, proposed)
-                variables.update({f"embedding_{index}": embedding_text, f"tokens_{index}": len(proposed.split())})
-                # The child lock is installed with the text update, so a new
-                # Correct request cannot race the queued embedding.
-                statements.extend([
-                    f"LET $chunk_{index} = (UPDATE {chunk_id} SET text = $proposed_{index}, "
-                    f"embedding_text = $embedding_{index}, token_count = $tokens_{index}, embedding_status = 'stale', embedding_version += 1, "
-                    f"active_job_id = job:{child_id}, last_embedding_job_id = job:{child_id} WHERE text = $base_{index} AND active_job_id = job:{record_id} RETURN AFTER);",
-                    f"IF array::len($chunk_{index}) = 0 THEN THROW 'chunk_conflict'; END;",
-                ])
-            elif child_id:
-                statements.extend([
-                    f"LET $chunk_{index} = (UPDATE {chunk_id} SET active_job_id = job:{child_id}, last_embedding_job_id = job:{child_id} "
-                    f"WHERE text = $base_{index} AND active_job_id = job:{record_id} AND embedding_status = 'stale' RETURN AFTER);",
-                    f"IF array::len($chunk_{index}) = 0 THEN THROW 'chunk_conflict'; END;",
-                ])
-            else:
-                statements.extend([
-                    f"LET $chunk_{index} = (UPDATE {chunk_id} SET active_job_id = NONE "
-                    f"WHERE text = $base_{index} AND active_job_id = job:{record_id} RETURN AFTER);",
-                    f"IF array::len($chunk_{index}) = 0 THEN THROW 'chunk_conflict'; END;",
-                ])
-            if child_id:
-                child_ids.append(child_id)
-                # For a changed chunk the transaction writes this same value;
-                # for stale no-op it is the current captured input.
-                if not changed:
-                    variables[f"embedding_{index}"] = captured["embedding_text"]
-                validate_payload("reembed_chunk", {"chunk_id": chunk_id, "embedding_text": variables[f"embedding_{index}"], "embedding_version": captured["embedding_version"] + int(changed)})
-                statements.append(
-                    f"CREATE job:{child_id} CONTENT {{document_id: {str(job['document_id'])}, payload: {{chunk_id: {chunk_id}, "
-                    f"embedding_version: {captured['embedding_version'] + int(changed)}, embedding_text: $embedding_{index}}}, type: 'reembed_chunk', dedupe_key: 'reembed_chunk:{uuid4().hex}', "
-                    "status: 'queued', step: 'queued', progress: 0, sequence: 1};"
-                )
-        followups = "[" + ", ".join(f"job:{child_id}" for child_id in child_ids) + "]"
-        statements.extend([
-            f"LET $complete = (UPDATE job:{record_id} SET status = 'completed', step = 'completed', progress = 100, "
-            f"followup_job_ids = {followups}, sequence += 1 WHERE status = 'running' AND claim_id = $claim_id RETURN AFTER);",
-            "IF array::len($complete) = 0 THEN THROW 'claim_conflict'; END;",
-            "COMMIT TRANSACTION;",
-        ])
+        if changed:
+            statements.append("UPDATE $chunk_id SET text = $proposed, embedding_text = $embedding, token_count = $tokens, "
+                              "embedding_status = 'stale', embedding_version = $next_version, "
+                              "active_job_id = $child_id, last_embedding_job_id = $child_id;")
+        elif child_id:
+            statements.append("UPDATE $chunk_id SET active_job_id = $child_id, last_embedding_job_id = $child_id;")
+        else:
+            statements.append("UPDATE $chunk_id SET active_job_id = NONE;")
+        if child_id:
+            validate_payload("reembed_chunk", {"chunk_id": captured.chunk_id, "embedding_text": embedding,
+                                               "embedding_version": variables["next_version"]})
+            statements.append("CREATE $child_id CONTENT {document_id: $document_id, type: 'reembed_chunk', dedupe_key: $dedupe, "
+                              "payload: {chunk_id: $chunk_id, embedding_text: $embedding, embedding_version: $next_version}, "
+                              "status: 'queued', step: 'queued', progress: 0, version: 1};")
+        statements.append("UPDATE $job_id SET result = {outcome: $outcome, proposed_text: $proposed}, "
+                          "status = 'completed', step = 'completed', progress = 100, followup_job_ids = $children, version += 1; "
+                          "COMMIT TRANSACTION;")
         try:
             await self.client.query(" ".join(statements), variables)
         except Exception as error:
-            if any(marker in str(error) for marker in ("claim_conflict", "input_conflict", "chunk_conflict")):
+            if any(marker in str(error) for marker in ("claim_conflict", "chunk_conflict")):
                 return None
-            # A timeout can occur after commit.  Durable state is authoritative.
-            current = await self.reconcile_failure(job_id, claim_id, "Correction commit failed")
-            if current.get("status") == "completed" and current.get("claim_id") == claim_id:
+            current = await self.reconcile_failure(job_id, attempt_id, "Correction commit failed")
+            if current.get("status") == "completed" and current.get("attempt_id") == attempt_id:
                 return current.get("_followups", [])
-            raise SurrealDatabaseError("Unable to apply chunk corrections") from error
+            raise SurrealDatabaseError("Unable to apply chunk correction") from error
         return await self.followup_jobs(job_id)
 
-    async def complete_reembed_job(self, job_id: str, claim_id: str, embedding_text: str, vector: list[float]) -> Mapping[str, Any] | None:
+    async def complete_reembed_job(self, job_id: str, attempt_id: str, embedding_text: str, vector: list[float]) -> Mapping[str, Any] | None:
         job = await self.get_job(job_id)
-        if job is None or job.get("status") != "running" or job.get("claim_id") != claim_id:
+        if job is None or job.get("status") != "running" or job.get("attempt_id") != attempt_id:
             return None
         chunk_id = str(job["payload"]["chunk_id"])
         record_id = _record_id(job_id)
@@ -750,7 +732,7 @@ class SurrealDatabase:
             await self.client.query(
                 "BEGIN TRANSACTION; "
                 f"LET $job = (UPDATE job:{record_id} SET status = 'completed', step = 'completed', "
-                "progress = 100, sequence += 1 WHERE status = 'running' AND claim_id = $claim_id "
+                "progress = 100, version += 1 WHERE status = 'running' AND attempt_id = $attempt_id "
                 "AND payload.embedding_text = $embedding_text AND payload.embedding_version = $version RETURN AFTER); "
                 "IF array::len($job) = 0 THEN THROW 'claim_conflict'; END; "
                 f"LET $chunk = (UPDATE {chunk_id} SET embedding = $vector, embedding_status = 'ok', active_job_id = NONE "
@@ -758,7 +740,7 @@ class SurrealDatabase:
                 "AND last_embedding_job_id = $job[0].id AND document_id = $job[0].document_id "
                 "AND embedding_version = $version RETURN AFTER); "
                 "IF array::len($chunk) = 0 THEN THROW 'chunk_conflict'; END; COMMIT TRANSACTION;",
-                {"claim_id": claim_id, "embedding_text": embedding_text,
+                {"attempt_id": attempt_id, "embedding_text": embedding_text,
                  "version": job["payload"]["embedding_version"], "vector": vector},
             )
         except Exception as error:
@@ -767,13 +749,13 @@ class SurrealDatabase:
             raise
         return await self.get_job(job_id)
 
-    async def fail_reembed_job(self, job_id: str, claim_id: str, error: str) -> None:
-        await self.fail_claim(job_id, claim_id, error)
+    async def fail_reembed_job(self, job_id: str, attempt_id: str, error: str) -> None:
+        await self.fail_claim(job_id, attempt_id, error)
 
     async def apply_ocr_result(
         self, document_record_id: str, draft_record_id: str,
         pages: list[Mapping[str, Any]], metadata: Mapping[str, Any],
-        job_id: str | None = None, claim_id: str | None = None,
+        job_id: str | None = None, attempt_id: str | None = None,
     ) -> str:
         """Commit a new draft and review state together; never rewrite a draft."""
 
@@ -781,7 +763,7 @@ class SurrealDatabase:
             raise ValueError("Invalid document ID")
         if not re.fullmatch(r"ocr_job_[0-9a-f]{32}", draft_record_id):
             raise ValueError("Invalid draft ID")
-        if (job_id is None) != (claim_id is None):
+        if (job_id is None) != (attempt_id is None):
             raise ValueError("Job and claim IDs must be supplied together")
         job_record_id = _record_id(job_id) if job_id else None
         if job_record_id is not None and not _JOB_ID.fullmatch(job_record_id):
@@ -791,7 +773,7 @@ class SurrealDatabase:
         if existing:
             if job_id is not None:
                 completed = await self.get_job(job_id)
-                if completed is None or completed.get("status") != "completed" or completed.get("claim_id") != claim_id:
+                if completed is None or completed.get("status") != "completed" or completed.get("attempt_id") != attempt_id:
                     raise SurrealDatabaseError("OCR draft belongs to a different claim")
             return draft_id
         document = await self.get_document(document_record_id)
@@ -800,7 +782,7 @@ class SurrealDatabase:
         job_completion = (
             f"LET $completed = (UPDATE job:{job_record_id} SET status = 'completed', "
             f"step = 'completed', progress = 100, "
-            "sequence += 1 WHERE status = 'running' AND claim_id = $claim_id "
+            "version += 1 WHERE status = 'running' AND attempt_id = $attempt_id "
             "RETURN AFTER); "
             "IF array::len($completed) = 0 THEN THROW 'job_claim_conflict'; END; "
             if job_record_id else ""
@@ -809,7 +791,7 @@ class SurrealDatabase:
             "BEGIN TRANSACTION; "
             + (
                 f"LET $claimed = (SELECT id FROM job:{job_record_id} "
-                "WHERE status = 'running' AND claim_id = $claim_id); "
+                "WHERE status = 'running' AND attempt_id = $attempt_id); "
                 "IF array::len($claimed) = 0 THEN THROW 'job_claim_conflict'; END; "
                 if job_record_id else ""
             )
@@ -831,7 +813,7 @@ class SurrealDatabase:
                             "process_status": "review",
                             "page_count": len(pages),
                         },
-                        "claim_id": claim_id},
+                        "attempt_id": attempt_id},
             )
             return draft_id
         except Exception as error:
@@ -843,13 +825,13 @@ class SurrealDatabase:
             raise SurrealDatabaseError("Unable to apply OCR result") from error
 
     async def fail_job(
-        self, job_id: str, claim_id: str, error: str
+        self, job_id: str, attempt_id: str, error: str
     ) -> Mapping[str, Any] | None:
         record_id = _record_id(job_id)
         if not _JOB_ID.fullmatch(record_id):
             return None
         existing = await self.get_job(job_id)
-        if existing is None or existing.get("claim_id") != claim_id:
+        if existing is None or existing.get("attempt_id") != attempt_id:
             return None
         if existing.get("status") == "failed":
             return existing
@@ -864,27 +846,27 @@ class SurrealDatabase:
             "WHERE process_status = 'processing' RETURN AFTER); "
             "IF array::len($failed_document) = 0 THEN THROW 'document_not_processing'; END; "
             f"LET $failed_job = (UPDATE job:{record_id} SET status = 'failed', "
-            "step = 'failed', error = $error, sequence += 1 "
-            "WHERE status = 'running' AND claim_id = $claim_id RETURN AFTER); "
+            "step = 'failed', error = $error, version += 1 "
+            "WHERE status = 'running' AND attempt_id = $attempt_id RETURN AFTER); "
             "IF array::len($failed_job) = 0 THEN THROW 'job_claim_conflict'; END; "
             "COMMIT TRANSACTION;"
         )
         try:
-            await self.client.query(query, {"claim_id": claim_id, "error": error[:500]})
+            await self.client.query(query, {"attempt_id": attempt_id, "error": error[:500]})
         except Exception as failure:
             current = await self.get_job(job_id)
-            if current and current.get("status") == "failed" and current.get("claim_id") == claim_id:
+            if current and current.get("status") == "failed" and current.get("attempt_id") == attempt_id:
                 return current
             if "document_not_processing" in str(failure) or "job_claim_conflict" in str(failure):
                 return None
             raise SurrealDatabaseError("Unable to fail job") from failure
         return await self.get_job(job_id)
 
-    async def fail_claim(self, job_id: str, claim_id: str, error: str,
+    async def fail_claim(self, job_id: str, attempt_id: str, error: str,
                          owner: tuple[str, str] | None = None) -> None:
         """Atomically apply domain failure effects using only durable records."""
         job = await self.get_job(job_id)
-        if not job or job.get("status") != "running" or job.get("claim_id") != claim_id:
+        if not job or job.get("status") != "running" or job.get("attempt_id") != attempt_id:
             return
         if owner and (job.get("worker_id"), job.get("worker_run_id")) != owner:
             return
@@ -896,11 +878,11 @@ class SurrealDatabase:
         statements = [
             "BEGIN TRANSACTION;",
             f"LET $job = (UPDATE job:{record_id} SET status = 'failed', step = 'failed', "
-            "error = $error, sequence += 1 WHERE status = 'running' "
-            f"AND claim_id = $claim_id{ownership} RETURN AFTER);",
+            "error = $error, version += 1 WHERE status = 'running' "
+            f"AND attempt_id = $attempt_id{ownership} RETURN AFTER);",
             "IF array::len($job) = 0 THEN THROW 'claim_conflict'; END;",
         ]
-        variables = {"claim_id": claim_id, "error": error[:500]}
+        variables = {"attempt_id": attempt_id, "error": error[:500]}
         if owner:
             variables.update(worker_id=owner[0], worker_run_id=owner[1])
         job_type = job["type"]
@@ -908,7 +890,7 @@ class SurrealDatabase:
             status = "processing" if job_type == "ocr_pdf" else "indexing"
             statements.append(f"UPDATE {document_id} SET process_status = 'failed' WHERE process_status = '{status}';")
         elif job_type == "correct_chunks":
-            statements.append(f"UPDATE chunk_correction_input SET status = 'failed' WHERE job_id = job:{record_id} AND status = 'pending';")
+            statements.append(f"UPDATE job:{record_id} SET result = {{outcome: 'failed', proposed_text: NONE}};")
             statements.append(f"UPDATE chunk SET active_job_id = NONE WHERE active_job_id = job:{record_id};")
         elif job_type == "reembed_chunk":
             statements.append(f"UPDATE chunk SET active_job_id = NONE WHERE active_job_id = job:{record_id};")
@@ -921,21 +903,21 @@ class SurrealDatabase:
             if "claim_conflict" not in str(failure):
                 raise
 
-    async def reconcile_failure(self, job_id: str, claim_id: str, error: str,
+    async def reconcile_failure(self, job_id: str, attempt_id: str, error: str,
                                 owner: tuple[str, str] | None = None) -> Mapping[str, Any]:
         """Discard processing state and settle an uncertain outcome independently."""
         fresh = SurrealDatabase(self._settings)
         async with asyncio.timeout(self._settings.failure_timeout_seconds):
             try:
                 await fresh.connect()
-                await fresh.fail_claim(job_id, claim_id, error, owner)
+                await fresh.fail_claim(job_id, attempt_id, error, owner)
                 current = await fresh.get_job(job_id)
                 if not current:
                     raise SurrealDatabaseError("Job missing during reconciliation")
                 logging.getLogger(__name__).info("job_outcome_reconciled", extra={
-                    "job_id": job_id, "claim_id": claim_id, "reconciled_status": current.get("status"),
+                    "job_id": job_id, "attempt_id": attempt_id, "reconciled_status": current.get("status"),
                 })
-                if current.get("status") == "running" and current.get("claim_id") == claim_id:
+                if current.get("status") == "running" and current.get("attempt_id") == attempt_id:
                     if not owner or (current.get("worker_id"), current.get("worker_run_id")) == owner:
                         raise SurrealDatabaseError("Failure persistence is pending")
                 # The processing connection may already have been discarded.
@@ -966,7 +948,7 @@ class SurrealDatabase:
                 if not rows:
                     return
                 for row in rows:
-                    await self.reconcile_failure(str(row["id"]), row["claim_id"],
+                    await self.reconcile_failure(str(row["id"]), row["attempt_id"],
                         "Worker stopped before processing completed; manual retry required",
                         (self._settings.worker_id, row["worker_run_id"]))
                 after = rows[-1]["id"]

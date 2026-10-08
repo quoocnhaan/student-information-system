@@ -17,6 +17,15 @@ question first.
 `writing-for-agents` skill before writing the plan.
 - Create Knowledge-service plans in `services/ai-service/knowledge/plans/`.
 
+## UI data sources
+
+- Fetch all data displayed by the Knowledge UI from API endpoints, including
+document lists, metadata, processing state, counts, and filter options. Add or
+extend an endpoint when the UI needs data the API does not yet expose.
+- Use endpoint responses as the source of truth rather than hard-coded business
+data or browser storage. Local UI state may hold unsaved user input and cache
+endpoint responses; static labels and presentation text may live in the frontend.
+
 ## Local workflow and schema resets
 
 - For a local Docker development workflow change that alters persisted behavior

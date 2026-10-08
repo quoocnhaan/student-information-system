@@ -28,7 +28,7 @@ class JsonFormatter(logging.Formatter):
             "errorCode",
             "jobId",
             "job_id",
-            "claim_id",
+            "attempt_id",
             "chunk_count",
             "duration_seconds",
             "worker_id",

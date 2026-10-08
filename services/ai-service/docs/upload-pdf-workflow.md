@@ -8,7 +8,7 @@ The authoritative runtime and local reset instructions are in [Knowledge README]
 
 Workers claim before acknowledgment. OCR renders and reads each PDF page, computes local page percentages, and detects metadata from the raw text. One transaction saves raw draft pages, detected metadata, document `page_count`, review status, and completed OCR status. OCR performs no chat correction and creates no follow-up job.
 
-REST `GET /v1/jobs/{id}` and WebSocket `/v1/ws/jobs/{id}` share a status contract: `step`, integer `progress`, ordered `sequence`, lifecycle/error, and orchestration links. Captured inputs and worker ownership stay private. Running progress stays below 100 and never decreases within a claim. Completion sets 100; failure preserves progress.
+REST `GET /v1/jobs/{id}` and WebSocket `/v1/ws/jobs/{id}` share a status contract: `step`, integer `progress`, ordered `version`, lifecycle/error, and orchestration links. Captured inputs and worker ownership stay private. Running progress stays below 100 and never decreases within a claim. Completion sets 100; failure preserves progress.
 
 ## Manual review and one-shot confirmation
 
@@ -22,7 +22,7 @@ Raw OCR can affect metadata and legal-structure chunk boundaries. Manual review 
 
 The index worker loads only its captured confirmed input, chunks legal structure across selected pages, embeds text and hierarchy, then atomically replaces indexed chunks and deletes the draft/input. A failed transaction preserves the original searchable index, draft, and input. Claim/status fencing prevents old work from committing after a retry.
 
-`POST /v1/jobs/{id}/retry` requeues an eligible failed index job against the same input/fingerprint, resets percentage to zero, advances sequence, and clears ownership for a new claim. It never accepts replacement browser content. Model failures do not trigger automatic processing retries.
+`POST /v1/jobs/{id}/retry` requeues an eligible failed index job against the same input/fingerprint, resets percentage to zero, advances version, and clears ownership for a new claim. It never accepts replacement browser content. Model failures do not trigger automatic processing retries.
 
 ## Single indexed-chunk correction
 

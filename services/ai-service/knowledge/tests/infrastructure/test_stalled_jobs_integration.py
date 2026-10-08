@@ -170,7 +170,7 @@ def test_checked_error_retry_and_old_completion_are_fenced():
             assert await database.requeue_failed_index_job(job_id) is None
             await database.fail_claim(job_id, claim, "commit failed")
             retried = await database.requeue_failed_index_job(job_id)
-            assert retried["status"] == "queued" and not retried.get("worker_id") and not retried.get("claim_id")
+            assert retried["status"] == "queued" and not retried.get("worker_id") and not retried.get("attempt_id")
             current_claim = uuid4().hex
             assert await database.claim_job(job_id, current_claim, "index_document")
             assert await database.complete_index_job(job_id, claim, chunks, "test") is None
@@ -236,9 +236,9 @@ def test_failure_domain_effects_preserve_source_review_and_vectors(job_type):
                 correction = await database.request_chunk_correction(document_id, chunk_id)
                 job_id, claim = str(correction["id"]), uuid4().hex
                 await database.claim_job(job_id, claim, "correct_chunks")
-                suggestion = (await database.correction_inputs(job_id))[0]
+                suggestion = (await database.get_job(job_id))["payload"]
                 if job_type == "reembed_chunk":
-                    children = await database.apply_chunk_corrections(job_id, claim, {str(suggestion["id"]): "Reviewed corrected text"})
+                    children = await database.apply_chunk_correction(job_id, claim, "Reviewed corrected text")
                     reembed = children[0]
                     job_id, claim = str(reembed["id"]), uuid4().hex
                     await database.claim_job(job_id, claim, "reembed_chunk")
@@ -256,7 +256,7 @@ def test_failure_domain_effects_preserve_source_review_and_vectors(job_type):
                 preserved = (await database.indexed_chunks(document_id))[0]
                 assert preserved["embedding"] == [0.001] * 768
                 if job_type == "correct_chunks":
-                    assert (await database.correction_inputs(job_id))[0]["status"] == "failed"
+                    assert (await database.get_job(job_id))["result"]["outcome"] == "failed"
 
     asyncio.run(run())
 
@@ -286,7 +286,7 @@ def test_in_flight_old_transaction_cannot_overwrite_retry_and_missing_input_is_r
             with pytest.raises(SurrealDatabaseError):
                 await database.complete_index_job(job_id, claim, chunks, "test")
             database.client.sdk.query_raw = original
-            assert (await database.get_job(job_id))["claim_id"] == replacement_claim
+            assert (await database.get_job(job_id))["attempt_id"] == replacement_claim
             assert (await database.get_document(document_id))["process_status"] == "indexing"
             assert not await database.client.query("SELECT * FROM chunk;")
             await database.fail_claim(job_id, replacement_claim, "failed again")

@@ -33,7 +33,7 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
 
   const acceptJob = useCallback((next: JobStatus) => {
     if (jobRef.current?.id !== next.id) jobRef.current = null;
-    if (jobRef.current !== null && next.sequence <= jobRef.current.sequence) return;
+    if (jobRef.current !== null && next.version <= jobRef.current.version) return;
     const type = next.type ?? jobRef.current?.type;
     const resolved = type === undefined ? next : { ...next, type };
     jobRef.current = resolved;
@@ -141,7 +141,7 @@ export function useIngestionJob(jobId: string | undefined): IngestionViewState {
   useEffect(() => {
     if (!state.job || state.result !== null || state.job.type !== "ocr" || state.job.status !== "completed") return;
     const controller = new AbortController();
-    void knowledgeClient.getDocumentResult(state.job.document_id, controller.signal)
+    void knowledgeClient.getDocumentDraft(state.job.document_id, controller.signal)
       .then((result) => setState((current) => ({ ...current, result })))
       .catch((error: unknown) => {
         const message = error instanceof KnowledgeError && error.status === 409

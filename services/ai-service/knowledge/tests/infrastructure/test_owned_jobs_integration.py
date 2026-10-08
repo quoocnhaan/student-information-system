@@ -38,24 +38,24 @@ def test_atomic_ocr_job_lifecycle() -> None:
             row = await database.create_document_with_job(document_record_id, document, job_record_id)
             assert str(row["id"]) == job_id
             assert (await database.create_document_with_job(document_record_id, document, job_record_id))["id"] == row["id"]
-            claim_id = uuid4().hex
-            assert await database.claim_job(job_id, claim_id, "ocr_pdf")
+            attempt_id = uuid4().hex
+            assert await database.claim_job(job_id, attempt_id, "ocr_pdf")
             assert await database.claim_job(job_id, uuid4().hex, "ocr_pdf") is None
-            assert await database.job_progress(job_id, claim_id, {
+            assert await database.job_progress(job_id, attempt_id, {
                 "step": "ocr", "progress": 30,
             })
-            assert await database.job_progress(job_id, claim_id, {
+            assert await database.job_progress(job_id, attempt_id, {
                 "step": "ocr", "progress": 20,
             }) is None
             draft_id = f"ocr_job_{suffix}"
             result = await database.apply_ocr_result(
                 document_record_id, draft_id, [{"page": 1, "raw_text": "Hello"}],
-                {"title": "Hello"}, job_id, claim_id,
+                {"title": "Hello"}, job_id, attempt_id,
             )
             assert result == f"ocr_draft:{draft_id}"
             assert await database.apply_ocr_result(
                 document_record_id, draft_id, [{"page": 1, "raw_text": "Changed"}],
-                {"title": "Changed"}, job_id, claim_id,
+                {"title": "Changed"}, job_id, attempt_id,
             ) == result
             assert (await database.get_job(job_id))["status"] == "completed"
             assert (await database.get_document(document_record_id))["process_status"] == "review"
@@ -134,9 +134,9 @@ def test_confirm_index_and_post_index_correction() -> None:
             correction_id = str(correction["id"])
             correction_claim = uuid4().hex
             assert await database.claim_job(correction_id, correction_claim, "correct_chunks")
-            suggestion = (await database.correction_inputs(correction_id))[0]
+            suggestion = (await database.get_job(correction_id))["payload"]
             assert rows[-1]["text"] == suggestion["base_text"]
-            children = await database.apply_chunk_corrections(correction_id, correction_claim, {str(suggestion["id"]): "Corrected text"})
+            children = await database.apply_chunk_correction(correction_id, correction_claim, "Corrected text")
             assert children and len(children) == 1
             reembed = children[0]
             assert (await database.indexed_chunks(document_id))[-1]["embedding_status"] == "stale"
@@ -152,9 +152,9 @@ def test_confirm_index_and_post_index_correction() -> None:
             assert second
             second_claim = uuid4().hex
             assert await database.claim_job(str(second["id"]), second_claim, "correct_chunks")
-            second_suggestion = (await database.correction_inputs(str(second["id"])))[0]
-            assert await database.apply_chunk_corrections(str(second["id"]), second_claim,
-                {str(second_suggestion["id"]): "Corrected text"}) == []
+            second_suggestion = (await database.get_job(str(second["id"])))["payload"]
+            assert await database.apply_chunk_correction(str(second["id"]), second_claim,
+                "Corrected text") == []
             assert (await database.indexed_chunks(document_id))[-1]["correction"]["outcome"] == "unchanged"
         finally:
             await database.close()
@@ -194,7 +194,7 @@ def test_ocr_opens_raw_review_without_followup() -> None:
             )
             finished = await database.get_job(job_id)
             assert finished["status"] == "completed"
-            assert not finished.get("next_job_id")
+            assert finished["followup_job_ids"] == []
             assert finished["payload"] == {}
             assert (await database.get_document(document_id))["process_status"] == "review"
             draft = (await database.get_document_result(document_id))[1]

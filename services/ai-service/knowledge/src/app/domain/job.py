@@ -1,9 +1,11 @@
 """Validated, immutable inputs for each persisted job type."""
 
 from collections.abc import Mapping
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.domain.document import ChunkHierarchy
 
 
 class JobPayload(BaseModel):
@@ -21,7 +23,16 @@ class IndexPayload(JobPayload):
 
 class CorrectionPayload(JobPayload):
     chunk_id: Annotated[str, Field(pattern=r"^chunk:chunk_[0-9a-f]{32}$")]
-    correction_input_id: Annotated[str, Field(pattern=r"^chunk_correction_input:input_[0-9a-f]{32}$")]
+    base_text: str = Field(min_length=1)
+    embedding_text: str = Field(min_length=1)
+    embedding_version: int = Field(ge=1)
+    embedding_status: Literal["ok", "stale"]
+    hierarchy: ChunkHierarchy
+
+
+class CorrectionResult(JobPayload):
+    outcome: Literal["applied", "unchanged", "failed"]
+    proposed_text: str | None
 
 
 class ReembedPayload(JobPayload):
@@ -47,7 +58,7 @@ def validate_payload(job_type: str, payload: Any) -> JobPayload:
     # The database SDK returns typed record references. Normalize those only;
     # strict validation still rejects numbers, booleans, and other invalid inputs.
     values = dict(payload)
-    for key in ("index_input_id", "chunk_id", "correction_input_id"):
+    for key in ("index_input_id", "chunk_id"):
         value = values.get(key)
         if value is not None and hasattr(value, "table_name"):
             values[key] = str(value)

@@ -11,7 +11,7 @@ vi.mock("../hooks/useIngestionJob", () => ({ useIngestionJob: vi.fn() }));
 
 const job = {
   id: "job:job_a", document_id: "document:doc_a", type: "index", status: "failed",
-  step: "failed", progress: 100, followup_job_ids: [], sequence: 2,
+  step: "failed", progress: 100, followup_job_ids: [], version: 2,
   retry_available: true, error: "Index commit timed out",
 };
 

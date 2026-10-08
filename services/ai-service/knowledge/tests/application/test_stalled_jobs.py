@@ -20,12 +20,12 @@ from test_worker import Database, Handler, Message, JOB_ID
 def test_commit_context_and_database_causes_are_serialized():
     record = logging.makeLogRecord({
         "msg": "index_commit_failed", "levelname": "ERROR", "job_id": JOB_ID,
-        "claim_id": "claim", "chunk_count": 16, "duration_seconds": 0.2,
+        "attempt_id": "claim", "chunk_count": 16, "duration_seconds": 0.2,
         "database_cause": "transaction conflict", "document_text": "private text",
         "embedding": [0.1] * 768,
     })
     payload = json.loads(JsonFormatter().format(record))
-    assert payload["job_id"] == JOB_ID and payload["claim_id"] == "claim"
+    assert payload["job_id"] == JOB_ID and payload["attempt_id"] == "claim"
     assert payload["chunk_count"] == 16 and payload["duration_seconds"] == 0.2
     assert payload["database_cause"] == "transaction conflict"
     assert "document_text" not in payload and "embedding" not in payload

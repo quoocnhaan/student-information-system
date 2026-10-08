@@ -25,10 +25,9 @@ def _as_response(job: Mapping[str, Any]) -> JobStatusResponse:
     return JobStatusResponse(
         id=str(job["id"]), type={"ocr_pdf": "ocr", "index_document": "index", "correct_chunks": "correct_chunks", "reembed_chunk": "reembed"}.get(job["type"], str(job["type"])),
         document_id=str(job["document_id"]),
-        next_job_id=str(job["next_job_id"]) if job.get("next_job_id") else None,
         followup_job_ids=[str(value) for value in job.get("followup_job_ids", [])],
         status=job["status"], step=job["step"], progress=job["progress"],
-        sequence=job.get("sequence", 1),
+        version=job.get("version", 1),
         updated_at=str(job["updated_at"]) if job.get("updated_at") else None,
         error=job.get("error"),
         retry_available=job.get("type") == "index_document" and job.get("status") == "failed" and bool(job.get("payload", {}).get("index_input_id")),
@@ -98,18 +97,18 @@ async def stream_job_status(websocket: WebSocket, job_id: str) -> None:
         await websocket.accept()
         snapshot = _as_response(row).model_dump()
         await websocket.send_json({"event_type": "job.status_snapshot", **snapshot, "job_id": snapshot["id"]})
-        last_sequence = int(row.get("sequence", 1))
+        last_version = int(row.get("version", 1))
 
         async def forward() -> None:
-            nonlocal last_sequence
+            nonlocal last_version
             async for event in events:
                 changed = event.get("result", event) if isinstance(event, dict) else None
                 if not isinstance(changed, dict) or str(changed.get("id")) != job_id:
                     continue
                 current = await database.get_job(job_id)
-                if current is None or int(current.get("sequence", 0)) <= last_sequence:
+                if current is None or int(current.get("version", 0)) <= last_version:
                     continue
-                last_sequence = int(current["sequence"])
+                last_version = int(current["version"])
                 response = _as_response(current).model_dump()
                 await websocket.send_json({"event_type": "job.status_changed", **response, "job_id": response["id"]})
 

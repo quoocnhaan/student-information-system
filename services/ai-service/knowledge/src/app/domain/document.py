@@ -32,6 +32,7 @@ class OcrDraftStatus(StrEnum):
 
 
 class Cohort(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     from_year: int = Field(ge=1900, le=9999)
     to_year: int | None = Field(default=None, ge=1900, le=9999)
 
@@ -43,6 +44,7 @@ class Cohort(BaseModel):
 
 
 class ProgramScope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     type: ProgramScopeType
     programs: list[str] = Field(default_factory=list)
 
@@ -108,6 +110,7 @@ class ChunkPosition(BaseModel):
 
 
 class ChunkHierarchy(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
     chapter_no: int | None = Field(default=None, ge=1)
     chapter_title: str | None = None
     chapter_heading: str | None = None

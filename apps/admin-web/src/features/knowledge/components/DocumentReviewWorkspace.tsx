@@ -1,44 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { KnowledgeError, type DocumentMetadata, type DocumentResult } from "../api/contracts";
 import { knowledgeClient } from "../api/knowledgeClient";
+import { normalizeMetadata, metadataErrors } from "../model/metadata";
+import { useMetadataOptions } from "../hooks/useMetadataOptions";
 import { MetadataEditor } from "./MetadataEditor";
 import { PdfComparisonWorkspace } from "./PdfComparisonWorkspace";
 
 type SaveState = "idle" | "error" | "conflict";
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
-}
-
-function nullableText(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
-}
-
-function normalizeMetadata(metadata: DocumentMetadata): DocumentMetadata {
-  const cohort = asRecord(metadata.cohort);
-  const fromYear = typeof cohort.from_year === "number" ? cohort.from_year : undefined;
-  const toYear = typeof cohort.to_year === "number" ? cohort.to_year : undefined;
-  const scope = asRecord(metadata.program_scope);
-  const scopeType = typeof scope.type === "string" ? scope.type : undefined;
-  const scopePrograms = Array.isArray(scope.programs)
-    ? scope.programs.filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "")
-    : [];
-  return {
-    title: nullableText(metadata.title), document_type: nullableText(metadata.document_type),
-    document_number: nullableText(metadata.document_number), description: nullableText(metadata.description),
-    language: nullableText(metadata.language),
-    cohort: fromYear === undefined ? null : { from_year: fromYear, to_year: toYear ?? null },
-    program_scope: scopeType === undefined ? null : { type: scopeType, programs: scopeType === "specific_programs" ? scopePrograms : [] },
-  };
-}
 
 function same(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initialResult: DocumentResult; onConfirmed?: (jobId: string) => void }) {
+  const options = useMetadataOptions();
   const [result, setResult] = useState(initialResult);
   const [metadata, setMetadata] = useState<DocumentMetadata>(initialResult.metadata);
   const [page, setPage] = useState(1);
@@ -104,7 +79,7 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
   async function reloadLatest() {
     if (dirty && !window.confirm("Reloading will discard your unsaved changes. Continue?")) return;
     try {
-      const next = await knowledgeClient.getDocumentResult(result.document_id);
+      const next = await knowledgeClient.getDocumentDraft(result.document_id);
       setResult(next); setMetadata(next.metadata); setEdits({}); setSaveState("idle"); setMessage(null);
     } catch (error) {
       setSaveState("error"); setMessage(error instanceof Error ? error.message : "Unable to reload the latest review draft.");
@@ -112,8 +87,9 @@ export function DocumentReviewWorkspace({ initialResult, onConfirmed }: { initia
   }
 
   return <section className="stack review-workspace">
-    <MetadataEditor value={metadata} onChange={(next) => { setMetadata(next); setSaveState("idle"); setMessage(null); }} />
-    <div className="review-save-bar"><span className={dirty ? "dirty-state" : "muted"}>{dirty ? "Unsaved changes" : "Ready to confirm"}</span><button className="primary-button" type="button" disabled={confirming || !hasIndexableSelection} onClick={() => void confirm()}>{confirming ? "Confirming..." : `Confirm and index (${selectedPages.size} selected)`}</button></div>
+    <MetadataEditor options={options.values ?? []} errors={metadataErrors(metadata)} value={metadata} onChange={(next) => { setMetadata(next); setSaveState("idle"); setMessage(null); }} />
+    {options.error && <p className="notice danger">{options.error} <button onClick={options.retry}>Retry metadata options</button></p>}
+    <div className="review-save-bar"><span className={dirty ? "dirty-state" : "muted"}>{dirty ? "Unsaved changes" : "Ready to confirm"}</span><button className="primary-button" type="button" disabled={confirming || !hasIndexableSelection || !options.values || Object.keys(metadataErrors(metadata)).length > 0} onClick={() => void confirm()}>{confirming ? "Confirming..." : `Confirm and index (${selectedPages.size} selected)`}</button></div>
     {message && <div className={saveState === "error" || saveState === "conflict" ? "notice danger split-row" : "notice warning"} role="status"><span>{message}</span>{saveState === "conflict" && <button className="secondary-button" type="button" onClick={() => void reloadLatest()}>Reload latest version</button>}</div>}
     <PdfComparisonWorkspace result={result} page={page} onPageChange={setPage} markdown={pageText} onMarkdownChange={editPage} included={currentPage !== undefined && selectedPages.has(currentPage.page)} onIncludedChange={(included) => { if (currentPage === undefined) return; setSelectedPages((current) => { const next = new Set(current); if (included) next.add(currentPage.page); else next.delete(currentPage.page); return next; }); setSaveState("idle"); setMessage(null); }} />
   </section>;

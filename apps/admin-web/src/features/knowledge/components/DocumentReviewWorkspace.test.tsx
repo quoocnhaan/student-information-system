@@ -2,7 +2,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DocumentResult } from "../api/contracts";
 import { knowledgeClient } from "../api/knowledgeClient";
 import { DocumentReviewWorkspace } from "./DocumentReviewWorkspace";
@@ -28,6 +28,8 @@ const result: DocumentResult = {
   },
 };
 
+beforeEach(() => { vi.spyOn(knowledgeClient, "getMetadataOptions").mockResolvedValue(["all", "specific_programs"]); });
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -42,6 +44,7 @@ describe("DocumentReviewWorkspace", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "OCR Markdown for page 1" }), {
       target: { value: "# Corrected OCR" },
     });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Confirm and index (1 selected)" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Confirm and index (1 selected)" }));
 
     await waitFor(() => expect(confirm).toHaveBeenCalledWith("document:doc_abc", {
@@ -57,6 +60,7 @@ describe("DocumentReviewWorkspace", () => {
     const onConfirmed = vi.fn();
     render(<DocumentReviewWorkspace initialResult={result} onConfirmed={onConfirmed} />);
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Updated title" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Confirm and index (1 selected)" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Confirm and index (1 selected)" }));
     await waitFor(() => expect(confirm).toHaveBeenCalledWith(result.document_id, expect.objectContaining({ expected_revision: 1 })));
     expect(onConfirmed).toHaveBeenCalledWith("job:job_index");

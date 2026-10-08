@@ -4,6 +4,7 @@ from collections.abc import Mapping
 
 from app.application.correction import correct_text
 from app.config import Settings
+from app.domain.job import validate_payload
 from app.infrastructure.surreal import SurrealDatabase
 
 
@@ -15,22 +16,18 @@ class CorrectChunksHandler:
         self.settings = settings
         self.database = database
 
-    async def process(self, job_id: str, claim_id: str, claimed: dict) -> list[Mapping]:
-        inputs = await self.database.correction_inputs(job_id)
-        if len(inputs) != 1:
-            raise ValueError("Correction job must contain exactly one input")
-        captured = inputs[0]
-        corrected = await correct_text(str(captured["base_text"]), self.settings)
+    async def process(self, job_id: str, attempt_id: str, claimed: dict) -> list[Mapping]:
+        captured = validate_payload(self.type, claimed["payload"])
+        corrected = await correct_text(captured.base_text, self.settings)
         if corrected is None:
             raise ValueError("Correction model returned unusable text")
-        results = {str(captured["id"]): corrected}
-        await self.database.job_progress(job_id, claim_id, {
+        await self.database.job_progress(job_id, attempt_id, {
             "step": "correcting", "progress": 90,
         })
-        followups = await self.database.apply_chunk_corrections(job_id, claim_id, results)
+        followups = await self.database.apply_chunk_correction(job_id, attempt_id, corrected)
         if followups is None:
             raise RuntimeError("Correction claim is no longer active or chunk input changed")
         return followups
 
-    async def on_failure(self, job_id: str, claim_id: str, claimed: dict, error: str) -> None:
-        await self.database.fail_claim(job_id, claim_id, error)
+    async def on_failure(self, job_id: str, attempt_id: str, claimed: dict, error: str) -> None:
+        await self.database.fail_claim(job_id, attempt_id, error)

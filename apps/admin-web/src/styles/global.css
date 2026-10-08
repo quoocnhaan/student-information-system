@@ -48,3 +48,16 @@ h3 { font-size: 1rem; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #77b4ff; outline-offset: 3px; }
 @media (max-width: 720px) { .site-header { padding: 0 16px; }.brand-detail { display: none; }.page-container { width: min(100% - 24px, 1200px); margin-top: 24px; }.metadata-grid, .metadata-editor-grid, .comparison-grid { grid-template-columns: 1fr; }.pdf-canvas { min-height: 380px; }.ocr-text, .ocr-editor-panel, .markdown-preview { min-height: 360px; }.comparison-pane { padding: 12px; }.review-save-bar { align-items: flex-start; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+
+.library-nav { display: flex; gap: 16px; margin-left: auto; font-size: .9rem; }
+.document-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
+.document-filters label { display: grid; gap: 7px; flex: 1 1 160px; font-size: .85rem; font-weight: 700; color: #42536a; }
+.document-filters label:first-child { flex: 2 1 260px; }
+.document-filters input, .document-filters select { min-width: 0; width: 100%; padding: 10px; border: 1px solid #b9c8da; border-radius: 8px; background: white; color: #172033; }
+.document-table-wrap { overflow-x: auto; }
+.document-table { width: 100%; border-collapse: collapse; text-align: left; }
+.document-table th { padding: 0 12px 14px; color: #627188; font-size: .8rem; }
+.document-table td { padding: 16px 12px; border-top: 1px solid #edf0f5; vertical-align: top; }
+.document-title { color: #145cae; font-weight: 700; overflow-wrap: anywhere; }
+.document-filename { display: block; margin-top: 6px; overflow-wrap: anywhere; }
+@media (max-width: 720px) { .document-table { min-width: 620px; } .site-header { flex-wrap: wrap; padding-top: 16px; padding-bottom: 16px; } }

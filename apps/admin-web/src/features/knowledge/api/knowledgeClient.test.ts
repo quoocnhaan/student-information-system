@@ -26,7 +26,7 @@ describe("knowledgeClient", () => {
       event_type: "job.status_changed",
       job_id: "job:job_59f0c6c42cfa4d4785b6039b32cd5377",
       document_id: "document:doc_8306eba316ca45deb232655ba484c20c",
-      sequence: 11,
+      version: 11,
       status: "completed",
       step: "completed",
       progress: 100,

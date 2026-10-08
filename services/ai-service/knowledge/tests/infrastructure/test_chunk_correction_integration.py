@@ -22,7 +22,7 @@ def test_payload_roundtrips_are_typed_private_and_immutable_through_retry():
         async with isolated() as (database, _):
             index_id, document_id, chunks = await index_job(database)
             ocr = (await database.client.query("SELECT * FROM job WHERE type = 'ocr_pdf';"))[0]
-            assert ocr["payload"] == {} and not ocr.get("next_job_id")
+            assert ocr["payload"] == {} and ocr["followup_job_ids"] == []
             job = await database.get_job(index_id)
             payload = dict(job["payload"])
             assert isinstance(payload["index_input_id"], RecordID)
@@ -35,11 +35,16 @@ def test_payload_roundtrips_are_typed_private_and_immutable_through_retry():
             assert failed["progress"] == 40 and failed["payload"] == payload
             retried = await database.requeue_failed_index_job(index_id)
             assert retried["progress"] == 0 and retried["payload"] == payload
+            assert retried["id"] == failed["id"]
+            assert retried["version"] == failed["version"] + 1
+            assert all(not retried.get(field) for field in ("attempt_id", "worker_id", "worker_run_id"))
             with pytest.raises(SurrealDatabaseError, match="readonly"):
                 await database.client.query(f"UPDATE {index_id} SET payload.confirmation_fingerprint = $fingerprint;", {"fingerprint": "f" * 64})
             assert (await database.get_job(index_id))["payload"] == payload
             new_claim = uuid4().hex
-            await database.claim_job(index_id, new_claim, "index_document")
+            reclaimed = await database.claim_job(index_id, new_claim, "index_document")
+            assert reclaimed["attempt_id"] == new_claim != claim
+            assert reclaimed["version"] == retried["version"] + 1
             assert await database.job_progress(index_id, claim, {"progress": 50}) is None
             with pytest.raises(ValueError):
                 await database.job_progress(index_id, new_claim, {"progress": 100})
@@ -49,13 +54,13 @@ def test_payload_roundtrips_are_typed_private_and_immutable_through_retry():
             chunk = (await database.indexed_chunks(document_id))[0]
             parent = await database.request_chunk_correction(document_id, str(chunk["id"]))
             assert isinstance(parent["payload"]["chunk_id"], RecordID)
-            assert isinstance(parent["payload"]["correction_input_id"], RecordID)
+            assert parent["payload"]["base_text"] == chunk["text"]
             assert validate_payload(parent["type"], parent["payload"])
             correction_claim = uuid4().hex
             await database.claim_job(str(parent["id"]), correction_claim, "correct_chunks")
-            captured = (await database.correction_inputs(str(parent["id"])))[0]
-            assert str(captured["id"]) == str(parent["payload"]["correction_input_id"])
-            children = await database.apply_chunk_corrections(str(parent["id"]), correction_claim, {str(captured["id"]): "Corrected text"})
+            captured = (await database.get_job(str(parent["id"])))["payload"]
+            assert captured["embedding_version"] == chunk["embedding_version"]
+            children = await database.apply_chunk_correction(str(parent["id"]), correction_claim, "Corrected text")
             assert len(children) == 1
             child = children[0]
             assert isinstance(child["payload"]["chunk_id"], RecordID)
@@ -83,7 +88,7 @@ async def requested(database, document_id, chunks):
     assert job
     claim = uuid4().hex
     assert await database.claim_job(str(job["id"]), claim, "correct_chunks")
-    return str(job["id"]), claim, await database.correction_inputs(str(job["id"]))
+    return str(job["id"]), claim, [(await database.get_job(str(job["id"])))["payload"]]
 
 
 @pytest.mark.parametrize("changed,stale", [(True, False), (False, False), (False, True)])
@@ -95,14 +100,14 @@ def test_atomic_application_fanout_and_duplicate_completion(changed, stale):
                 await database.client.query(f"UPDATE {chunks[0]['id']} SET embedding_status = 'stale';")
             job_id, claim, inputs = await requested(database, document_id, chunks)
             assert await database.request_chunk_correction(document_id, str(chunks[0]["id"])) is None
-            results = {str(row["id"]): row["base_text"] + (" corrected" if changed else "") for row in inputs}
-            children = await database.apply_chunk_corrections(job_id, claim, results)
+            results = inputs[0]["base_text"] + (" corrected" if changed else "")
+            children = await database.apply_chunk_correction(job_id, claim, results)
             assert len(children) == (1 if changed or stale else 0)
             queued = await database.queued_jobs_after(None, 100)
             assert {str(child["id"]) for child in children}.issubset({str(row["id"]) for row in queued})
-            assert [row["id"] for row in await database.apply_chunk_corrections(job_id, claim, results)] == [row["id"] for row in children]
+            assert [row["id"] for row in await database.apply_chunk_correction(job_id, claim, results)] == [row["id"] for row in children]
             assert await database.claim_job(job_id, uuid4().hex, "correct_chunks") is None
-            assert {row["status"] for row in await database.correction_inputs(job_id)} == {"applied" if changed else "unchanged"}
+            assert (await database.get_job(job_id))["result"]["outcome"] == ("applied" if changed else "unchanged")
             for child in children:
                 child_id, child_claim = str(child["id"]), uuid4().hex
                 await database.claim_job(child_id, child_claim, "reembed_chunk")
@@ -115,10 +120,11 @@ def test_fresh_database_contains_only_current_contracts():
     async def run():
         async with isolated() as (database, _):
             info = await database.client.query("INFO FOR DB;")
-            assert "chunk_correction_input" in info["tables"] and "correction_suggestion" not in info["tables"]
+            assert "chunk_correction_input" not in info["tables"] and "correction_suggestion" not in info["tables"]
             fields = (await database.client.query("INFO FOR TABLE job;"))["fields"]
             assert "ocr_draft_id" not in fields and "correction_mode" not in fields
-            assert {"next_job_id", "followup_job_ids", "payload", "claim_id", "worker_id"}.issubset(fields)
+            assert {"version", "followup_job_ids", "payload", "attempt_id", "worker_id"}.issubset(fields)
+            assert not {"sequence", "claim_id", "next_job_id"}.intersection(fields)
             draft_fields = (await database.client.query("INFO FOR TABLE ocr_draft;"))["fields"]
             assert "pages.*.reviewed_text" not in draft_fields
     asyncio.run(run())
@@ -137,13 +143,13 @@ def test_concurrent_requests_take_only_one_durable_lock():
                 ), return_exceptions=True)
                 assert len([value for value in results if isinstance(value, dict)]) == 1
                 assert len(await database.client.query("SELECT * FROM job WHERE type = 'correct_chunks';")) == 1
-                assert len(await database.client.query("SELECT * FROM chunk_correction_input;")) == 1
+                assert (await database.client.query(f"SELECT * FROM {chunks[0]['id']};"))[0]["active_job_id"]
             finally:
                 await competitor.close()
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("mutation", ["text", "embedding_text", "embedding_version", "hierarchy", "delete", "input", "claim"])
+@pytest.mark.parametrize("mutation", ["text", "embedding_text", "embedding_version", "hierarchy", "embedding_status", "delete", "claim"])
 def test_changed_or_deleted_inputs_abort_entire_request(mutation):
     async def run():
         async with isolated() as (database, _):
@@ -152,21 +158,15 @@ def test_changed_or_deleted_inputs_abort_entire_request(mutation):
             target = str(chunks[0]["id"])
             if mutation == "delete":
                 await database.client.query(f"DELETE {target};")
-            elif mutation == "input":
-                await database.client.query(f"DELETE {inputs[0]['id']};")
             elif mutation == "claim":
-                await database.client.query(f"UPDATE {job_id} SET claim_id = 'replacement';")
+                await database.client.query(f"UPDATE {job_id} SET attempt_id = 'replacement';")
             elif mutation == "hierarchy":
                 await database.client.query(f"UPDATE {target} SET hierarchy.article_heading = 'Changed heading';")
             else:
-                value = 999 if mutation == "embedding_version" else "changed input"
+                value = 999 if mutation == "embedding_version" else "stale" if mutation == "embedding_status" else "changed input"
                 await database.client.query(f"UPDATE {target} SET {mutation} = $value;", {"value": value})
-            results = {str(row["id"]): "Corrected" for row in inputs}
-            if mutation == "input":
-                with pytest.raises(ValueError):
-                    await database.apply_chunk_corrections(job_id, claim, results)
-            else:
-                assert await database.apply_chunk_corrections(job_id, claim, results) is None
+            results = "Corrected"
+            assert await database.apply_chunk_correction(job_id, claim, results) is None
             await database.fail_claim(job_id, claim, "Input changed")
             current = (await database.client.query(f"SELECT * FROM {chunks[1]['id']};"))[0]
             assert current["text"] == chunks[1]["text"] and current["embedding"] == chunks[1]["embedding"]
@@ -227,7 +227,7 @@ def test_child_failure_preserves_vector_and_allows_explicit_correction(supersede
         async with isolated() as (database, _):
             document_id, chunks = await indexed(database)
             job_id, claim, inputs = await requested(database, document_id, chunks)
-            child = (await database.apply_chunk_corrections(job_id, claim, {str(inputs[0]["id"]): "Corrected"}))[0]
+            child = (await database.apply_chunk_correction(job_id, claim, "Corrected"))[0]
             child_id, child_claim = str(child["id"]), uuid4().hex
             await database.claim_job(child_id, child_claim, "reembed_chunk")
             if superseded:

@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, field_validator
 
 from app.domain.document import Cohort, ProgramScope
 from app.api.v1.schemas.jobs import JobStatusResponse
@@ -42,6 +42,26 @@ class SourceSummary(BaseModel):
 
     original_filename: str
     mime_type: str
+
+
+class IndexedDocumentSummary(BaseModel):
+    document_id: str
+    title: str | None = None
+    original_filename: str
+    document_type: str | None = None
+    document_number: str | None = None
+    language: str | None = None
+    page_count: int | None = None
+    created_at: str
+
+
+class IndexedDocumentListResponse(BaseModel):
+    items: list[IndexedDocumentSummary]
+    total: int
+    page: int
+    page_size: int
+    document_types: list[str]
+    languages: list[str]
 
 
 class DocumentMetadataResponse(BaseModel):
@@ -102,7 +122,6 @@ class ChunkCorrectionRequest(BaseModel):
 
 
 class ChunkCorrectionOperation(BaseModel):
-    input_id: str
     outcome: Literal["pending", "applied", "unchanged", "failed"]
     job: JobStatusResponse
     children: list[JobStatusResponse]
@@ -131,3 +150,44 @@ class IndexedPageResponse(BaseModel):
 class IndexedChunksResponse(BaseModel):
     document_id: str
     pages: list[IndexedPageResponse]
+
+
+class IndexedMetadataRequest(ReviewMetadataRequest):
+    model_config = ConfigDict(extra="forbid")
+    title: str | None = Field(min_length=1, max_length=500)
+    document_type: str | None = Field(min_length=1, max_length=120)
+    document_number: str | None = Field(max_length=200)
+    description: str | None = Field(max_length=10_000)
+    language: str | None = Field(min_length=2, max_length=12)
+    cohort: Cohort | None
+    program_scope: ProgramScope | None
+
+    @field_validator("title", "document_type", "document_number", "description", "language", mode="before")
+    @classmethod
+    def normalize_optional_text(cls, value):
+        return value.strip() or None if isinstance(value, str) else value
+
+
+class IndexedMetadataUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: str = Field(min_length=1)
+    metadata: IndexedMetadataRequest
+
+
+class IndexedMetadataResponse(BaseModel):
+    document_id: str
+    process_status: str
+    source: SourceSummary
+    page_count: int | None
+    created_at: str
+    updated_at: str
+    version: str
+    metadata: DocumentMetadataResponse
+
+
+class IndexedDocumentResponse(IndexedMetadataResponse):
+    pages: list[IndexedPageResponse]
+
+
+class MetadataOptionsResponse(BaseModel):
+    program_scope_types: list[str]

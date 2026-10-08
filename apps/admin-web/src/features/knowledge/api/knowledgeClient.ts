@@ -1,5 +1,9 @@
 import {
   documentResultSchema,
+  indexedDocumentSchema, indexedMetadataSchema, metadataOptionsSchema, indexedMetadataUpdateSchema,
+  type IndexedDocument, type IndexedMetadata, type DocumentMetadata,
+  indexedDocumentListSchema,
+  type IndexedDocumentList,
   indexedChunksSchema,
   jobAcceptedSchema,
   jobStatusSchema,
@@ -37,6 +41,11 @@ async function responseJson(response: Response): Promise<unknown> {
 }
 
 export const knowledgeClient = {
+  async listIndexedDocuments(params: URLSearchParams, signal?: AbortSignal): Promise<IndexedDocumentList> {
+    const body = await responseJson(await fetch(`/v1/documents?${params.toString()}`, { signal }));
+    return indexedDocumentListSchema.parse(body);
+  },
+
   async uploadPdf(file: File, signal?: AbortSignal): Promise<UploadAccepted> {
     const form = new FormData();
     form.append("file", file);
@@ -54,8 +63,8 @@ export const knowledgeClient = {
     return jobAcceptedSchema.parse(body).job_id;
   },
 
-  async getDocumentResult(documentId: string, signal?: AbortSignal): Promise<DocumentResult> {
-    const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/result`, { signal }));
+  async getDocumentDraft(documentId: string, signal?: AbortSignal): Promise<DocumentResult> {
+    const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/draft`, { signal }));
     return documentResultSchema.parse(body);
   },
 
@@ -67,9 +76,24 @@ export const knowledgeClient = {
     return jobAcceptedSchema.parse(body).job_id;
   },
 
-  async getIndexedChunks(documentId: string): Promise<IndexedChunks> {
-    const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/chunks`));
+  async getIndexedChunks(documentId: string, signal?: AbortSignal): Promise<IndexedChunks> {
+    const body = await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/chunks`, { signal }));
     return indexedChunksSchema.parse(body);
+  },
+
+  async getIndexedDocument(documentId: string, signal?: AbortSignal): Promise<IndexedDocument> {
+    return indexedDocumentSchema.parse(await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}`, { signal })));
+  },
+
+  async getMetadataOptions(signal?: AbortSignal): Promise<string[]> {
+    return metadataOptionsSchema.parse(await responseJson(await fetch("/v1/documents/metadata-options", { signal }))).program_scope_types;
+  },
+
+  async updateMetadata(documentId: string, expectedVersion: string, metadata: DocumentMetadata): Promise<IndexedMetadata> {
+    const request = indexedMetadataUpdateSchema.parse({ expected_version: expectedVersion, metadata });
+    return indexedMetadataSchema.parse(await responseJson(await fetch(`/v1/documents/${encodeURIComponent(documentId)}/metadata`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request),
+    })));
   },
 
   async requestCorrections(documentId: string, chunkId: string): Promise<string> {

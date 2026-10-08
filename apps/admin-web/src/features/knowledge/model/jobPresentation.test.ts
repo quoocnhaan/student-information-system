@@ -9,7 +9,7 @@ const job: JobStatus = {
   status: "running",
   step: "ocr",
   progress: 50,
-  followup_job_ids: [], sequence: 2,
+  followup_job_ids: [], version: 2,
 };
 
 describe("job presentation", () => {

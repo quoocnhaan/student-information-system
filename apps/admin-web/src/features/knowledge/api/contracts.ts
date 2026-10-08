@@ -22,12 +22,11 @@ export const jobStatusSchema = z.object({
   id: recordId,
   type: z.string().optional(),
   document_id: recordId,
-  next_job_id: recordId.nullable().optional(),
   followup_job_ids: z.array(recordId),
   status: z.string(),
   step: z.string(),
   progress: z.number().int().min(0).max(100),
-  sequence: z.number().int().positive(),
+  version: z.number().int().positive(),
   updated_at: z.string().nullable().optional(),
   error: z.string().nullable().optional(),
   retry_available: z.boolean().optional(),
@@ -83,7 +82,7 @@ export const indexedChunksSchema = z.object({
       active_job_id: recordId.nullable().optional(),
       last_embedding_job_id: recordId.nullable().optional(),
       correction: z.object({
-        input_id: recordId, outcome: z.enum(["pending", "applied", "unchanged", "failed"]),
+        outcome: z.enum(["pending", "applied", "unchanged", "failed"]),
         job: jobStatusSchema, children: z.array(jobStatusSchema), chunk_child_ids: z.array(recordId),
       }).nullable(),
     })),
@@ -106,3 +105,43 @@ export class KnowledgeError extends Error {
     this.name = "KnowledgeError";
   }
 }
+
+export const indexedDocumentListSchema = z.object({
+  items: z.array(z.object({
+    document_id: recordId,
+    title: z.string().nullable().optional(),
+    original_filename: z.string(),
+    document_type: z.string().nullable().optional(),
+    document_number: z.string().nullable().optional(),
+    language: z.string().nullable().optional(),
+    page_count: z.number().int().nullable().optional(),
+    created_at: z.string(),
+  })),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  page_size: z.number().int().positive(),
+  document_types: z.array(z.string()),
+  languages: z.array(z.string()),
+});
+export type IndexedDocumentList = z.infer<typeof indexedDocumentListSchema>;
+
+export const indexedMetadataSchema = z.object({
+  document_id: recordId, process_status: z.string(),
+  source: z.object({ original_filename: z.string(), mime_type: z.string() }),
+  page_count: z.number().int().positive().nullable(), created_at: z.string(), updated_at: z.string(),
+  version: z.string().min(1), metadata: documentMetadataSchema,
+});
+export const indexedDocumentSchema = indexedMetadataSchema.extend({ pages: indexedChunksSchema.shape.pages });
+export const metadataOptionsSchema = z.object({ program_scope_types: z.array(z.string().min(1)) });
+const indexedMetadataInputSchema = z.object({
+  title: z.string().min(1).max(500).nullable(), document_type: z.string().min(1).max(120).nullable(),
+  document_number: z.string().max(200).nullable(), description: z.string().max(10000).nullable(),
+  language: z.string().min(2).max(12).nullable(),
+  cohort: z.object({ from_year: z.number().int().min(1900).max(9999), to_year: z.number().int().min(1900).max(9999).nullable().optional() }).strict()
+    .refine((cohort) => cohort.to_year == null || cohort.to_year >= cohort.from_year).nullable(),
+  program_scope: z.object({ type: z.string().min(1), programs: z.array(z.string().min(1)) }).strict()
+    .refine((scope) => scope.type === "specific_programs" ? scope.programs.length > 0 : scope.programs.length === 0).nullable(),
+}).strict();
+export const indexedMetadataUpdateSchema = z.object({ expected_version: z.string().min(1), metadata: indexedMetadataInputSchema }).strict();
+export type IndexedMetadata = z.infer<typeof indexedMetadataSchema>;
+export type IndexedDocument = z.infer<typeof indexedDocumentSchema>;

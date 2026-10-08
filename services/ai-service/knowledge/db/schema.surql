@@ -51,16 +51,19 @@ DEFINE INDEX IF NOT EXISTS index_input_document ON TABLE index_input FIELDS docu
 DEFINE TABLE IF NOT EXISTS job SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS type ON TABLE job TYPE string ASSERT $value INSIDE ['ocr_pdf', 'index_document', 'correct_chunks', 'reembed_chunk'];
 DEFINE FIELD IF NOT EXISTS payload ON TABLE job TYPE object FLEXIBLE READONLY;
+DEFINE FIELD IF NOT EXISTS result ON TABLE job TYPE option<object>
+  ASSERT $value IS NONE OR type = 'correct_chunks';
+DEFINE FIELD IF NOT EXISTS result.outcome ON TABLE job TYPE option<string>
+  ASSERT $parent.result IS NONE OR $value INSIDE ['applied', 'unchanged', 'failed'];
+DEFINE FIELD IF NOT EXISTS result.proposed_text ON TABLE job TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS dedupe_key ON TABLE job TYPE string;
 DEFINE FIELD IF NOT EXISTS document_id ON TABLE job TYPE record<document>;
 DEFINE FIELD IF NOT EXISTS status ON TABLE job TYPE string ASSERT $value INSIDE ['queued', 'running', 'completed', 'failed'];
 DEFINE FIELD IF NOT EXISTS step ON TABLE job TYPE string;
 DEFINE FIELD IF NOT EXISTS progress ON TABLE job TYPE int ASSERT $value >= 0 AND $value <= 100;
-DEFINE FIELD IF NOT EXISTS sequence ON TABLE job TYPE int DEFAULT 1;
-DEFINE FIELD IF NOT EXISTS claim_id ON TABLE job TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS next_job_id ON TABLE job TYPE option<record<job>>;
+DEFINE FIELD IF NOT EXISTS version ON TABLE job TYPE int DEFAULT 1;
+DEFINE FIELD IF NOT EXISTS attempt_id ON TABLE job TYPE option<string>;
 -- A single-chunk correction creates zero or one re-embedding child.
--- next_job_id is a generic optional orchestration link.
 DEFINE FIELD IF NOT EXISTS followup_job_ids ON TABLE job TYPE array<record<job>> DEFAULT [];
 -- The embedding input is captured on the child job so an old embedding can
 -- never overwrite a newer correction.
@@ -101,24 +104,8 @@ DEFINE INDEX IF NOT EXISTS chunk_document_position ON TABLE chunk FIELDS documen
 DEFINE INDEX IF NOT EXISTS chunk_embedding_hnsw ON TABLE chunk FIELDS embedding
   HNSW DIMENSION 768 DIST COSINE TYPE F32;
 
-DEFINE TABLE IF NOT EXISTS chunk_correction_input SCHEMAFULL;
-DEFINE FIELD IF NOT EXISTS document_id ON TABLE chunk_correction_input TYPE record<document>;
-DEFINE FIELD IF NOT EXISTS chunk_id ON TABLE chunk_correction_input TYPE record<chunk>;
-DEFINE FIELD IF NOT EXISTS job_id ON TABLE chunk_correction_input TYPE record<job>;
-DEFINE FIELD IF NOT EXISTS base_text ON TABLE chunk_correction_input TYPE string;
-DEFINE FIELD IF NOT EXISTS proposed_text ON TABLE chunk_correction_input TYPE option<string>;
-DEFINE FIELD IF NOT EXISTS status ON TABLE chunk_correction_input TYPE string
-  ASSERT $value INSIDE ['pending', 'applied', 'unchanged', 'failed'];
-DEFINE FIELD IF NOT EXISTS created_at ON TABLE chunk_correction_input TYPE datetime DEFAULT time::now() READONLY;
-DEFINE INDEX IF NOT EXISTS correction_input_job ON TABLE chunk_correction_input FIELDS job_id UNIQUE;
-DEFINE INDEX IF NOT EXISTS correction_input_chunk_created ON TABLE chunk_correction_input FIELDS chunk_id, created_at;
-
 DEFINE FIELD IF NOT EXISTS worker_id ON TABLE job TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS worker_run_id ON TABLE job TYPE option<string>;
 DEFINE INDEX IF NOT EXISTS job_worker_ownership ON TABLE job FIELDS worker_id, status, worker_run_id;
 
 DEFINE FIELD IF NOT EXISTS embedding_version ON TABLE chunk TYPE int DEFAULT 1;
-DEFINE FIELD IF NOT EXISTS embedding_text ON TABLE chunk_correction_input TYPE string;
-DEFINE FIELD IF NOT EXISTS embedding_version ON TABLE chunk_correction_input TYPE int;
-DEFINE FIELD IF NOT EXISTS embedding_status ON TABLE chunk_correction_input TYPE string ASSERT $value INSIDE ['ok', 'stale'];
-DEFINE FIELD IF NOT EXISTS hierarchy ON TABLE chunk_correction_input TYPE object FLEXIBLE;

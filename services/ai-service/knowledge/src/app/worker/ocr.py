@@ -44,7 +44,7 @@ class OcrPdfHandler:
         self.database = database
         self.objects = objects
 
-    async def process(self, job_id: str, claim_id: str, claimed: dict):
+    async def process(self, job_id: str, attempt_id: str, claimed: dict):
         document_id = str(claimed["document_id"])
         record_id = document_id.split(":", 1)[1]
         document = await self.database.get_document(record_id)
@@ -60,7 +60,7 @@ class OcrPdfHandler:
         count = await to_thread.run_sync(lambda: _page_count(data))
         if count < 1 or count > self.settings.ocr_max_pages:
             raise ValueError(f"PDF page count is outside 1..{self.settings.ocr_max_pages}")
-        await self.database.job_progress(job_id, claim_id, {
+        await self.database.job_progress(job_id, attempt_id, {
             "step": "ocr", "progress": 10,
         })
         pages: list[OcrPage] = []
@@ -69,10 +69,10 @@ class OcrPdfHandler:
                 image = await to_thread.run_sync(lambda index=index: _render(data, index))
                 text = await self._extract_page(client, image)
                 pages.append(OcrPage(page=index + 1, raw_text=text))
-                await self.database.job_progress(job_id, claim_id, {
+                await self.database.job_progress(job_id, attempt_id, {
                     "step": "ocr", "progress": 10 + round(((index + 1) / count) * 75),
                 })
-        await self.database.job_progress(job_id, claim_id, {
+        await self.database.job_progress(job_id, attempt_id, {
             "step": "saving_draft", "progress": 92,
         })
         metadata = (
@@ -81,7 +81,7 @@ class OcrPdfHandler:
         draft_id = f"ocr_{job_id.split(':', 1)[1]}"
         await self.database.apply_ocr_result(
             record_id, draft_id, [page.model_dump() for page in pages], metadata,
-            job_id, claim_id,
+            job_id, attempt_id,
         )
         return None
 
