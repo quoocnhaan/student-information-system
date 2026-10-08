@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-@Profile("dev")
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor

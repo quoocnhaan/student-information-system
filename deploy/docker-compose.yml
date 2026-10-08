@@ -58,6 +58,30 @@ services:
       # Retain the upstream volume name to preserve existing Enrollment data.
       - mysql-data:/var/lib/mysql
 
+  eureka-service:
+    build:
+      context: ./services/eureka-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      EUREKA_SERVER_URL: http://eureka-service:8761/eureka/
+    depends_on:
+      eureka-service:
+        condition: service_started
+
   academic-service:
     build:
       context: ../services/academic-service
@@ -66,11 +90,12 @@ services:
     environment:
       <<: *spring-environment
       SPRING_DATASOURCE_URL: jdbc:mysql://academic-db:3306/academic_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    ports:
-      - "8003:8003"
+      EUREKA_SERVER_URL: http://eureka-service:8761/eureka/
     depends_on:
       academic-db:
         condition: service_healthy
+      eureka-service:
+        condition: service_started
 
   activity-service:
     build:
@@ -80,11 +105,12 @@ services:
     environment:
       <<: *spring-environment
       SPRING_DATASOURCE_URL: jdbc:mysql://activity-db:3306/activity_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    ports:
-      - "8004:8004"
+      EUREKA_SERVER_URL: http://eureka-service:8761/eureka/
     depends_on:
       activity-db:
         condition: service_healthy
+      eureka-service:
+        condition: service_started
 
   student-web:
     build:
