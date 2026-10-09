@@ -1,4 +1,4 @@
-import styles from './GradeHistogram.module.css';
+import styles from './quizResults.module.css';
 import { histogram } from './mockData';
 import type { HistogramBucket } from './types';
 
@@ -18,7 +18,7 @@ export default function GradeHistogram() {
   const maxCount = Math.max(...histogram.map((b) => b.count));
 
   return (
-    <div className={styles.card}>
+    <div className={styles.histogramCard}>
       <div className={styles.header}>
         <span className={styles.headerTitle}>Phân Bố Điểm (Grade Distribution Histogram)</span>
       </div>

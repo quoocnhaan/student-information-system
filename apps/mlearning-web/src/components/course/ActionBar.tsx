@@ -1,22 +1,27 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import styles from "./ActionBar.module.css";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Library } from "lucide-react";
 import ActivityForm from "./Activityform";
+import { QuestionBank } from "./Questionbank";
 import type { ActivityCardProps } from "./ActivityCard";
 import type { Activity } from "./Activitytypes";
 import { toActivity } from "./convertActivity";
 
 export interface ActionBarProps {
   onEditHeader: () => void;
-  /** Gọi khi tạo xong một hoạt động mới (tài liệu / bài tập / quiz) */
   onAddActivity: (activity: Activity) => void;
 }
 
-const ActionBar: React.FC<ActionBarProps> = ({ onEditHeader, onAddActivity }) => {
+const ActionBar: React.FC<ActionBarProps> = ({
+  onEditHeader,
+  onAddActivity,
+}) => {
   const [isAddingActivity, setIsAddingActivity] = useState(false);
+  const [isQuestionBankOpen, setIsQuestionBankOpen] = useState(false);
 
-  const handleAdd = (values: ActivityCardProps) => {
-    onAddActivity(toActivity(values)); // chuyển sang kiểu Activity trước khi gửi lên cha
+  const handleAddActivity = (activity: ActivityCardProps) => {
+    onAddActivity(toActivity(activity));
     setIsAddingActivity(false);
   };
 
@@ -25,23 +30,76 @@ const ActionBar: React.FC<ActionBarProps> = ({ onEditHeader, onAddActivity }) =>
       <div className={styles.bannerActions}>
         <button
           type="button"
-          className={`${styles.btn} ${styles.btnSecondary}`}
+          className={styles.btn}
           onClick={onEditHeader}
         >
-          <Pencil size={16} /> Sửa Module
+          <Pencil size={16} />
+          Sửa Module
         </button>
+
         <button
           type="button"
-          className={`${styles.btn} ${styles.btnPrimary}`}
+          className={styles.btn}
+          onClick={() => setIsQuestionBankOpen(true)}
+        >
+          <Library size={16} />
+          Ngân hàng câu hỏi
+        </button>
+
+        <button
+          type="button"
+          className={styles.btn}
           onClick={() => setIsAddingActivity(true)}
         >
-          <Plus size={16} /> Thêm vào Module
+          <Plus size={16} />
+          Thêm vào Module
         </button>
       </div>
 
-      {isAddingActivity && (
-        <ActivityForm onSubmit={handleAdd} onClose={() => setIsAddingActivity(false)} />
-      )}
+      {/* =========================
+          FORM THÊM HOẠT ĐỘNG
+          ========================= */}
+      {isAddingActivity &&
+        createPortal(
+          <div
+            className={styles.activityFormOverlay}
+            onClick={() => setIsAddingActivity(false)}
+          >
+            <div
+              className={styles.activityFormModal}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ActivityForm
+                onClose={() => setIsAddingActivity(false)}
+                onSubmit={handleAddActivity}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* =========================
+          QUESTION BANK
+          ========================= */}
+      {isQuestionBankOpen &&
+        createPortal(
+          <div
+            className={styles.questionBankOverlay}
+            onClick={() => setIsQuestionBankOpen(false)}
+          >
+            <div
+              className={styles.questionBankModal}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={styles.questionBankContent}>
+                <QuestionBank
+                  onClose={() => setIsQuestionBankOpen(false)}
+                />
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 };

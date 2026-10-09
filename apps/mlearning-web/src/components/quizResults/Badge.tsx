@@ -1,4 +1,4 @@
-import styles from './Badge.module.css';
+import styles from './quizResults.module.css';
 import type { BadgeTone } from './types';
 
 interface Props {

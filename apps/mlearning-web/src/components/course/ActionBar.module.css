@@ -1,53 +1,198 @@
 .bannerActions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
   flex-shrink: 0;
 }
 
-/* ===== Đồng bộ với .btnPrimary/.btnSecondary của Activityitem.module.css ===== */
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+
+  min-height: 38px;
   padding: 8px 16px;
+
+  border: 1px solid var(--outline-variant, #c3c6d7);
   border-radius: var(--radius-lg, 10px);
+
+  background: var(--surface, #ffffff);
+  color: var(--on-surface, #1d1b20);
+
   font-size: 14px;
   font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
+
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease, color 0.2s ease;
+
+  transition:
+    background-color 0.2s ease,
+    transform 0.1s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
 }
 
-.btn:focus-visible {
-  outline: 2px solid var(--primary, #2563eb);
-  outline-offset: 2px;
+.btn:hover {
+  background: #f5f5f7;
+  border-color: #aeb2c2;
 }
 
 .btn:active {
-  transform: scale(0.96);
+  transform: translateY(1px);
 }
 
-.btnPrimary {
-  background-color: var(--primary, #2563eb);
-  color: var(--on-primary, #fff);
-  border: 1px solid transparent;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+.btn svg {
+  flex-shrink: 0;
 }
 
-.btnPrimary:hover {
-  background-color: var(--on-primary-fixed-variant, #1d4ed8);
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.28);
+/* =========================
+   QUESTION BANK MODAL
+   ========================= */
+
+.questionBankOverlay {
+  position: fixed;
+  inset: 0;
+
+  z-index: 99999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100vw;
+  height: 100vh;
+
+  padding: 24px;
+  box-sizing: border-box;
+
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(2px);
+
+  animation: overlayShow 0.2s ease-out;
 }
 
-.btnSecondary {
-  background-color: var(--surface-container-lowest, #fff);
-  color: var(--secondary, #515f74);
+.questionBankModal {
+  position: relative;
+
+  width: min(1100px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+
+  overflow: hidden;
+  box-sizing: border-box;
+
+  background: #ffffff;
   border: 1px solid var(--outline-variant, #c3c6d7);
-  font-weight: 500;
+  border-radius: 16px;
+
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.24),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+
+  animation: modalShow 0.2s ease-out;
 }
 
-.btnSecondary:hover {
-  color: var(--on-surface, #131b2e);
-  background-color: var(--surface-container-low, #f2f3f9);
+.questionBankContent {
+  width: 100%;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* =========================
+   ACTIVITY FORM MODAL
+   ========================= */
+
+.activityFormOverlay {
+  position: fixed;
+  inset: 0;
+
+  z-index: 99998;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100vw;
+  height: 100vh;
+
+  padding: 24px;
+  box-sizing: border-box;
+
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.activityFormModal {
+  width: min(900px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+
+  overflow-y: auto;
+  box-sizing: border-box;
+
+  background: #ffffff;
+  border-radius: 16px;
+
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.24),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* =========================
+   ANIMATION
+   ========================= */
+
+@keyframes overlayShow {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalShow {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* =========================
+   RESPONSIVE
+   ========================= */
+
+@media (max-width: 768px) {
+  .bannerActions {
+    width: 100%;
+  }
+
+  .btn {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .questionBankOverlay,
+  .activityFormOverlay {
+    padding: 12px;
+  }
+
+  .questionBankModal,
+  .activityFormModal {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    border-radius: 12px;
+  }
+
+  .questionBankContent {
+    max-height: calc(100vh - 24px);
+  }
 }

@@ -504,3 +504,40 @@
   border: 1px dashed var(--outline-variant);
   border-radius: var(--radius-xl);
 }
+
+/* ===== QUESTION BANK MODAL ===== */
+
+.questionBankOverlay {
+  position: fixed !important;
+  inset: 0 !important;
+
+  width: 100vw !important;
+  height: 100vh !important;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+  box-sizing: border-box;
+
+  background: rgba(0, 0, 0, 0.45);
+
+  z-index: 99999;
+}
+
+.questionBankModal {
+  width: min(1000px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+
+  overflow-y: auto;
+
+  background: #ffffff;
+  border-radius: 16px;
+
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+
+  box-sizing: border-box;
+}

@@ -4,7 +4,7 @@ import { Dashboard } from './pages/Dashboard'
 import { AcademicCalendarPage } from './pages/AcademicCalendarPage'
 import { CourseCatalog } from './pages/CourseCatalog'
 import { QuizTakingPage } from './pages/QuizTakingPage'
-import { QuizResultsPage } from './pages/QuizResultsPage'
+import { QuizResultsPage } from './pages/QuizResults'
 import CoursePage from './pages/CoursePage'
 import { Login } from './pages/Login'
 

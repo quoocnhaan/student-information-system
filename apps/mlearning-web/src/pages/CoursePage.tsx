@@ -7,8 +7,6 @@ import ActivityList from "../components/course/ActivityList";
 import ActivityItem from "../components/course/Activityitem";
 import ActivityForm from "../components/course/Activityform";
 import ModuleHeaderForm, { type ModuleHeaderValues } from "../components/course/Moduleheaderform";
-import QuestionBankModal from "../components/course/Questionbankmodal";
-import type { QuestionFormValues, QuestionItem } from "../components/course/Questionform";
 import type { Activity } from "../components/course/Activitytypes";
 import type { ActivityCardProps } from "../components/course/ActivityCard";
 import { toActivity } from "../components/course/convertActivity";
@@ -25,8 +23,6 @@ const initialHeader: ModuleHeaderValues = {
   moduleTitle: "Module 4: Thuật toán Đồng thuận Raft & Distributed State",
 };
 
-let questionIdCounter = 0;
-const makeQuestionId = () => `q-${Date.now()}-${questionIdCounter++}`;
 
 /**
  * CoursePage - route /course/:id, dùng chung cho student và teacher.
@@ -44,9 +40,6 @@ const CoursePage: React.FC = () => {
   const [header, setHeader] = useState<ModuleHeaderValues>(initialHeader);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
-  const [questionBankByQuiz, setQuestionBankByQuiz] =
-    useState<Record<string, QuestionItem[]>>({});
-  const [activeQuizTitle, setActiveQuizTitle] = useState<string | null>(null);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
 
   /** Chuyển Activity → giá trị khởi tạo cho ActivityForm */
@@ -68,7 +61,16 @@ const CoursePage: React.FC = () => {
       };
     }
     if (a.type === "quiz") {
-      return { type: "quiz" as const, title: a.title, description: a.description ?? "" };
+      return {
+        type: "quiz" as const,
+        title: a.title,
+        description: a.description ?? "",
+        openAt: toLocalInput(a.opensAt),
+        closeAt: toLocalInput(a.closesAt),
+        timeLimitMins: a.timeLimitMins,
+        maxScore: 10,
+        questions: [],
+      };
     }
     return {
       type: "document" as const,
@@ -118,13 +120,6 @@ const CoursePage: React.FC = () => {
     setIsEditingHeader(false);
   };
 
-  const handleAddQuestion =
-    (quizTitle: string) => (values: QuestionFormValues) => {
-      setQuestionBankByQuiz((prev) => {
-        const current = prev[quizTitle] ?? [];
-        return { ...prev, [quizTitle]: [...current, { id: makeQuestionId(), ...values }] };
-      });
-    };
 
   return (
     <div className={styles.container}>
@@ -225,15 +220,6 @@ const CoursePage: React.FC = () => {
                 initialValues={activityToInitialValues(editingActivity)}
                 onSubmit={handleEditSubmit}
                 onClose={() => setEditingActivity(null)}
-              />
-            )}
-
-            {isTeacher && activeQuizTitle && (
-              <QuestionBankModal
-                quizTitle={activeQuizTitle}
-                questions={questionBankByQuiz[activeQuizTitle] ?? []}
-                onAddQuestion={handleAddQuestion(activeQuizTitle)}
-                onClose={() => setActiveQuizTitle(null)}
               />
             )}
           </section>

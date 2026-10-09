@@ -1,153 +1,177 @@
-.overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(17, 24, 39, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    z-index: 1000;
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 18px 18px;
 }
 
-.modal {
-    width: 100%;
-    max-width: 520px;
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
-    max-height: 90vh;
-    overflow-y: auto;
+
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
-.header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 18px;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-.title {
-    font-size: 15px;
-    font-weight: 700;
-    color: #111827;
-    margin: 0;
-}
-
-.closeBtn {
-    background: transparent;
-    border: none;
-    font-size: 14px;
-    color: #6b7280;
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 6px;
-}
-
-.closeBtn:hover {
-    background: #f3f4f6;
-}
-
-.form {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 18px;
-}
-
-.field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex: 1;
-    min-width: 140px;
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
 }
 
 .label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary, #333);
 }
 
-.input,
+.required {
+  color: var(--danger, #dc2626);
+}
+
+.input, .textarea {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.input:focus, .textarea:focus {
+  outline: none;
+  border-color: var(--primary-color, #3b82f6);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
 .textarea {
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 13px;
-    color: #111827;
-    outline: none;
-    background: #fff;
-    font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
 }
 
-.textarea {
-    resize: vertical;
+.questionsSection {
+  margin-top: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
 }
 
-.input:focus,
-.textarea:focus {
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+.questionsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
-.row {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+.questionsTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+  text-transform: uppercase;
+  color: var(--text-secondary, #4b5563);
 }
 
-.checkboxGroup {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 10px 12px;
+.questionList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.checkboxRow {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: #374151;
-    cursor: pointer;
+.questionItem {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-surface-hover, #f9fafb);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 6px;
 }
 
-.checkboxRow input {
-    width: 15px;
-    height: 15px;
-    cursor: pointer;
-    accent-color: #4f46e5;
+.questionIndex {
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  min-width: 1.5rem;
 }
 
-.actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 4px;
+.questionContent {
+  flex: 1;
+  font-size: 0.875rem;
 }
 
-.cancelBtn {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    color: #374151;
-    border-radius: 8px;
-    padding: 9px 14px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
+.questionPoints {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #4b5563);
+  white-space: nowrap;
 }
 
-.saveBtn {
-    background: #4f46e5;
-    border: none;
-    color: #fff;
-    border-radius: 8px;
-    padding: 9px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
+.questionActions {
+  display: flex;
+  align-items: center;
+}
+
+.actionButton {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+}
+
+.actionButton:hover {
+  color: var(--text-primary, #111827);
+  background-color: #e5e7eb;
+}
+
+.totalScore {
+  margin-top: 1rem;
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: right;
+  padding-right: 2.5rem;
+}
+
+.emptyQuestions {
+  text-align: center;
+  padding: 2rem;
+  background-color: var(--bg-surface-hover, #f9fafb);
+  border: 1px dashed var(--border-color, #d1d5db);
+  border-radius: 6px;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.875rem;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+/* Modal for Question Bank integration */
+.bankOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  padding: 2rem;
+}
+
+.bankModal {
+  background: white;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
 }

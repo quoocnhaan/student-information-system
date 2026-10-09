@@ -1,4 +1,4 @@
-import styles from './Breadcrumb.module.css';
+import styles from './quizResults.module.css';
 
 const crumbs = [
   'Trang chủ',
@@ -11,7 +11,7 @@ const crumbs = [
 /** Breadcrumb trail shown above the page title. */
 export default function Breadcrumb() {
   return (
-    <nav className={styles.wrap}>
+    <nav className={styles.breadcrumbWrap}>
       {crumbs.map((crumb, i) => (
         <span key={crumb} className={styles.item}>
           <span className={i === crumbs.length - 1 ? styles.current : styles.link}>

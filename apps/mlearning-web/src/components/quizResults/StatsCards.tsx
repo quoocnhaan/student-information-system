@@ -1,11 +1,11 @@
-import styles from './StatsCards.module.css';
+import styles from './quizResults.module.css';
 import { stats } from './mockData';
 
 /** Row of 4 summary stat cards: submission rate, average score, average time, hardest question. */
 export default function StatsCards() {
   return (
     <div className={styles.grid}>
-      <div className={styles.card}>
+      <div className={styles.statsCard}>
         <div className={styles.cardHead}>
           <span className={styles.cardLabel}>Tỷ lệ đã nộp bài</span>
         </div>
@@ -20,7 +20,7 @@ export default function StatsCards() {
         </p>
       </div>
 
-      <div className={styles.card}>
+      <div className={styles.statsCard}>
         <div className={styles.cardHead}>
           <span className={styles.cardLabel}>Điểm Trung Bình (TB)</span>
         </div>

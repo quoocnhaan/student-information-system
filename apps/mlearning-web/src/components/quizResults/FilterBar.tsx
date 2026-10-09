@@ -1,34 +1,69 @@
-import { useState } from 'react';
-import styles from './FilterBar.module.css';
-import { BiSearch } from "react-icons/bi";
-const groupTabs = ['Tất cả nhóm (128)', 'Đã nộp bài (118)', 'Đang chấm bài (10)'];
+import styles from './quizResults.module.css';
+import { BiSearch } from 'react-icons/bi';
 
-/** Search input, group filter tabs, sort control and a small warning banner. */
-export default function FilterBar() {
-  const [activeTab, setActiveTab] = useState(0);
+export type StatusFilter = 'all' | 'submitted' | 'pending';
+export type SortOrder = 'asc' | 'desc';
 
+const tabs: { key: StatusFilter; label: string }[] = [
+  { key: 'all', label: 'Tất cả nhóm' },
+  { key: 'submitted', label: 'Đã nộp bài' },
+  { key: 'pending', label: 'Chưa nộp bài' },
+];
+
+interface Props {
+  query: string;
+  onQueryChange: (value: string) => void;
+  status: StatusFilter;
+  onStatusChange: (value: StatusFilter) => void;
+  sortOrder: SortOrder;
+  onSortToggle: () => void;
+  counts: Record<StatusFilter, number>;
+}
+
+/** Ô tìm kiếm, tab lọc theo trạng thái nộp bài và nút sắp xếp theo điểm. */
+export default function FilterBar({
+  query,
+  onQueryChange,
+  status,
+  onStatusChange,
+  sortOrder,
+  onSortToggle,
+  counts,
+}: Props) {
   return (
-    <div className={styles.wrap}>
+    <div className={styles.filterWrap}>
       <div className={styles.searchRow}>
         <div className={styles.searchBox}>
-          <span className={styles.searchIcon}><BiSearch /></span>
+          <span className={styles.searchIcon}>
+            <BiSearch />
+          </span>
           <input
             type="text"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Tìm sinh viên theo Tên hoặc MSSV..."
             className={styles.searchInput}
           />
         </div>
-        <button className={styles.sortBtn}>Sắp xếp: Điểm giảm dần ▾</button>
+        <button
+          type="button"
+          className={styles.sortBtn}
+          onClick={onSortToggle}
+          title="Bấm để đổi chiều sắp xếp"
+        >
+          Sắp xếp: Điểm {sortOrder === 'desc' ? 'giảm dần ▾' : 'tăng dần ▴'}
+        </button>
       </div>
 
       <div className={styles.tabs}>
-        {groupTabs.map((tab, i) => (
+        {tabs.map((tab) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(i)}
-            className={`${styles.tab} ${activeTab === i ? styles.tabActive : ''}`}
+            key={tab.key}
+            type="button"
+            onClick={() => onStatusChange(tab.key)}
+            className={`${styles.tab} ${status === tab.key ? styles.tabActive : ''}`}
           >
-            {tab}
+            {tab.label} ({counts[tab.key]})
           </button>
         ))}
       </div>

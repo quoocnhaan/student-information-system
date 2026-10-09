@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarClock, CalendarDays, CheckCircle2, Clock, Lock, Play, Repeat, Timer, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import styles from './Activityitem.module.css';
@@ -10,9 +11,7 @@ import StatusBanner from './StatusBanner';
 import InfoTile from './InfoTile';
 import QuizStartModal from './QuizStartModal';
 import { useIsTeacher } from '../../hooks/useRole';
-import QuestionBankModal from './Questionbankmodal';
-import type { QuestionItem } from './Questionform';
-
+import ActivityForm from './Activityform';
 interface Props {
     activity: QuizActivity;
     now: number;
@@ -24,8 +23,7 @@ export default function QuizPanel({ activity: initialActivity, now, onStart }: P
     const navigate = useNavigate();
     const [activity, setActivity] = useState(initialActivity);
     const [showConfirm, setShowConfirm] = useState(false);
-    const [showQuestionBank, setShowQuestionBank] = useState(false);
-    const [questions, setQuestions] = useState<QuestionItem[]>([]);
+    const [showQuizForm, setShowQuizForm] = useState(false);
 
     // Chế độ chỉnh sửa cho giáo viên
     const [isEditing, setIsEditing] = useState(false);
@@ -201,14 +199,6 @@ export default function QuizPanel({ activity: initialActivity, now, onStart }: P
                                 >
                                     Xem bảng điểm quiz
                                 </button>
-
-                                <button
-                                    type="button"
-                                    className={`${styles.btnPrimary} ${styles.btnLarge}`}
-                                    onClick={() => setShowQuestionBank(true)}
-                                >
-                                    Thêm câu hỏi / đáp án
-                                </button>
                             </div>
                         </>
                     ) : (
@@ -241,20 +231,28 @@ export default function QuizPanel({ activity: initialActivity, now, onStart }: P
                     }}
                 />
             )}
-
-            {showQuestionBank && (
-                <QuestionBankModal
-                    quizTitle={activity.title}
-                    questions={questions}
-                    onClose={() => setShowQuestionBank(false)}
-                    onAddQuestion={(values) => {
-                        const newQuestion: QuestionItem = {
-                            id: `q-${Date.now()}`,
-                            ...values
-                        };
-                        setQuestions(prev => [...prev, newQuestion]);
+            {showQuizForm && createPortal(
+                <ActivityForm
+                    initialValues={{
+                        type: "quiz",
+                        title: activity.title,
+                        description: activity.description ?? "",
+                        openAt: activity.opensAt
+                            ? activity.opensAt.replace(' ', 'T').substring(0, 16)
+                            : "",
+                        closeAt: activity.closesAt
+                            ? activity.closesAt.replace(' ', 'T').substring(0, 16)
+                            : "",
+                        timeLimitMins: activity.timeLimitMins,
+                        maxScore: 10,
+                        questions: [],
                     }}
-                />
+                    onSubmit={(_values) => {
+                        setShowQuizForm(false);
+                    }}
+                    onClose={() => setShowQuizForm(false)}
+                />,
+                document.body
             )}
         </>
     );

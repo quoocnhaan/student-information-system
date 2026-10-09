@@ -1,5 +1,6 @@
-import styles from './StudentTable.module.css';
-import { students } from './mockData';
+import { BiShow } from 'react-icons/bi';
+import styles from './quizResults.module.css';
+import type { StudentRow } from './quizDetails';
 
 const columns = [
   'Sinh viên / MSSV',
@@ -15,10 +16,15 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** Sortable/filterable results table listing each student's submission and score. */
-export default function StudentTable() {
+interface Props {
+  rows: StudentRow[];
+  onView: (student: StudentRow) => void;
+}
+
+/** Bảng kết quả từng sinh viên; nút "Xem chi tiết" mở bài làm của sinh viên đó. */
+export default function StudentTable({ rows, onView }: Props) {
   return (
-    <div className={styles.card}>
+    <div className={styles.tableCard}>
       <div className={styles.scrollWrap}>
         <table className={styles.table}>
           <thead>
@@ -32,7 +38,15 @@ export default function StudentTable() {
             </tr>
           </thead>
           <tbody>
-            {students.map((s) => (
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={columns.length + 1} className={styles.emptyCell}>
+                  Không tìm thấy sinh viên phù hợp.
+                </td>
+              </tr>
+            )}
+
+            {rows.map((s) => (
               <tr key={s.id}>
                 <td>
                   <input type="checkbox" />
@@ -61,7 +75,15 @@ export default function StudentTable() {
                 </td>
 
                 <td>
-                  <button className={styles.actionBtn}>✎ {s.lecturerAction}</button>
+                  <button
+                    type="button"
+                    className={styles.actionBtn}
+                    disabled={s.autoScore === null}
+                    title={s.autoScore === null ? 'Sinh viên chưa nộp bài' : undefined}
+                    onClick={() => onView(s)}
+                  >
+                    <BiShow /> Xem chi tiết
+                  </button>
                 </td>
               </tr>
             ))}
