@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Button } from '../ui/Button';
 import { Plus, MoreVertical } from 'lucide-react';
 import { QuestionBank, type QuizQuestion } from './Questionbank';
-import styles from './QuizForm.module.css';
+import styles from './Quizform.module.css';
 
 export interface QuizFormValues {
   title: string;
